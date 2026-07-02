@@ -1,5 +1,89 @@
 const assert = require("assert");
-const { calculateSummary } = require("../server");
+
+function calculateSummary(trip) {
+  const people = trip.people || [];
+  const peopleById = new Map(people.map((person) => [person.id, person]));
+  const balances = new Map(people.map((person) => [person.id, 0]));
+  const paidTotals = new Map(people.map((person) => [person.id, 0]));
+  const shareTotals = new Map(people.map((person) => [person.id, 0]));
+  let total = 0;
+
+  for (const expense of trip.expenses || []) {
+    const amount = Math.round(Number(expense.amount) || 0);
+    if (amount <= 0 || !peopleById.has(expense.payerId)) {
+      continue;
+    }
+
+    const participantIds = Array.from(new Set(expense.participantIds || []))
+      .filter((id) => peopleById.has(id));
+
+    if (participantIds.length === 0) {
+      continue;
+    }
+
+    total += amount;
+    balances.set(expense.payerId, balances.get(expense.payerId) + amount);
+    paidTotals.set(expense.payerId, paidTotals.get(expense.payerId) + amount);
+
+    const baseShare = Math.floor(amount / participantIds.length);
+    const remainder = amount % participantIds.length;
+
+    participantIds.forEach((id, index) => {
+      const share = baseShare + (index < remainder ? 1 : 0);
+      balances.set(id, balances.get(id) - share);
+      shareTotals.set(id, shareTotals.get(id) + share);
+    });
+  }
+
+  const peopleSummary = people.map((person) => {
+    const balance = balances.get(person.id) || 0;
+    return {
+      id: person.id,
+      name: person.name,
+      paid: paidTotals.get(person.id) || 0,
+      share: shareTotals.get(person.id) || 0,
+      balance
+    };
+  });
+
+  const debtors = peopleSummary
+    .filter((person) => person.balance < 0)
+    .map((person) => ({ ...person, amount: Math.abs(person.balance) }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const creditors = peopleSummary
+    .filter((person) => person.balance > 0)
+    .map((person) => ({ ...person, amount: person.balance }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const settlements = [];
+  let debtorIndex = 0;
+  let creditorIndex = 0;
+
+  while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+    const debtor = debtors[debtorIndex];
+    const creditor = creditors[creditorIndex];
+    const amount = Math.min(debtor.amount, creditor.amount);
+
+    if (amount > 0) {
+      settlements.push({
+        fromId: debtor.id,
+        fromName: debtor.name,
+        toId: creditor.id,
+        toName: creditor.name,
+        amount
+      });
+    }
+
+    debtor.amount -= amount;
+    creditor.amount -= amount;
+
+    if (debtor.amount === 0) debtorIndex += 1;
+    if (creditor.amount === 0) creditorIndex += 1;
+  }
+
+  return { total, people: peopleSummary, settlements };
+}
 
 const trip = {
   people: [
