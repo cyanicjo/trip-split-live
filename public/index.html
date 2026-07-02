@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>실시간 여행 n빵</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="route-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div>
+            <label class="eyebrow" for="trip-name">공유 링크 정산방</label>
+            <input id="trip-name" class="trip-name" type="text" maxlength="80" value="새 여행 정산" aria-label="여행 이름">
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div id="live-status" class="live-status is-connecting">
+            <span class="status-dot"></span>
+            연결 중
+          </div>
+          <button id="copy-link" class="icon-button labeled" type="button" title="공유 링크 복사">
+            <span aria-hidden="true">↗</span>
+            <span>링크 복사</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="summary-band" aria-label="여행 정산 요약">
+          <div class="summary-copy">
+            <p class="eyebrow">현재 n빵 현황</p>
+            <h1 id="summary-title">친구를 추가하면 정산이 시작됩니다</h1>
+            <p id="summary-caption">한 링크에서 모두가 같은 지출 목록과 송금표를 실시간으로 봅니다.</p>
+          </div>
+          <img class="travel-visual" src="/travel-route.svg" alt="" aria-hidden="true">
+          <div class="summary-metrics" aria-label="정산 지표">
+            <div class="metric">
+              <span>총 지출</span>
+              <strong id="total-spent">0원</strong>
+            </div>
+            <div class="metric">
+              <span>참여자</span>
+              <strong id="people-count">0명</strong>
+            </div>
+            <div class="metric">
+              <span>지출 항목</span>
+              <strong id="expense-count">0개</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel people-panel" aria-labelledby="people-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Step 1</p>
+              <h2 id="people-heading">친구</h2>
+            </div>
+          </div>
+          <form id="person-form" class="inline-form">
+            <input id="person-name" type="text" maxlength="40" placeholder="이름 추가" autocomplete="off" aria-label="이름 추가">
+            <button class="icon-button" type="submit" title="친구 추가" aria-label="친구 추가">+</button>
+          </form>
+          <div id="people-list" class="people-list empty-state">아직 추가된 친구가 없습니다.</div>
+        </section>
+
+        <section class="panel expense-panel" aria-labelledby="expense-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Step 2</p>
+              <h2 id="expense-heading">지출 입력</h2>
+            </div>
+          </div>
+          <form id="expense-form" class="expense-form">
+            <div class="form-grid">
+              <label>
+                <span>내용</span>
+                <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
+              </label>
+              <label>
+                <span>금액</span>
+                <input id="expense-amount" type="text" inputmode="numeric" placeholder="예: 120000" autocomplete="off">
+              </label>
+              <label>
+                <span>결제자</span>
+                <select id="expense-payer"></select>
+              </label>
+              <label>
+                <span>날짜</span>
+                <input id="expense-date" type="date">
+              </label>
+            </div>
+
+            <div class="participant-row">
+              <div class="field-label">n빵 참여자</div>
+              <div class="participant-tools">
+                <button id="select-all" type="button" class="text-button">전체</button>
+                <button id="clear-all" type="button" class="text-button">해제</button>
+              </div>
+            </div>
+            <div id="participant-list" class="participant-list empty-state">친구를 먼저 추가해 주세요.</div>
+
+            <label class="memo-field">
+              <span>메모</span>
+              <input id="expense-memo" type="text" maxlength="140" placeholder="선택 사항" autocomplete="off">
+            </label>
+
+            <button id="add-expense" class="primary-button" type="submit">지출 저장</button>
+          </form>
+        </section>
+
+        <section class="panel balance-panel" aria-labelledby="balance-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Step 3</p>
+              <h2 id="balance-heading">개인별 차액</h2>
+            </div>
+          </div>
+          <div id="balance-list" class="balance-list empty-state">지출을 입력하면 받을 돈과 보낼 돈이 표시됩니다.</div>
+        </section>
+
+        <section class="panel settlement-panel" aria-labelledby="settlement-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Final</p>
+              <h2 id="settlement-heading">송금표</h2>
+            </div>
+          </div>
+          <div id="settlement-list" class="settlement-list empty-state">아직 정산할 송금이 없습니다.</div>
+        </section>
+
+        <section class="panel expense-list-panel" aria-labelledby="expense-list-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">History</p>
+              <h2 id="expense-list-heading">지출 목록</h2>
+            </div>
+          </div>
+          <div id="expense-list" class="expense-list empty-state">저장된 지출이 없습니다.</div>
+        </section>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 180" role="img" aria-label="">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#e4f0fb"/>
+      <stop offset="1" stop-color="#dff5ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="420" height="180" rx="24" fill="url(#sky)"/>
+  <path d="M36 122 C92 42 130 146 190 82 S304 38 378 112" fill="none" stroke="#1d2428" stroke-width="6" stroke-dasharray="12 16" stroke-linecap="round" opacity=".42"/>
+  <circle cx="52" cy="116" r="21" fill="#1f9d79"/>
+  <circle cx="52" cy="116" r="9" fill="#fff"/>
+  <circle cx="196" cy="82" r="21" fill="#e56b57"/>
+  <circle cx="196" cy="82" r="9" fill="#fff"/>
+  <circle cx="360" cy="105" r="21" fill="#3478b8"/>
+  <circle cx="360" cy="105" r="9" fill="#fff"/>
+  <path d="M86 53 h66 a12 12 0 0 1 12 12 v30 h-90 v-30 a12 12 0 0 1 12-12Z" fill="#fff" opacity=".86"/>
+  <path d="M92 64 h54 M92 78 h42 M92 92 h60" stroke="#66747b" stroke-width="6" stroke-linecap="round" opacity=".56"/>
+  <path d="M253 104 h74 a13 13 0 0 1 13 13 v10 a13 13 0 0 1-13 13 h-74 a13 13 0 0 1-13-13 v-10 a13 13 0 0 1 13-13Z" fill="#fff" opacity=".9"/>
+  <path d="M260 122 h72" stroke="#b78118" stroke-width="8" stroke-linecap="round" opacity=".7"/>
+</svg>

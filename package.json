@@ -1,0 +1,13 @@
+{
+  "name": "trip-split-live",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Link-based realtime trip expense splitter.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/settlement.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
