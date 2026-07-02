@@ -16,6 +16,23 @@ git push -u origin main
 
 `YOUR_ID`는 본인의 GitHub 아이디로 바꿔 주세요.
 
+이미 `remote origin already exists`가 나오면 `remote add` 대신 아래 명령을 사용합니다.
+
+```bash
+git remote set-url origin https://github.com/YOUR_ID/trip-split-live.git
+git push -u origin main
+```
+
+GitHub가 비밀번호를 물어볼 때는 GitHub 계정 비밀번호를 넣으면 안 됩니다.
+GitHub는 터미널 push에서 계정 비밀번호 로그인을 지원하지 않습니다.
+
+가장 쉬운 방법은 둘 중 하나입니다.
+
+- GitHub Desktop으로 이 폴더를 열고 `Publish repository`를 누르기
+- GitHub Personal Access Token을 만든 뒤, 터미널의 `Password` 자리에 토큰 붙여넣기
+
+토큰으로 진행할 때 필요한 권한은 repository의 `Contents: Read and write`입니다.
+
 ## 2. Railway에서 배포하기
 
 1. Railway에 로그인합니다.
