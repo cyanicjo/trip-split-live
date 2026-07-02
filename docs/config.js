@@ -1,4 +1,4 @@
 window.TRIP_SPLIT_CONFIG = {
-  supabaseUrl: "https://YOUR_PROJECT_REF.supabase.co",
-  supabaseAnonKey: "YOUR_SUPABASE_ANON_KEY"
+  supabaseUrl: "https://edyaihnztjshxsfissck.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkeWFpaG56dGpzaHhzZmlzc2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDgwMDcsImV4cCI6MjA5ODU4NDAwN30.Ym12AqohaSlPbFFxdm9-UBNUdiNFqMX3CWZc5RZDRxE"
 };
