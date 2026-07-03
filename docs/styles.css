@@ -504,6 +504,10 @@ body.has-overseas .workspace {
   gap: 12px;
 }
 
+.overseas-body[hidden] {
+  display: none;
+}
+
 .fx-settings-grid,
 .exchange-grid {
   display: grid;
