@@ -172,7 +172,7 @@
             <form id="person-form" class="inline-form person-form">
               <input id="person-name" type="text" maxlength="40" placeholder="이름 추가" autocomplete="off" aria-label="이름 추가">
               <input id="person-bank" type="text" maxlength="30" placeholder="은행명" autocomplete="off" aria-label="은행명">
-              <input id="person-account" type="text" maxlength="80" placeholder="계좌번호" autocomplete="off" aria-label="계좌번호">
+              <input id="person-account" type="text" maxlength="80" placeholder="계좌번호 (하이픈 없이)" autocomplete="off" aria-label="계좌번호">
               <button class="icon-button" type="submit" title="친구 추가" aria-label="친구 추가">+</button>
             </form>
             <div id="people-list" class="people-list empty-state">아직 추가된 친구가 없습니다.</div>
@@ -278,7 +278,7 @@
           </label>
           <label>
             <span>계좌번호</span>
-            <input id="account-number" type="text" maxlength="80" placeholder="예: 3333-12-1234567" autocomplete="off">
+            <input id="account-number" type="text" maxlength="80" placeholder="예: 3333121234567 (하이픈 없이)" autocomplete="off">
           </label>
           <button id="save-account" class="primary-button" type="submit">저장</button>
         </form>
