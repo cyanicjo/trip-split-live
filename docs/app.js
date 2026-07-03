@@ -29,6 +29,7 @@ const elements = {
   expenseCount: document.querySelector("#expense-count"),
   overseasPanel: document.querySelector("#overseas-panel"),
   overseasEnabled: document.querySelector("#overseas-enabled"),
+  overseasQuickEnabled: document.querySelector("#overseas-quick-enabled"),
   overseasBody: document.querySelector("#overseas-body"),
   overseasForm: document.querySelector("#overseas-form"),
   currencyOne: document.querySelector("#currency-one"),
@@ -50,6 +51,7 @@ const elements = {
   personName: document.querySelector("#person-name"),
   peopleList: document.querySelector("#people-list"),
   openExpenseModal: document.querySelector("#open-expense-modal"),
+  expensePanel: document.querySelector(".expense-panel"),
   expenseLaunchLabel: document.querySelector("#expense-launch-label"),
   expenseBackdrop: document.querySelector("#expense-backdrop"),
   closeExpenseModal: document.querySelector("#close-expense-modal"),
@@ -707,8 +709,12 @@ function renderOverseasPanel() {
   const overseas = overseasSettings();
   const editable = canEdit();
   const [currencyOne, currencyTwo] = overseas.currencies;
+  document.body.classList.toggle("has-overseas", overseas.enabled);
+  elements.overseasPanel.hidden = !overseas.enabled;
   elements.overseasEnabled.checked = overseas.enabled;
+  elements.overseasQuickEnabled.checked = overseas.enabled;
   elements.overseasEnabled.disabled = !editable;
+  elements.overseasQuickEnabled.disabled = !editable;
   elements.overseasBody.hidden = !overseas.enabled;
   elements.overseasPanel.classList.toggle("is-collapsed", !overseas.enabled);
 
@@ -894,6 +900,19 @@ async function saveOverseasSettings(overseas) {
       overseas
     }
   });
+}
+
+async function setOverseasEnabled(enabled) {
+  if (!canEdit() || !state) return;
+  try {
+    await saveOverseasSettings({
+      ...overseasSettings(),
+      enabled
+    });
+  } catch (error) {
+    renderOverseasPanel();
+    showToast(error.message);
+  }
 }
 
 function renderBalances() {
@@ -1193,17 +1212,12 @@ async function copyText(text, message) {
 elements.expenseDate.value = localDateString();
 elements.exchangeDate.value = localDateString();
 
-elements.overseasEnabled.addEventListener("change", async () => {
-  if (!canEdit() || !state) return;
-  try {
-    await saveOverseasSettings({
-      ...overseasSettings(),
-      enabled: elements.overseasEnabled.checked
-    });
-  } catch (error) {
-    elements.overseasEnabled.checked = !elements.overseasEnabled.checked;
-    showToast(error.message);
-  }
+elements.overseasEnabled.addEventListener("change", () => {
+  setOverseasEnabled(elements.overseasEnabled.checked);
+});
+
+elements.overseasQuickEnabled.addEventListener("change", () => {
+  setOverseasEnabled(elements.overseasQuickEnabled.checked);
 });
 
 elements.currencyOne.addEventListener("change", () => {
@@ -1322,6 +1336,13 @@ elements.expenseCurrency.addEventListener("change", () => {
 });
 
 elements.openExpenseModal.addEventListener("click", openExpenseModal);
+
+elements.expensePanel.addEventListener("click", (event) => {
+  if (event.target.closest(".quick-switch-field")) {
+    return;
+  }
+  openExpenseModal();
+});
 
 elements.closeExpenseModal.addEventListener("click", closeExpenseModal);
 

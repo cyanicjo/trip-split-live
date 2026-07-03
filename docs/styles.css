@@ -250,12 +250,20 @@ body.is-readonly #clear-all {
   grid-template-columns: minmax(260px, 0.82fr) minmax(480px, 1.28fr) minmax(320px, 0.96fr);
   grid-template-areas:
     "summary summary summary"
-    "overseas overseas overseas"
     "people expense settlement"
     "balance expense settlement"
     "balance history settlement";
   align-items: start;
   gap: 18px;
+}
+
+body.has-overseas .workspace {
+  grid-template-areas:
+    "summary summary summary"
+    "overseas overseas overseas"
+    "people expense settlement"
+    "balance expense settlement"
+    "balance history settlement";
 }
 
 .summary-band,
@@ -372,6 +380,10 @@ body.is-readonly #clear-all {
   grid-area: overseas;
 }
 
+.overseas-panel[hidden] {
+  display: none;
+}
+
 .overseas-panel.is-collapsed {
   padding: 12px 16px;
   box-shadow: 0 8px 26px rgba(31, 45, 51, 0.05);
@@ -379,6 +391,7 @@ body.is-readonly #clear-all {
 
 .expense-panel {
   grid-area: expense;
+  cursor: pointer;
 }
 
 .balance-panel {
@@ -450,6 +463,29 @@ body.is-readonly #clear-all {
 .switch-field input {
   width: 18px;
   min-height: 18px;
+  accent-color: var(--mint);
+}
+
+.quick-switch-field {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.quick-switch-field input {
+  width: 16px;
+  min-height: 16px;
   accent-color: var(--mint);
 }
 
@@ -592,6 +628,12 @@ select:focus {
   opacity: 0.58;
   transform: none;
   box-shadow: none;
+}
+
+.expense-panel:has(.expense-launch:not(:disabled)):hover .expense-launch {
+  border-color: rgba(31, 157, 121, 0.68);
+  box-shadow: 0 14px 34px rgba(31, 157, 121, 0.16);
+  transform: translateY(-1px);
 }
 
 .form-grid {
@@ -1082,6 +1124,14 @@ label span,
     grid-template-columns: minmax(240px, 0.9fr) minmax(420px, 1.2fr);
     grid-template-areas:
       "summary summary"
+      "people expense"
+      "balance expense"
+      "settlement history";
+  }
+
+  body.has-overseas .workspace {
+    grid-template-areas:
+      "summary summary"
       "overseas overseas"
       "people expense"
       "balance expense"
@@ -1124,6 +1174,16 @@ label span,
   }
 
   .workspace {
+    grid-template-areas:
+      "summary"
+      "people"
+      "expense"
+      "settlement"
+      "balance"
+      "history";
+  }
+
+  body.has-overseas .workspace {
     grid-template-areas:
       "summary"
       "overseas"
