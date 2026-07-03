@@ -7,10 +7,14 @@ create table if not exists public.trips (
   name text not null default '새 여행 정산',
   people jsonb not null default '[]'::jsonb,
   expenses jsonb not null default '[]'::jsonb,
+  settings jsonb not null default '{}'::jsonb,
   version bigint not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.trips
+  add column if not exists settings jsonb not null default '{}'::jsonb;
 
 create table if not exists public.trip_secrets (
   trip_id uuid primary key references public.trips(id) on delete cascade,
@@ -65,12 +69,14 @@ begin
 end;
 $$;
 
+drop function if exists public.get_trip(text);
 create or replace function public.get_trip(p_public_id text)
 returns table(
   public_id text,
   name text,
   people jsonb,
   expenses jsonb,
+  settings jsonb,
   version bigint,
   created_at timestamptz,
   updated_at timestamptz
@@ -85,6 +91,7 @@ as $$
     t.name,
     t.people,
     t.expenses,
+    t.settings,
     t.version,
     t.created_at,
     t.updated_at
@@ -93,18 +100,22 @@ as $$
   limit 1
 $$;
 
+drop function if exists public.update_trip_state(text, text, text, jsonb, jsonb);
+drop function if exists public.update_trip_state(text, text, text, jsonb, jsonb, jsonb);
 create or replace function public.update_trip_state(
   p_public_id text,
   p_edit_token text,
   p_name text,
   p_people jsonb,
-  p_expenses jsonb
+  p_expenses jsonb,
+  p_settings jsonb default '{}'::jsonb
 )
 returns table(
   public_id text,
   name text,
   people jsonb,
   expenses jsonb,
+  settings jsonb,
   version bigint,
   created_at timestamptz,
   updated_at timestamptz
@@ -122,6 +133,10 @@ begin
 
   if jsonb_typeof(coalesce(p_expenses, '[]'::jsonb)) <> 'array' then
     raise exception 'expenses must be an array';
+  end if;
+
+  if jsonb_typeof(coalesce(p_settings, '{}'::jsonb)) <> 'object' then
+    raise exception 'settings must be an object';
   end if;
 
   select t.id
@@ -142,6 +157,7 @@ begin
       name = coalesce(left(nullif(trim(coalesce(p_name, '')), ''), 80), '새 여행 정산'),
       people = coalesce(p_people, '[]'::jsonb),
       expenses = coalesce(p_expenses, '[]'::jsonb),
+      settings = coalesce(p_settings, '{}'::jsonb),
       version = t.version + 1,
       updated_at = now()
     where t.id = v_trip_id
@@ -150,6 +166,7 @@ begin
       t.name,
       t.people,
       t.expenses,
+      t.settings,
       t.version,
       t.created_at,
       t.updated_at;
@@ -158,7 +175,7 @@ $$;
 
 grant execute on function public.create_trip() to anon;
 grant execute on function public.get_trip(text) to anon;
-grant execute on function public.update_trip_state(text, text, text, jsonb, jsonb) to anon;
+grant execute on function public.update_trip_state(text, text, text, jsonb, jsonb, jsonb) to anon;
 
 do $$
 begin

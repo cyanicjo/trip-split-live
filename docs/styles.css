@@ -249,6 +249,7 @@ body.is-readonly #clear-all {
   grid-template-columns: minmax(260px, 0.82fr) minmax(480px, 1.28fr) minmax(320px, 0.96fr);
   grid-template-areas:
     "summary summary summary"
+    "overseas overseas overseas"
     "people expense settlement"
     "balance expense settlement"
     "balance history settlement";
@@ -366,6 +367,10 @@ body.is-readonly #clear-all {
   grid-area: people;
 }
 
+.overseas-panel {
+  grid-area: overseas;
+}
+
 .expense-panel {
   grid-area: expense;
 }
@@ -413,6 +418,43 @@ body.is-readonly #clear-all {
 
 .people-panel.is-collapsed .panel-heading {
   margin-bottom: 0;
+}
+
+.overseas-panel.is-collapsed .panel-heading {
+  margin-bottom: 0;
+}
+
+.switch-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.switch-field input {
+  width: 42px;
+  min-height: 24px;
+  accent-color: var(--mint);
+}
+
+.overseas-body,
+.overseas-form,
+.exchange-form {
+  display: grid;
+  gap: 12px;
+}
+
+.fx-settings-grid,
+.exchange-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.exchange-grid {
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
 }
 
 .inline-form {
@@ -697,6 +739,19 @@ label span,
   white-space: nowrap;
 }
 
+.expense-amount-stack {
+  min-width: 0;
+  text-align: right;
+}
+
+.expense-original {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
 .expense-meta {
   gap: 8px;
   flex-wrap: wrap;
@@ -757,6 +812,43 @@ label span,
 
 .expense-edit-participants {
   margin-top: 0;
+}
+
+.exchange-list {
+  display: grid;
+  gap: 10px;
+}
+
+.exchange-item {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 12px 46px 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.exchange-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exchange-main strong {
+  overflow-wrap: anywhere;
+}
+
+.exchange-main span {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.exchange-item .expense-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
 }
 
 .toast {
@@ -894,6 +986,7 @@ label span,
     grid-template-columns: minmax(240px, 0.9fr) minmax(420px, 1.2fr);
     grid-template-areas:
       "summary summary"
+      "overseas overseas"
       "people expense"
       "balance expense"
       "settlement history";
@@ -937,6 +1030,7 @@ label span,
   .workspace {
     grid-template-areas:
       "summary"
+      "overseas"
       "people"
       "expense"
       "settlement"
@@ -989,6 +1083,11 @@ label span,
   .expense-edit-grid {
     grid-template-columns: 1fr;
   }
+
+  .fx-settings-grid,
+  .exchange-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 440px) {
@@ -1016,6 +1115,19 @@ label span,
   .expense-actions {
     align-items: flex-start;
     grid-template-columns: 1fr;
+  }
+
+  .fx-settings-grid,
+  .exchange-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .expense-amount-stack {
+    text-align: left;
+  }
+
+  .expense-original {
+    white-space: normal;
   }
 
   .topbar-actions .live-status {

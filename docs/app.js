@@ -27,6 +27,22 @@ const elements = {
   totalSpent: document.querySelector("#total-spent"),
   peopleCount: document.querySelector("#people-count"),
   expenseCount: document.querySelector("#expense-count"),
+  overseasPanel: document.querySelector("#overseas-panel"),
+  overseasEnabled: document.querySelector("#overseas-enabled"),
+  overseasBody: document.querySelector("#overseas-body"),
+  overseasForm: document.querySelector("#overseas-form"),
+  currencyOne: document.querySelector("#currency-one"),
+  currencyOneRate: document.querySelector("#currency-one-rate"),
+  currencyTwo: document.querySelector("#currency-two"),
+  currencyTwoRate: document.querySelector("#currency-two-rate"),
+  exchangeForm: document.querySelector("#exchange-form"),
+  exchangeFromCurrency: document.querySelector("#exchange-from-currency"),
+  exchangeFromAmount: document.querySelector("#exchange-from-amount"),
+  exchangeToCurrency: document.querySelector("#exchange-to-currency"),
+  exchangeToAmount: document.querySelector("#exchange-to-amount"),
+  exchangeDate: document.querySelector("#exchange-date"),
+  exchangeMemo: document.querySelector("#exchange-memo"),
+  exchangeList: document.querySelector("#exchange-list"),
   peoplePanel: document.querySelector("#people-panel"),
   peopleBody: document.querySelector("#people-body"),
   togglePeoplePanel: document.querySelector("#toggle-people-panel"),
@@ -35,7 +51,14 @@ const elements = {
   peopleList: document.querySelector("#people-list"),
   expenseForm: document.querySelector("#expense-form"),
   expenseTitle: document.querySelector("#expense-title"),
+  expenseCurrencyField: document.querySelector("#expense-currency-field"),
+  expenseCurrency: document.querySelector("#expense-currency"),
+  expenseAmountLabel: document.querySelector("#expense-amount-label"),
   expenseAmount: document.querySelector("#expense-amount"),
+  expenseRateField: document.querySelector("#expense-rate-field"),
+  expenseRate: document.querySelector("#expense-rate"),
+  expenseCardKrwField: document.querySelector("#expense-card-krw-field"),
+  expenseCardKrw: document.querySelector("#expense-card-krw"),
   expensePayer: document.querySelector("#expense-payer"),
   expenseDate: document.querySelector("#expense-date"),
   expenseMemo: document.querySelector("#expense-memo"),
@@ -65,6 +88,53 @@ const peopleCollapsedKey = "tripSplitPeopleCollapsed";
 let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
 const dashboardTripsKey = "tripSplitDashboardTrips";
 
+const currencyOptions = [
+  "USD",
+  "JPY",
+  "EUR",
+  "GBP",
+  "CNY",
+  "HKD",
+  "TWD",
+  "THB",
+  "VND",
+  "PHP",
+  "SGD",
+  "MYR",
+  "AUD",
+  "CAD",
+  "CHF"
+];
+
+const currencySymbols = {
+  KRW: "₩",
+  USD: "$",
+  JPY: "¥",
+  EUR: "€",
+  GBP: "£",
+  CNY: "¥",
+  HKD: "HK$",
+  TWD: "NT$",
+  THB: "฿",
+  VND: "₫",
+  PHP: "₱",
+  SGD: "S$",
+  MYR: "RM",
+  AUD: "A$",
+  CAD: "C$",
+  CHF: "CHF"
+};
+
+const defaultOverseasSettings = {
+  enabled: false,
+  currencies: ["JPY", "USD"],
+  rates: {
+    JPY: 9.5,
+    USD: 1350
+  },
+  exchangeRecords: []
+};
+
 const moneyFormatter = new Intl.NumberFormat("ko-KR", {
   style: "currency",
   currency: "KRW",
@@ -77,6 +147,37 @@ function canEdit() {
 
 function formatMoney(value) {
   return moneyFormatter.format(Math.round(Number(value) || 0));
+}
+
+function parsePositiveNumber(value) {
+  const numeric = Number(String(value).replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+  return numeric;
+}
+
+function formatRate(value) {
+  const numeric = Number(value) || 0;
+  return new Intl.NumberFormat("ko-KR", {
+    maximumFractionDigits: 4
+  }).format(numeric);
+}
+
+function currencySymbol(currency) {
+  return currencySymbols[currency] || currency;
+}
+
+function formatCurrencyAmount(value, currency = "KRW") {
+  const numeric = Number(value) || 0;
+  if (currency === "KRW") {
+    return formatMoney(numeric);
+  }
+
+  const formatted = new Intl.NumberFormat("ko-KR", {
+    maximumFractionDigits: currency === "JPY" || currency === "VND" ? 0 : 2
+  }).format(numeric);
+  return `${currencySymbol(currency)}${formatted} ${currency}`;
 }
 
 function getPersonName(id) {
@@ -210,18 +311,114 @@ function removeDashboardTrip(publicId) {
   renderDashboard();
 }
 
+function uniqueCurrencies(currencies) {
+  const result = [];
+  for (const currency of currencies) {
+    if (currency && !result.includes(currency)) {
+      result.push(currency);
+    }
+  }
+  for (const fallback of defaultOverseasSettings.currencies) {
+    if (result.length >= 2) break;
+    if (!result.includes(fallback)) {
+      result.push(fallback);
+    }
+  }
+  return result.slice(0, 2);
+}
+
+function normalizeOverseasSettings(settings = {}) {
+  const source = settings.overseas || {};
+  const currencies = uniqueCurrencies(Array.isArray(source.currencies) ? source.currencies : []);
+  const rates = { ...defaultOverseasSettings.rates };
+  for (const currency of currencies) {
+    const rate = Number(source.rates?.[currency]);
+    rates[currency] = Number.isFinite(rate) && rate > 0
+      ? rate
+      : Number(defaultOverseasSettings.rates[currency]) || 1;
+  }
+
+  const exchangeRecords = Array.isArray(source.exchangeRecords)
+    ? source.exchangeRecords
+      .filter((record) => record && record.id)
+      .map((record) => ({
+        id: record.id,
+        fromCurrency: record.fromCurrency || "KRW",
+        fromAmount: Number(record.fromAmount) || 0,
+        toCurrency: record.toCurrency || currencies[0],
+        toAmount: Number(record.toAmount) || 0,
+        memo: record.memo || "",
+        exchangedAt: record.exchangedAt || localDateString(),
+        createdAt: record.createdAt || new Date().toISOString()
+      }))
+    : [];
+
+  return {
+    enabled: Boolean(source.enabled),
+    currencies,
+    rates,
+    exchangeRecords
+  };
+}
+
+function normalizeSettings(settings = {}) {
+  return {
+    ...settings,
+    overseas: normalizeOverseasSettings(settings)
+  };
+}
+
+function overseasSettings() {
+  return state?.settings?.overseas || normalizeOverseasSettings();
+}
+
+function overseasCurrencies({ includeKrw = false } = {}) {
+  const currencies = overseasSettings().currencies || defaultOverseasSettings.currencies;
+  return includeKrw ? ["KRW", ...currencies] : currencies;
+}
+
+function defaultRateFor(currency) {
+  if (currency === "KRW") return 1;
+  const settings = overseasSettings();
+  return Number(settings.rates?.[currency]) || 1;
+}
+
+function createCurrencyOptions(selected, { includeKrw = false } = {}) {
+  const options = includeKrw ? ["KRW", ...currencyOptions] : currencyOptions;
+  return options.map((currency) => {
+    const selectedAttr = currency === selected ? "selected" : "";
+    return `<option value="${currency}" ${selectedAttr}>${currency}</option>`;
+  }).join("");
+}
+
+function calculateExpenseAmount({ currency, foreignAmount, exchangeRate, cardKrwAmount }) {
+  if (currency === "KRW") {
+    return Math.round(Number(foreignAmount) || 0);
+  }
+
+  const actualCharge = Number(cardKrwAmount) || 0;
+  if (actualCharge > 0) {
+    return Math.round(actualCharge);
+  }
+
+  return Math.round((Number(foreignAmount) || 0) * (Number(exchangeRate) || 0));
+}
+
 function normalizeTrip(row) {
+  const people = Array.isArray(row.people) ? row.people : [];
+  const expenses = Array.isArray(row.expenses) ? row.expenses : [];
   return {
     id: row.public_id,
     publicId: row.public_id,
     name: row.name || "새 여행 정산",
-    people: Array.isArray(row.people) ? row.people : [],
-    expenses: Array.isArray(row.expenses) ? row.expenses : [],
+    people,
+    expenses,
+    settings: normalizeSettings(row.settings || {}),
     version: row.version || 0,
     updatedAt: row.updated_at,
     summary: calculateSummary({
-      people: Array.isArray(row.people) ? row.people : [],
-      expenses: Array.isArray(row.expenses) ? row.expenses : []
+      people,
+      expenses
     })
   };
 }
@@ -356,13 +553,34 @@ async function saveTrip(nextState) {
   saving = true;
   setLiveStatus("is-connecting", "저장 중");
   try {
-    const result = await callRpc("update_trip_state", {
-      p_public_id: tripId,
-      p_edit_token: editToken,
-      p_name: nextState.name,
-      p_people: nextState.people,
-      p_expenses: nextState.expenses
-    });
+    let result;
+    const nextSettings = nextState.settings || state.settings || {};
+    const settingsChanged = JSON.stringify(nextSettings) !== JSON.stringify(state.settings || {});
+    try {
+      result = await callRpc("update_trip_state", {
+        p_public_id: tripId,
+        p_edit_token: editToken,
+        p_name: nextState.name,
+        p_people: nextState.people,
+        p_expenses: nextState.expenses,
+        p_settings: nextSettings
+      });
+    } catch (error) {
+      if (error.message.includes("p_settings") || error.message.includes("settings") || error.message.includes("function")) {
+        if (settingsChanged) {
+          throw new Error("Supabase SQL Editor에서 최신 schema.sql을 다시 실행해야 해외여행 설정을 저장할 수 있습니다.");
+        }
+        result = await callRpc("update_trip_state", {
+          p_public_id: tripId,
+          p_edit_token: editToken,
+          p_name: nextState.name,
+          p_people: nextState.people,
+          p_expenses: nextState.expenses
+        });
+      } else {
+        throw error;
+      }
+    }
     const row = Array.isArray(result) ? result[0] : result;
     state = normalizeTrip(row);
     rememberCurrentTrip();
@@ -431,6 +649,7 @@ function render() {
   syncParticipantSelection();
   renderHeader();
   renderSummary();
+  renderOverseasPanel();
   renderPeople();
   renderExpenseForm();
   renderBalances();
@@ -476,6 +695,88 @@ function renderSummary() {
   }
 }
 
+function renderOverseasPanel() {
+  const overseas = overseasSettings();
+  const editable = canEdit();
+  const [currencyOne, currencyTwo] = overseas.currencies;
+  elements.overseasEnabled.checked = overseas.enabled;
+  elements.overseasEnabled.disabled = !editable;
+  elements.overseasBody.hidden = !overseas.enabled;
+  elements.overseasPanel.classList.toggle("is-collapsed", !overseas.enabled);
+
+  elements.currencyOne.innerHTML = createCurrencyOptions(currencyOne);
+  elements.currencyTwo.innerHTML = createCurrencyOptions(currencyTwo);
+  elements.currencyOne.value = currencyOne;
+  elements.currencyTwo.value = currencyTwo;
+  elements.currencyOneRate.value = overseas.rates[currencyOne] || "";
+  elements.currencyTwoRate.value = overseas.rates[currencyTwo] || "";
+
+  for (const input of elements.overseasForm.elements) {
+    input.disabled = !editable;
+  }
+  for (const input of elements.exchangeForm.elements) {
+    input.disabled = !editable || !overseas.enabled;
+  }
+
+  const exchangeCurrencies = overseasCurrencies({ includeKrw: true });
+  const previousFromCurrency = elements.exchangeFromCurrency.value || "KRW";
+  const previousToCurrency = elements.exchangeToCurrency.value || currencyOne;
+  elements.exchangeFromCurrency.innerHTML = exchangeCurrencies.map((currency) => (
+    `<option value="${currency}">${currency}</option>`
+  )).join("");
+  elements.exchangeToCurrency.innerHTML = exchangeCurrencies.map((currency) => (
+    `<option value="${currency}">${currency}</option>`
+  )).join("");
+
+  if (!elements.exchangeDate.value) {
+    elements.exchangeDate.value = localDateString();
+  }
+  elements.exchangeFromCurrency.value = exchangeCurrencies.includes(previousFromCurrency)
+    ? previousFromCurrency
+    : "KRW";
+  elements.exchangeToCurrency.value = exchangeCurrencies.includes(previousToCurrency)
+    ? previousToCurrency
+    : currencyOne;
+  if (elements.exchangeFromCurrency.value === elements.exchangeToCurrency.value) {
+    elements.exchangeToCurrency.value = elements.exchangeFromCurrency.value === currencyOne ? currencyTwo : currencyOne;
+  }
+
+  renderExchangeList();
+}
+
+function renderExchangeList() {
+  const records = overseasSettings().exchangeRecords || [];
+  if (records.length === 0) {
+    elements.exchangeList.className = "exchange-list empty-state";
+    elements.exchangeList.textContent = "저장된 환전 기록이 없습니다.";
+    return;
+  }
+
+  elements.exchangeList.className = "exchange-list";
+  elements.exchangeList.innerHTML = records.map((record) => {
+    const from = formatCurrencyAmount(record.fromAmount, record.fromCurrency);
+    const to = formatCurrencyAmount(record.toAmount, record.toCurrency);
+    const impliedRate = Number(record.fromAmount) > 0
+      ? Number(record.toAmount) / Number(record.fromAmount)
+      : 0;
+    return `
+      <article class="exchange-item">
+        <div class="exchange-main">
+          <strong>${escapeHtml(from)}</strong>
+          <span>→</span>
+          <strong>${escapeHtml(to)}</strong>
+        </div>
+        <div class="expense-meta">
+          <span>${escapeHtml(record.exchangedAt || "")}</span>
+          ${impliedRate > 0 ? `<span>환산 ${formatRate(impliedRate)}</span>` : ""}
+          ${record.memo ? `<span>${escapeHtml(record.memo)}</span>` : ""}
+        </div>
+        ${canEdit() ? `<button class="expense-delete" type="button" title="환전 기록 삭제" aria-label="환전 기록 삭제" data-remove-exchange="${escapeHtml(record.id)}">×</button>` : ""}
+      </article>
+    `;
+  }).join("");
+}
+
 function renderPeople() {
   elements.peoplePanel.classList.toggle("is-collapsed", peopleCollapsed);
   elements.peopleBody.hidden = peopleCollapsed;
@@ -501,11 +802,15 @@ function renderPeople() {
 function renderExpenseForm() {
   const hasPeople = state.people.length > 0;
   const editable = canEdit();
+  const overseas = overseasSettings();
   elements.personName.disabled = !editable;
   elements.personForm.querySelector("button").disabled = !editable;
   elements.addExpense.disabled = !editable || !hasPeople;
   elements.expenseTitle.disabled = !editable || !hasPeople;
+  elements.expenseCurrency.disabled = !editable || !hasPeople;
   elements.expenseAmount.disabled = !editable || !hasPeople;
+  elements.expenseRate.disabled = !editable || !hasPeople;
+  elements.expenseCardKrw.disabled = !editable || !hasPeople;
   elements.expensePayer.disabled = !editable || !hasPeople;
   elements.expenseDate.disabled = !editable || !hasPeople;
   elements.expenseMemo.disabled = !editable || !hasPeople;
@@ -520,6 +825,16 @@ function renderExpenseForm() {
   if (state.people.some((person) => person.id === currentPayer)) {
     elements.expensePayer.value = currentPayer;
   }
+
+  elements.expenseCurrencyField.hidden = !overseas.enabled;
+  const currentCurrency = elements.expenseCurrency.value || overseas.currencies[0];
+  elements.expenseCurrency.innerHTML = overseasCurrencies({ includeKrw: true }).map((currency) => (
+    `<option value="${currency}">${currency}</option>`
+  )).join("");
+  elements.expenseCurrency.value = overseasCurrencies({ includeKrw: true }).includes(currentCurrency)
+    ? currentCurrency
+    : overseas.currencies[0];
+  syncExpenseCurrencyFields();
 
   if (!hasPeople) {
     elements.participantList.className = "participant-list empty-state";
@@ -538,6 +853,33 @@ function renderExpenseForm() {
       </label>
     `;
   }).join("");
+}
+
+function syncExpenseCurrencyFields({ resetRate = false } = {}) {
+  const overseas = overseasSettings();
+  const currency = overseas.enabled ? elements.expenseCurrency.value : "KRW";
+  const isForeign = overseas.enabled && currency !== "KRW";
+  elements.expenseAmountLabel.textContent = isForeign ? "외화 금액" : "금액";
+  elements.expenseRateField.hidden = !isForeign;
+  elements.expenseCardKrwField.hidden = !isForeign;
+
+  if (isForeign && (resetRate || !elements.expenseRate.value)) {
+    elements.expenseRate.value = defaultRateFor(currency);
+  }
+  if (!isForeign) {
+    elements.expenseRate.value = "";
+    elements.expenseCardKrw.value = "";
+  }
+}
+
+async function saveOverseasSettings(overseas) {
+  await saveTrip({
+    ...state,
+    settings: {
+      ...state.settings,
+      overseas
+    }
+  });
 }
 
 function renderBalances() {
@@ -611,15 +953,21 @@ function renderExpenses() {
     }
 
     const participants = (expense.participantIds || []).map(getPersonName).join(", ");
+    const originalAmount = expenseOriginalText(expense);
+    const rateText = expenseRateText(expense);
     return `
       <article class="expense-item">
         <div class="expense-main">
           <div class="expense-title">${escapeHtml(expense.title)}</div>
-          <div class="expense-amount">${formatMoney(expense.amount)}</div>
+          <div class="expense-amount-stack">
+            <div class="expense-amount">${formatMoney(expense.amount)}</div>
+            ${originalAmount ? `<div class="expense-original">${escapeHtml(originalAmount)}</div>` : ""}
+          </div>
         </div>
         <div class="expense-meta">
           <span>결제 ${escapeHtml(getPersonName(expense.payerId))}</span>
           <span>${escapeHtml(expense.spentAt)}</span>
+          ${rateText ? `<span>${escapeHtml(rateText)}</span>` : ""}
           <span>${escapeHtml(participants)}</span>
         </div>
         <div class="expense-actions">
@@ -634,6 +982,23 @@ function renderExpenses() {
       </article>
     `;
   }).join("");
+}
+
+function expenseOriginalText(expense) {
+  if (!expense.currency || expense.currency === "KRW" || !expense.foreignAmount) {
+    return "";
+  }
+  return formatCurrencyAmount(expense.foreignAmount, expense.currency);
+}
+
+function expenseRateText(expense) {
+  if (!expense.currency || expense.currency === "KRW" || !expense.exchangeRate) {
+    return "";
+  }
+  if (expense.cardKrwAmount) {
+    return `청구 ${formatMoney(expense.cardKrwAmount)}`;
+  }
+  return `환율 ${formatRate(expense.exchangeRate)}`;
 }
 
 function renderDashboard() {
@@ -683,6 +1048,12 @@ function closeDashboard() {
 
 function renderExpenseEditor(expense) {
   const participantIds = new Set(expense.participantIds || []);
+  const showFx = overseasSettings().enabled || (expense.currency && expense.currency !== "KRW");
+  const currency = expense.currency || "KRW";
+  const editCurrencies = Array.from(new Set([...overseasCurrencies({ includeKrw: true }), currency]));
+  const amountValue = currency === "KRW" ? expense.amount : expense.foreignAmount || "";
+  const rateValue = currency === "KRW" ? "" : expense.exchangeRate || defaultRateFor(currency);
+  const cardKrwValue = currency === "KRW" ? "" : expense.cardKrwAmount || "";
   const payerOptions = state.people.map((person) => {
     const selected = person.id === expense.payerId ? "selected" : "";
     return `<option value="${person.id}" ${selected}>${escapeHtml(person.name)}</option>`;
@@ -705,10 +1076,28 @@ function renderExpenseEditor(expense) {
             <span>내용</span>
             <input data-edit-title type="text" maxlength="70" value="${escapeHtml(expense.title)}" autocomplete="off">
           </label>
+          ${showFx ? `
+            <label>
+              <span>통화</span>
+              <select data-edit-currency>${editCurrencies.map((item) => (
+                `<option value="${item}" ${item === currency ? "selected" : ""}>${item}</option>`
+              )).join("")}</select>
+            </label>
+          ` : ""}
           <label>
-            <span>금액</span>
-            <input data-edit-amount type="text" inputmode="numeric" value="${escapeHtml(expense.amount)}" autocomplete="off">
+            <span>${showFx && currency !== "KRW" ? "외화 금액" : "금액"}</span>
+            <input data-edit-amount type="text" inputmode="numeric" value="${escapeHtml(amountValue)}" autocomplete="off">
           </label>
+          ${showFx ? `
+            <label>
+              <span>적용 환율</span>
+              <input data-edit-rate type="text" inputmode="decimal" value="${escapeHtml(rateValue)}" autocomplete="off">
+            </label>
+            <label>
+              <span>카드 실제 청구액</span>
+              <input data-edit-card-krw type="text" inputmode="numeric" value="${escapeHtml(cardKrwValue)}" autocomplete="off">
+            </label>
+          ` : ""}
           <label>
             <span>결제자</span>
             <select data-edit-payer>${payerOptions}</select>
@@ -765,6 +1154,135 @@ async function copyText(text, message) {
 }
 
 elements.expenseDate.value = localDateString();
+elements.exchangeDate.value = localDateString();
+
+elements.overseasEnabled.addEventListener("change", async () => {
+  if (!canEdit() || !state) return;
+  try {
+    await saveOverseasSettings({
+      ...overseasSettings(),
+      enabled: elements.overseasEnabled.checked
+    });
+  } catch (error) {
+    elements.overseasEnabled.checked = !elements.overseasEnabled.checked;
+    showToast(error.message);
+  }
+});
+
+elements.currencyOne.addEventListener("change", () => {
+  elements.currencyOneRate.value = overseasSettings().rates[elements.currencyOne.value]
+    || defaultOverseasSettings.rates[elements.currencyOne.value]
+    || "";
+});
+
+elements.currencyTwo.addEventListener("change", () => {
+  elements.currencyTwoRate.value = overseasSettings().rates[elements.currencyTwo.value]
+    || defaultOverseasSettings.rates[elements.currencyTwo.value]
+    || "";
+});
+
+elements.overseasForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canEdit() || !state) return;
+
+  const currencyOne = elements.currencyOne.value;
+  const currencyTwo = elements.currencyTwo.value;
+  const currencyOneRate = parsePositiveNumber(elements.currencyOneRate.value);
+  const currencyTwoRate = parsePositiveNumber(elements.currencyTwoRate.value);
+
+  if (currencyOne === currencyTwo) {
+    showToast("서로 다른 외화 2개를 선택해 주세요.");
+    return;
+  }
+  if (!currencyOneRate || !currencyTwoRate) {
+    showToast("두 외화의 원화 환율을 입력해 주세요.");
+    return;
+  }
+
+  const previous = overseasSettings();
+  try {
+    await saveOverseasSettings({
+      ...previous,
+      enabled: true,
+      currencies: [currencyOne, currencyTwo],
+      rates: {
+        ...previous.rates,
+        [currencyOne]: currencyOneRate,
+        [currencyTwo]: currencyTwoRate
+      }
+    });
+    syncExpenseCurrencyFields({ resetRate: true });
+    showToast("환율을 저장했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.exchangeForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canEdit() || !state) return;
+
+  const fromCurrency = elements.exchangeFromCurrency.value;
+  const toCurrency = elements.exchangeToCurrency.value;
+  const fromAmount = parsePositiveNumber(elements.exchangeFromAmount.value);
+  const toAmount = parsePositiveNumber(elements.exchangeToAmount.value);
+
+  if (fromCurrency === toCurrency) {
+    showToast("서로 다른 통화를 선택해 주세요.");
+    return;
+  }
+  if (!fromAmount || !toAmount) {
+    showToast("환전 금액을 입력해 주세요.");
+    return;
+  }
+
+  const overseas = overseasSettings();
+  const nextRecord = {
+    id: makeId("x_"),
+    fromCurrency,
+    fromAmount,
+    toCurrency,
+    toAmount,
+    memo: elements.exchangeMemo.value.trim().slice(0, 100),
+    exchangedAt: elements.exchangeDate.value || localDateString(),
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    await saveOverseasSettings({
+      ...overseas,
+      exchangeRecords: [nextRecord, ...(overseas.exchangeRecords || [])]
+    });
+    elements.exchangeFromAmount.value = "";
+    elements.exchangeToAmount.value = "";
+    elements.exchangeMemo.value = "";
+    elements.exchangeDate.value = localDateString();
+    showToast("환전 기록을 추가했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.exchangeList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-remove-exchange]");
+  if (!button || !canEdit() || !state) return;
+
+  const overseas = overseasSettings();
+  try {
+    await saveOverseasSettings({
+      ...overseas,
+      exchangeRecords: (overseas.exchangeRecords || [])
+        .filter((record) => record.id !== button.dataset.removeExchange)
+    });
+    showToast("환전 기록을 삭제했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.expenseCurrency.addEventListener("change", () => {
+  syncExpenseCurrencyFields({ resetRate: true });
+});
 
 elements.openDashboard.addEventListener("click", openDashboard);
 
@@ -926,7 +1444,23 @@ elements.expenseForm.addEventListener("submit", async (event) => {
   if (!canEdit() || !state) return;
 
   const title = elements.expenseTitle.value.trim().slice(0, 70);
-  const amount = amountFromInput(elements.expenseAmount.value);
+  const overseas = overseasSettings();
+  const currency = overseas.enabled ? elements.expenseCurrency.value : "KRW";
+  const foreignAmount = currency === "KRW"
+    ? amountFromInput(elements.expenseAmount.value)
+    : parsePositiveNumber(elements.expenseAmount.value);
+  const exchangeRate = currency === "KRW"
+    ? 1
+    : parsePositiveNumber(elements.expenseRate.value) || defaultRateFor(currency);
+  const cardKrwAmount = currency === "KRW"
+    ? null
+    : amountFromInput(elements.expenseCardKrw.value);
+  const amount = calculateExpenseAmount({
+    currency,
+    foreignAmount,
+    exchangeRate,
+    cardKrwAmount
+  });
   const payerId = elements.expensePayer.value;
   const participantIds = Array.from(participantSelection);
 
@@ -934,8 +1468,12 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     showToast("지출 내용을 입력해 주세요.");
     return;
   }
-  if (!amount) {
+  if (!foreignAmount) {
     showToast("금액을 입력해 주세요.");
+    return;
+  }
+  if (currency !== "KRW" && !exchangeRate) {
+    showToast("환율을 입력해 주세요.");
     return;
   }
   if (!payerId) {
@@ -951,6 +1489,10 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     id: makeId("e_"),
     title,
     amount,
+    currency,
+    foreignAmount: currency === "KRW" ? null : foreignAmount,
+    exchangeRate: currency === "KRW" ? null : exchangeRate,
+    cardKrwAmount,
     payerId,
     participantIds,
     memo: elements.expenseMemo.value.trim().slice(0, 140),
@@ -962,6 +1504,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     await saveTrip({ ...state, expenses: [nextExpense, ...state.expenses] });
     elements.expenseTitle.value = "";
     elements.expenseAmount.value = "";
+    elements.expenseCardKrw.value = "";
     elements.expenseMemo.value = "";
     elements.expenseDate.value = localDateString();
     participantsTouched = false;
@@ -1013,7 +1556,22 @@ elements.expenseList.addEventListener("submit", async (event) => {
   if (!currentExpense) return;
 
   const title = form.querySelector("[data-edit-title]").value.trim().slice(0, 70);
-  const amount = amountFromInput(form.querySelector("[data-edit-amount]").value);
+  const currency = form.querySelector("[data-edit-currency]")?.value || "KRW";
+  const foreignAmount = currency === "KRW"
+    ? amountFromInput(form.querySelector("[data-edit-amount]").value)
+    : parsePositiveNumber(form.querySelector("[data-edit-amount]").value);
+  const exchangeRate = currency === "KRW"
+    ? 1
+    : parsePositiveNumber(form.querySelector("[data-edit-rate]")?.value) || defaultRateFor(currency);
+  const cardKrwAmount = currency === "KRW"
+    ? null
+    : amountFromInput(form.querySelector("[data-edit-card-krw]")?.value);
+  const amount = calculateExpenseAmount({
+    currency,
+    foreignAmount,
+    exchangeRate,
+    cardKrwAmount
+  });
   const payerId = form.querySelector("[data-edit-payer]").value;
   const participantIds = Array.from(form.querySelectorAll("[data-edit-participant]:checked"))
     .map((input) => input.value);
@@ -1022,8 +1580,12 @@ elements.expenseList.addEventListener("submit", async (event) => {
     showToast("지출 내용을 입력해 주세요.");
     return;
   }
-  if (!amount) {
+  if (!foreignAmount) {
     showToast("금액을 입력해 주세요.");
+    return;
+  }
+  if (currency !== "KRW" && !exchangeRate) {
+    showToast("환율을 입력해 주세요.");
     return;
   }
   if (!payerId) {
@@ -1047,6 +1609,10 @@ elements.expenseList.addEventListener("submit", async (event) => {
               ...expense,
               title,
               amount,
+              currency,
+              foreignAmount: currency === "KRW" ? null : foreignAmount,
+              exchangeRate: currency === "KRW" ? null : exchangeRate,
+              cardKrwAmount,
               payerId,
               participantIds,
               memo: form.querySelector("[data-edit-memo]").value.trim().slice(0, 140),
@@ -1072,6 +1638,7 @@ async function start() {
       name: "새 여행 정산",
       people: [],
       expenses: [],
+      settings: {},
       version: 0,
       updated_at: null
     });

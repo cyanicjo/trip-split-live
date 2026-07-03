@@ -84,6 +84,75 @@
           </div>
         </section>
 
+        <section id="overseas-panel" class="panel overseas-panel" aria-labelledby="overseas-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Option</p>
+              <h2 id="overseas-heading">해외여행</h2>
+            </div>
+            <label class="switch-field">
+              <input id="overseas-enabled" type="checkbox">
+              <span>ON</span>
+            </label>
+          </div>
+
+          <div id="overseas-body" class="overseas-body" hidden>
+            <form id="overseas-form" class="overseas-form">
+              <div class="fx-settings-grid">
+                <label>
+                  <span>외화 1</span>
+                  <select id="currency-one"></select>
+                </label>
+                <label>
+                  <span>원화 환율</span>
+                  <input id="currency-one-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off">
+                </label>
+                <label>
+                  <span>외화 2</span>
+                  <select id="currency-two"></select>
+                </label>
+                <label>
+                  <span>원화 환율</span>
+                  <input id="currency-two-rate" type="text" inputmode="decimal" placeholder="예: 1350" autocomplete="off">
+                </label>
+              </div>
+              <button class="primary-button compact" type="submit">환율 저장</button>
+            </form>
+
+            <form id="exchange-form" class="exchange-form">
+              <div class="exchange-grid">
+                <label>
+                  <span>보낸 통화</span>
+                  <select id="exchange-from-currency"></select>
+                </label>
+                <label>
+                  <span>보낸 금액</span>
+                  <input id="exchange-from-amount" type="text" inputmode="decimal" placeholder="예: 300000" autocomplete="off">
+                </label>
+                <label>
+                  <span>받은 통화</span>
+                  <select id="exchange-to-currency"></select>
+                </label>
+                <label>
+                  <span>받은 금액</span>
+                  <input id="exchange-to-amount" type="text" inputmode="decimal" placeholder="예: 30000" autocomplete="off">
+                </label>
+                <label>
+                  <span>날짜</span>
+                  <input id="exchange-date" type="date">
+                </label>
+                <label>
+                  <span>메모</span>
+                  <input id="exchange-memo" type="text" maxlength="100" placeholder="선택 사항" autocomplete="off">
+                </label>
+              </div>
+              <button class="text-button" type="submit">환전 기록 추가</button>
+            </form>
+
+            <div id="exchange-list" class="exchange-list empty-state">저장된 환전 기록이 없습니다.</div>
+          </div>
+        </section>
+
         <section id="people-panel" class="panel people-panel" aria-labelledby="people-heading">
           <div class="panel-heading">
             <div>
@@ -116,9 +185,21 @@
                 <span>내용</span>
                 <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
               </label>
+              <label id="expense-currency-field" hidden>
+                <span>통화</span>
+                <select id="expense-currency"></select>
+              </label>
               <label>
-                <span>금액</span>
+                <span id="expense-amount-label">금액</span>
                 <input id="expense-amount" type="text" inputmode="numeric" placeholder="예: 120000" autocomplete="off">
+              </label>
+              <label id="expense-rate-field" hidden>
+                <span>적용 환율</span>
+                <input id="expense-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off">
+              </label>
+              <label id="expense-card-krw-field" hidden>
+                <span>카드 실제 청구액</span>
+                <input id="expense-card-krw" type="text" inputmode="numeric" placeholder="선택 사항" autocomplete="off">
               </label>
               <label>
                 <span>결제자</span>

@@ -34,6 +34,8 @@ supabase/schema.sql
 
 `function gen_random_bytes(integer) does not exist` 오류가 보이면 이 파일의 최신 버전을 다시 실행해 주세요. Supabase에서 랜덤 토큰 함수가 `extensions` 스키마에 있어서 생기는 오류입니다.
 
+해외여행 모드, 환율, 환전 기록 기능을 쓰려면 최신 SQL을 다시 실행해야 합니다. 기존 여행 데이터는 유지되고 `settings` 컬럼과 저장 함수만 업데이트됩니다.
+
 ## 3. Supabase URL과 anon key 넣기
 
 Supabase 프로젝트에서 아래로 이동합니다.
