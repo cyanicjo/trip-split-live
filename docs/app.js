@@ -17,6 +17,7 @@ let tripChannel = null;
 const elements = {
   setupPanel: document.querySelector("#setup-panel"),
   tripName: document.querySelector("#trip-name"),
+  openDashboard: document.querySelector("#open-dashboard"),
   newTripLink: document.querySelector("#new-trip-link"),
   copyViewLink: document.querySelector("#copy-view-link"),
   copyEditLink: document.querySelector("#copy-edit-link"),
@@ -45,6 +46,9 @@ const elements = {
   balanceList: document.querySelector("#balance-list"),
   settlementList: document.querySelector("#settlement-list"),
   expenseList: document.querySelector("#expense-list"),
+  dashboardBackdrop: document.querySelector("#dashboard-backdrop"),
+  closeDashboard: document.querySelector("#close-dashboard"),
+  dashboardList: document.querySelector("#dashboard-list"),
   toast: document.querySelector("#toast")
 };
 
@@ -59,6 +63,7 @@ let editingExpenseId = "";
 
 const peopleCollapsedKey = "tripSplitPeopleCollapsed";
 let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
+const dashboardTripsKey = "tripSplitDashboardTrips";
 
 const moneyFormatter = new Intl.NumberFormat("ko-KR", {
   style: "currency",
@@ -131,6 +136,78 @@ function editLink() {
 
 function newTripLink() {
   return pageUrl(new URLSearchParams());
+}
+
+function tripLinkFromRecord(record) {
+  const linkParams = new URLSearchParams();
+  linkParams.set("trip", record.publicId);
+  if (record.editToken) {
+    linkParams.set("edit", record.editToken);
+  }
+  return pageUrl(linkParams);
+}
+
+function readDashboardTrips() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(dashboardTripsKey) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((trip) => trip && typeof trip.publicId === "string" && trip.publicId)
+      .map((trip) => ({
+        publicId: trip.publicId,
+        name: trip.name || "새 여행 정산",
+        editToken: trip.editToken || "",
+        updatedAt: trip.updatedAt || "",
+        lastOpenedAt: trip.lastOpenedAt || "",
+        peopleCount: Number(trip.peopleCount) || 0,
+        expenseCount: Number(trip.expenseCount) || 0,
+        total: Number(trip.total) || 0
+      }));
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeDashboardTrips(trips) {
+  const limitedTrips = trips
+    .slice(0, 80)
+    .sort((a, b) => String(b.lastOpenedAt || b.updatedAt).localeCompare(String(a.lastOpenedAt || a.updatedAt)));
+  localStorage.setItem(dashboardTripsKey, JSON.stringify(limitedTrips));
+}
+
+function rememberCurrentTrip() {
+  if (!state || !tripId) return;
+
+  const trips = readDashboardTrips();
+  const existing = trips.find((trip) => trip.publicId === tripId);
+  if (!canEdit() && !existing) {
+    return;
+  }
+
+  const nextTrip = {
+    publicId: tripId,
+    name: state.name,
+    editToken: editToken || existing?.editToken || "",
+    updatedAt: state.updatedAt || new Date().toISOString(),
+    lastOpenedAt: new Date().toISOString(),
+    peopleCount: state.people.length,
+    expenseCount: state.expenses.length,
+    total: state.summary.total
+  };
+
+  writeDashboardTrips([
+    nextTrip,
+    ...trips.filter((trip) => trip.publicId !== tripId)
+  ]);
+
+  if (!elements.dashboardBackdrop.hidden) {
+    renderDashboard();
+  }
+}
+
+function removeDashboardTrip(publicId) {
+  writeDashboardTrips(readDashboardTrips().filter((trip) => trip.publicId !== publicId));
+  renderDashboard();
 }
 
 function normalizeTrip(row) {
@@ -265,6 +342,7 @@ async function loadTrip({ quiet = false } = {}) {
   }
 
   state = normalizeTrip(row);
+  rememberCurrentTrip();
   render();
   if (!quiet) setLiveStatus("is-live", canEdit() ? "편집 가능" : "보기 전용");
 }
@@ -287,6 +365,7 @@ async function saveTrip(nextState) {
     });
     const row = Array.isArray(result) ? result[0] : result;
     state = normalizeTrip(row);
+    rememberCurrentTrip();
     render();
     setLiveStatus("is-live", "저장됨");
   } finally {
@@ -357,6 +436,7 @@ function render() {
   renderBalances();
   renderSettlements();
   renderExpenses();
+  renderDashboard();
 }
 
 function renderHeader() {
@@ -556,6 +636,51 @@ function renderExpenses() {
   }).join("");
 }
 
+function renderDashboard() {
+  const trips = readDashboardTrips();
+  if (trips.length === 0) {
+    elements.dashboardList.className = "dashboard-list empty-state";
+    elements.dashboardList.textContent = "아직 저장된 여행이 없습니다.";
+    return;
+  }
+
+  elements.dashboardList.className = "dashboard-list";
+  elements.dashboardList.innerHTML = trips.map((trip) => {
+    const current = trip.publicId === tripId ? " is-current" : "";
+    const updated = trip.updatedAt ? new Date(trip.updatedAt).toLocaleDateString("ko-KR") : "";
+    return `
+      <article class="dashboard-trip${current}">
+        <div class="dashboard-trip-main">
+          <div class="dashboard-trip-title">${escapeHtml(trip.name)}</div>
+          <div class="dashboard-trip-meta">
+            <span>${trip.peopleCount}명</span>
+            <span>${trip.expenseCount}개</span>
+            <span>${formatMoney(trip.total)}</span>
+            ${updated ? `<span>${escapeHtml(updated)}</span>` : ""}
+          </div>
+        </div>
+        <div class="dashboard-trip-actions">
+          <a class="text-button" href="${escapeHtml(tripLinkFromRecord(trip))}">열기</a>
+          <button class="text-button" type="button" data-copy-dashboard-trip="${escapeHtml(trip.publicId)}">복사</button>
+          <button class="expense-delete" type="button" title="목록에서 삭제" aria-label="목록에서 삭제" data-remove-dashboard-trip="${escapeHtml(trip.publicId)}">×</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function openDashboard() {
+  renderDashboard();
+  elements.dashboardBackdrop.hidden = false;
+  document.body.classList.add("dashboard-open");
+  elements.closeDashboard.focus();
+}
+
+function closeDashboard() {
+  elements.dashboardBackdrop.hidden = true;
+  document.body.classList.remove("dashboard-open");
+}
+
 function renderExpenseEditor(expense) {
   const participantIds = new Set(expense.participantIds || []);
   const payerOptions = state.people.map((person) => {
@@ -640,6 +765,40 @@ async function copyText(text, message) {
 }
 
 elements.expenseDate.value = localDateString();
+
+elements.openDashboard.addEventListener("click", openDashboard);
+
+elements.closeDashboard.addEventListener("click", closeDashboard);
+
+elements.dashboardBackdrop.addEventListener("click", (event) => {
+  if (event.target === elements.dashboardBackdrop) {
+    closeDashboard();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.dashboardBackdrop.hidden) {
+    closeDashboard();
+  }
+});
+
+elements.dashboardList.addEventListener("click", async (event) => {
+  const copyButton = event.target.closest("[data-copy-dashboard-trip]");
+  if (copyButton) {
+    const trip = readDashboardTrips()
+      .find((item) => item.publicId === copyButton.dataset.copyDashboardTrip);
+    if (trip) {
+      await copyText(tripLinkFromRecord(trip), trip.editToken ? "편집 링크를 복사했습니다." : "보기 링크를 복사했습니다.");
+    }
+    return;
+  }
+
+  const removeButton = event.target.closest("[data-remove-dashboard-trip]");
+  if (removeButton) {
+    removeDashboardTrip(removeButton.dataset.removeDashboardTrip);
+    showToast("내 여행 목록에서 삭제했습니다.");
+  }
+});
 
 elements.newTripLink.addEventListener("click", () => {
   if (!isConfigured) {

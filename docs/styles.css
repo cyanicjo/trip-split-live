@@ -32,6 +32,10 @@ body {
   line-height: 1.5;
 }
 
+body.dashboard-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select {
@@ -779,6 +783,112 @@ label span,
   transform: translateX(-50%) translateY(0);
 }
 
+.dashboard-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 18;
+  display: grid;
+  place-items: start end;
+  padding: 20px;
+  background: rgba(29, 36, 40, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.dashboard-backdrop[hidden] {
+  display: none;
+}
+
+.dashboard-panel {
+  display: grid;
+  gap: 16px;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 40px);
+  padding: 20px;
+  border: 1px solid rgba(223, 230, 232, 0.96);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 24px 80px rgba(31, 36, 40, 0.22);
+  overflow: hidden;
+}
+
+.dashboard-header,
+.dashboard-trip,
+.dashboard-trip-actions {
+  display: flex;
+  align-items: center;
+}
+
+.dashboard-header {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.dashboard-list {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.dashboard-trip {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.dashboard-trip.is-current {
+  border-color: rgba(31, 157, 121, 0.44);
+  background: linear-gradient(0deg, rgba(223, 245, 238, 0.52), rgba(255, 255, 255, 0.96));
+}
+
+.dashboard-trip-main {
+  min-width: 0;
+}
+
+.dashboard-trip-title {
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-trip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.dashboard-trip-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f2f5f5;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.dashboard-trip-actions {
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-trip-actions a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 @media (max-width: 1120px) {
   .workspace {
     grid-template-columns: minmax(240px, 0.9fr) minmax(420px, 1.2fr);
@@ -866,6 +976,16 @@ label span,
     min-width: 112px;
   }
 
+  .dashboard-backdrop {
+    place-items: end stretch;
+    padding: 14px;
+  }
+
+  .dashboard-panel {
+    width: 100%;
+    max-height: min(76vh, 620px);
+  }
+
   .expense-edit-grid {
     grid-template-columns: 1fr;
   }
@@ -906,6 +1026,16 @@ label span,
     flex: 1 1 calc(50% - 8px);
     justify-content: center;
     min-width: 0;
+  }
+
+  .dashboard-trip {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-trip-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .settlement-amount,
