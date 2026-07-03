@@ -92,7 +92,7 @@
             </div>
             <label class="switch-field">
               <input id="overseas-enabled" type="checkbox">
-              <span>ON</span>
+              <span>사용</span>
             </label>
           </div>
 
@@ -172,61 +172,17 @@
           </div>
         </section>
 
-        <section class="panel expense-panel" aria-labelledby="expense-heading">
+        <section class="panel expense-panel" aria-labelledby="expense-panel-heading">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Step 2</p>
-              <h2 id="expense-heading">지출 입력</h2>
+              <h2 id="expense-panel-heading">지출 입력</h2>
             </div>
           </div>
-          <form id="expense-form" class="expense-form">
-            <div class="form-grid">
-              <label>
-                <span>내용</span>
-                <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
-              </label>
-              <label id="expense-currency-field" hidden>
-                <span>통화</span>
-                <select id="expense-currency"></select>
-              </label>
-              <label>
-                <span id="expense-amount-label">금액</span>
-                <input id="expense-amount" type="text" inputmode="numeric" placeholder="예: 120000" autocomplete="off">
-              </label>
-              <label id="expense-rate-field" hidden>
-                <span>적용 환율</span>
-                <input id="expense-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off">
-              </label>
-              <label id="expense-card-krw-field" hidden>
-                <span>카드 실제 청구액</span>
-                <input id="expense-card-krw" type="text" inputmode="numeric" placeholder="선택 사항" autocomplete="off">
-              </label>
-              <label>
-                <span>결제자</span>
-                <select id="expense-payer"></select>
-              </label>
-              <label>
-                <span>날짜</span>
-                <input id="expense-date" type="date">
-              </label>
-            </div>
-
-            <div class="participant-row">
-              <div class="field-label">n빵 참여자</div>
-              <div class="participant-tools">
-                <button id="select-all" type="button" class="text-button">전체</button>
-                <button id="clear-all" type="button" class="text-button">해제</button>
-              </div>
-            </div>
-            <div id="participant-list" class="participant-list empty-state">친구를 먼저 추가해 주세요.</div>
-
-            <label class="memo-field">
-              <span>메모</span>
-              <input id="expense-memo" type="text" maxlength="140" placeholder="선택 사항" autocomplete="off">
-            </label>
-
-            <button id="add-expense" class="primary-button" type="submit">지출 저장</button>
-          </form>
+          <button id="open-expense-modal" class="expense-launch" type="button">
+            <span>새 지출</span>
+            <strong id="expense-launch-label">지출 추가</strong>
+          </button>
         </section>
 
         <section class="panel balance-panel" aria-labelledby="balance-heading">
@@ -273,6 +229,70 @@
           </button>
         </div>
         <div id="dashboard-list" class="dashboard-list empty-state">아직 저장된 여행이 없습니다.</div>
+      </section>
+    </div>
+
+    <div id="expense-backdrop" class="expense-backdrop" hidden>
+      <section class="expense-modal" role="dialog" aria-modal="true" aria-labelledby="expense-modal-heading">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Step 2</p>
+            <h2 id="expense-modal-heading">지출 입력</h2>
+          </div>
+          <button id="close-expense-modal" class="panel-toggle" type="button" title="지출 입력 닫기" aria-label="지출 입력 닫기">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <form id="expense-form" class="expense-form">
+          <div class="form-grid">
+            <label>
+              <span>내용</span>
+              <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
+            </label>
+            <label id="expense-currency-field" hidden>
+              <span>통화</span>
+              <select id="expense-currency"></select>
+            </label>
+            <label>
+              <span id="expense-amount-label">금액</span>
+              <input id="expense-amount" type="text" inputmode="numeric" placeholder="예: 120000" autocomplete="off">
+            </label>
+            <label id="expense-rate-field" hidden>
+              <span>적용 환율</span>
+              <input id="expense-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off" aria-describedby="expense-rate-help">
+              <small id="expense-rate-help" class="field-help">외화 1단위를 원화로 얼마로 계산할지입니다. 예: 1 USD = 1350원.</small>
+            </label>
+            <label id="expense-card-krw-field" hidden>
+              <span>카드 실제 청구액</span>
+              <input id="expense-card-krw" type="text" inputmode="numeric" placeholder="선택 사항" autocomplete="off">
+            </label>
+            <label>
+              <span>결제자</span>
+              <select id="expense-payer"></select>
+            </label>
+            <label>
+              <span>날짜</span>
+              <input id="expense-date" type="date">
+            </label>
+          </div>
+
+          <div class="participant-row">
+            <div class="field-label">n빵 참여자</div>
+            <div class="participant-tools">
+              <button id="select-all" type="button" class="text-button">전체</button>
+              <button id="clear-all" type="button" class="text-button">해제</button>
+            </div>
+          </div>
+          <div id="participant-list" class="participant-list empty-state">친구를 먼저 추가해 주세요.</div>
+
+          <label class="memo-field">
+            <span>메모</span>
+            <input id="expense-memo" type="text" maxlength="140" placeholder="선택 사항" autocomplete="off">
+          </label>
+
+          <button id="add-expense" class="primary-button" type="submit">지출 저장</button>
+        </form>
       </section>
     </div>
 

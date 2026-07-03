@@ -49,6 +49,10 @@ const elements = {
   personForm: document.querySelector("#person-form"),
   personName: document.querySelector("#person-name"),
   peopleList: document.querySelector("#people-list"),
+  openExpenseModal: document.querySelector("#open-expense-modal"),
+  expenseLaunchLabel: document.querySelector("#expense-launch-label"),
+  expenseBackdrop: document.querySelector("#expense-backdrop"),
+  closeExpenseModal: document.querySelector("#close-expense-modal"),
   expenseForm: document.querySelector("#expense-form"),
   expenseTitle: document.querySelector("#expense-title"),
   expenseCurrencyField: document.querySelector("#expense-currency-field"),
@@ -97,6 +101,7 @@ const currencyOptions = [
   "HKD",
   "TWD",
   "THB",
+  "LAK",
   "VND",
   "PHP",
   "SGD",
@@ -116,6 +121,7 @@ const currencySymbols = {
   HKD: "HK$",
   TWD: "NT$",
   THB: "฿",
+  LAK: "₭",
   VND: "₫",
   PHP: "₱",
   SGD: "S$",
@@ -124,6 +130,8 @@ const currencySymbols = {
   CAD: "C$",
   CHF: "CHF"
 };
+
+const zeroDecimalCurrencies = new Set(["JPY", "LAK", "VND"]);
 
 const defaultOverseasSettings = {
   enabled: false,
@@ -175,7 +183,7 @@ function formatCurrencyAmount(value, currency = "KRW") {
   }
 
   const formatted = new Intl.NumberFormat("ko-KR", {
-    maximumFractionDigits: currency === "JPY" || currency === "VND" ? 0 : 2
+    maximumFractionDigits: zeroDecimalCurrencies.has(currency) ? 0 : 2
   }).format(numeric);
   return `${currencySymbol(currency)}${formatted} ${currency}`;
 }
@@ -803,6 +811,12 @@ function renderExpenseForm() {
   const hasPeople = state.people.length > 0;
   const editable = canEdit();
   const overseas = overseasSettings();
+  elements.openExpenseModal.disabled = !editable || !hasPeople;
+  elements.expenseLaunchLabel.textContent = !editable
+    ? "보기 전용"
+    : hasPeople
+      ? "지출 추가"
+      : "친구를 먼저 추가";
   elements.personName.disabled = !editable;
   elements.personForm.querySelector("button").disabled = !editable;
   elements.addExpense.disabled = !editable || !hasPeople;
@@ -1014,7 +1028,7 @@ function renderDashboard() {
     const current = trip.publicId === tripId ? " is-current" : "";
     const updated = trip.updatedAt ? new Date(trip.updatedAt).toLocaleDateString("ko-KR") : "";
     return `
-      <article class="dashboard-trip${current}">
+      <article class="dashboard-trip${current}" data-open-dashboard-trip="${escapeHtml(trip.publicId)}" tabindex="0">
         <div class="dashboard-trip-main">
           <div class="dashboard-trip-title">${escapeHtml(trip.name)}</div>
           <div class="dashboard-trip-meta">
@@ -1044,6 +1058,28 @@ function openDashboard() {
 function closeDashboard() {
   elements.dashboardBackdrop.hidden = true;
   document.body.classList.remove("dashboard-open");
+}
+
+function openExpenseModal() {
+  if (!canEdit()) {
+    showToast("보기 전용 링크에서는 수정할 수 없습니다.");
+    return;
+  }
+  if (!state?.people.length) {
+    showToast("친구를 먼저 추가해 주세요.");
+    return;
+  }
+
+  renderExpenseForm();
+  elements.expenseBackdrop.hidden = false;
+  document.body.classList.add("expense-modal-open");
+  requestAnimationFrame(() => elements.expenseTitle.focus());
+}
+
+function closeExpenseModal() {
+  elements.expenseBackdrop.hidden = true;
+  document.body.classList.remove("expense-modal-open");
+  elements.openExpenseModal.focus();
 }
 
 function renderExpenseEditor(expense) {
@@ -1092,6 +1128,7 @@ function renderExpenseEditor(expense) {
             <label>
               <span>적용 환율</span>
               <input data-edit-rate type="text" inputmode="decimal" value="${escapeHtml(rateValue)}" autocomplete="off">
+              <small class="field-help">외화 1단위를 원화로 얼마로 계산할지입니다. 예: 1 USD = 1350원.</small>
             </label>
             <label>
               <span>카드 실제 청구액</span>
@@ -1284,6 +1321,16 @@ elements.expenseCurrency.addEventListener("change", () => {
   syncExpenseCurrencyFields({ resetRate: true });
 });
 
+elements.openExpenseModal.addEventListener("click", openExpenseModal);
+
+elements.closeExpenseModal.addEventListener("click", closeExpenseModal);
+
+elements.expenseBackdrop.addEventListener("click", (event) => {
+  if (event.target === elements.expenseBackdrop) {
+    closeExpenseModal();
+  }
+});
+
 elements.openDashboard.addEventListener("click", openDashboard);
 
 elements.closeDashboard.addEventListener("click", closeDashboard);
@@ -1295,7 +1342,12 @@ elements.dashboardBackdrop.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !elements.dashboardBackdrop.hidden) {
+  if (event.key !== "Escape") return;
+  if (!elements.expenseBackdrop.hidden) {
+    closeExpenseModal();
+    return;
+  }
+  if (!elements.dashboardBackdrop.hidden) {
     closeDashboard();
   }
 });
@@ -1315,6 +1367,39 @@ elements.dashboardList.addEventListener("click", async (event) => {
   if (removeButton) {
     removeDashboardTrip(removeButton.dataset.removeDashboardTrip);
     showToast("내 여행 목록에서 삭제했습니다.");
+    return;
+  }
+
+  if (event.target.closest("a, button")) {
+    return;
+  }
+
+  const tripItem = event.target.closest("[data-open-dashboard-trip]");
+  if (tripItem) {
+    const trip = readDashboardTrips()
+      .find((item) => item.publicId === tripItem.dataset.openDashboardTrip);
+    if (trip) {
+      window.location.assign(tripLinkFromRecord(trip));
+    }
+  }
+});
+
+elements.dashboardList.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+  if (event.target.closest("a, button")) {
+    return;
+  }
+
+  const tripItem = event.target.closest("[data-open-dashboard-trip]");
+  if (!tripItem) return;
+
+  const trip = readDashboardTrips()
+    .find((item) => item.publicId === tripItem.dataset.openDashboardTrip);
+  if (trip) {
+    event.preventDefault();
+    window.location.assign(tripLinkFromRecord(trip));
   }
 });
 
@@ -1510,6 +1595,8 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     participantsTouched = false;
     participantSelection = new Set(state.people.map((person) => person.id));
     renderExpenseForm();
+    closeExpenseModal();
+    showToast("지출을 저장했습니다.");
   } catch (error) {
     showToast(error.message);
   }

@@ -32,7 +32,8 @@ body {
   line-height: 1.5;
 }
 
-body.dashboard-open {
+body.dashboard-open,
+body.expense-modal-open {
   overflow: hidden;
 }
 
@@ -371,6 +372,11 @@ body.is-readonly #clear-all {
   grid-area: overseas;
 }
 
+.overseas-panel.is-collapsed {
+  padding: 12px 16px;
+  box-shadow: 0 8px 26px rgba(31, 45, 51, 0.05);
+}
+
 .expense-panel {
   grid-area: expense;
 }
@@ -424,6 +430,14 @@ body.is-readonly #clear-all {
   margin-bottom: 0;
 }
 
+.overseas-panel.is-collapsed .eyebrow {
+  display: none;
+}
+
+.overseas-panel.is-collapsed h2 {
+  font-size: 1rem;
+}
+
 .switch-field {
   display: inline-flex;
   align-items: center;
@@ -434,8 +448,8 @@ body.is-readonly #clear-all {
 }
 
 .switch-field input {
-  width: 42px;
-  min-height: 24px;
+  width: 18px;
+  min-height: 18px;
   accent-color: var(--mint);
 }
 
@@ -540,6 +554,46 @@ select:focus {
   gap: 14px;
 }
 
+.expense-launch {
+  display: grid;
+  width: 100%;
+  min-height: 108px;
+  place-items: center;
+  gap: 4px;
+  padding: 18px;
+  border: 1px dashed rgba(31, 157, 121, 0.38);
+  border-radius: 8px;
+  background: linear-gradient(0deg, rgba(223, 245, 238, 0.54), rgba(255, 255, 255, 0.96));
+  color: var(--ink);
+  text-align: center;
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.expense-launch span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.expense-launch strong {
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.expense-launch:hover,
+.expense-launch:focus-visible {
+  border-color: rgba(31, 157, 121, 0.68);
+  box-shadow: 0 14px 34px rgba(31, 157, 121, 0.16);
+  transform: translateY(-1px);
+}
+
+.expense-launch:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  transform: none;
+  box-shadow: none;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
@@ -553,6 +607,15 @@ label span,
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 850;
+}
+
+.field-help {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+  word-break: keep-all;
 }
 
 .participant-row {
@@ -875,25 +938,36 @@ label span,
   transform: translateX(-50%) translateY(0);
 }
 
-.dashboard-backdrop {
+.dashboard-backdrop,
+.expense-backdrop {
   position: fixed;
   inset: 0;
   z-index: 18;
   display: grid;
-  place-items: start end;
   padding: 20px;
   background: rgba(29, 36, 40, 0.28);
   backdrop-filter: blur(8px);
 }
 
-.dashboard-backdrop[hidden] {
+.dashboard-backdrop {
+  place-items: start end;
+}
+
+.expense-backdrop {
+  z-index: 19;
+  place-items: center;
+  background: rgba(29, 36, 40, 0.34);
+}
+
+.dashboard-backdrop[hidden],
+.expense-backdrop[hidden] {
   display: none;
 }
 
-.dashboard-panel {
+.dashboard-panel,
+.expense-modal {
   display: grid;
   gap: 16px;
-  width: min(520px, 100%);
   max-height: calc(100vh - 40px);
   padding: 20px;
   border: 1px solid rgba(223, 230, 232, 0.96);
@@ -903,19 +977,31 @@ label span,
   overflow: hidden;
 }
 
+.dashboard-panel {
+  width: min(520px, 100%);
+}
+
+.expense-modal {
+  width: min(760px, 100%);
+  overflow: auto;
+}
+
 .dashboard-header,
+.modal-header,
 .dashboard-trip,
 .dashboard-trip-actions {
   display: flex;
   align-items: center;
 }
 
-.dashboard-header {
+.dashboard-header,
+.modal-header {
   justify-content: space-between;
   gap: 12px;
 }
 
-.dashboard-header h2 {
+.dashboard-header h2,
+.modal-header h2 {
   margin: 0;
   font-size: 1.35rem;
 }
@@ -934,6 +1020,16 @@ label span,
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.dashboard-trip:hover,
+.dashboard-trip:focus-visible {
+  border-color: rgba(52, 120, 184, 0.46);
+  box-shadow: 0 12px 28px rgba(31, 45, 51, 0.1);
+  transform: translateY(-1px);
+  outline: none;
 }
 
 .dashboard-trip.is-current {
@@ -1070,17 +1166,20 @@ label span,
     min-width: 112px;
   }
 
-  .dashboard-backdrop {
+  .dashboard-backdrop,
+  .expense-backdrop {
     place-items: end stretch;
     padding: 14px;
   }
 
-  .dashboard-panel {
+  .dashboard-panel,
+  .expense-modal {
     width: 100%;
     max-height: min(76vh, 620px);
   }
 
-  .expense-edit-grid {
+  .expense-edit-grid,
+  .expense-modal .form-grid {
     grid-template-columns: 1fr;
   }
 
