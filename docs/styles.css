@@ -192,7 +192,8 @@ button {
 
 .icon-button,
 .primary-button,
-.text-button {
+.text-button,
+.panel-toggle {
   border: 0;
   font-weight: 850;
 }
@@ -218,6 +219,13 @@ button {
   padding: 0 16px;
   border-radius: 999px;
   font-size: 0.92rem;
+}
+
+.icon-button.labeled.secondary-action {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  box-shadow: none;
 }
 
 body.is-readonly #copy-edit-link {
@@ -381,6 +389,26 @@ body.is-readonly #clear-all {
 .panel h2 {
   margin: 0;
   font-size: 1.15rem;
+}
+
+.panel-toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #eef3f3;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.panel-body[hidden] {
+  display: none;
+}
+
+.people-panel.is-collapsed .panel-heading {
+  margin-bottom: 0;
 }
 
 .inline-form {
@@ -548,6 +576,12 @@ label span,
   box-shadow: 0 12px 26px rgba(31, 157, 121, 0.22);
 }
 
+.primary-button.compact {
+  min-height: 38px;
+  padding: 0 14px;
+  box-shadow: none;
+}
+
 .primary-button:disabled,
 .icon-button:disabled {
   cursor: not-allowed;
@@ -680,11 +714,45 @@ label span,
   gap: 12px;
 }
 
+.expense-button-row,
+.edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.expense-edit-button {
+  background: var(--mint-soft);
+  color: #126c54;
+}
+
 .expense-memo {
   min-width: 0;
   color: var(--muted);
   font-size: 0.9rem;
   overflow-wrap: anywhere;
+}
+
+.expense-editor {
+  border-color: rgba(31, 157, 121, 0.38);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.expense-edit-form {
+  display: grid;
+  gap: 12px;
+}
+
+.expense-edit-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 12px;
+}
+
+.expense-edit-participants {
+  margin-top: 0;
 }
 
 .toast {
@@ -747,7 +815,7 @@ label span,
 
   .topbar-actions {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   .workspace,
@@ -795,7 +863,11 @@ label span,
   }
 
   .icon-button.labeled {
-    min-width: 116px;
+    min-width: 112px;
+  }
+
+  .expense-edit-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -824,6 +896,16 @@ label span,
   .expense-actions {
     align-items: flex-start;
     grid-template-columns: 1fr;
+  }
+
+  .topbar-actions .live-status {
+    flex: 1 1 100%;
+  }
+
+  .topbar-actions .icon-button.labeled {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+    min-width: 0;
   }
 
   .settlement-amount,

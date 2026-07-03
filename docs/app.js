@@ -17,6 +17,7 @@ let tripChannel = null;
 const elements = {
   setupPanel: document.querySelector("#setup-panel"),
   tripName: document.querySelector("#trip-name"),
+  newTripLink: document.querySelector("#new-trip-link"),
   copyViewLink: document.querySelector("#copy-view-link"),
   copyEditLink: document.querySelector("#copy-edit-link"),
   liveStatus: document.querySelector("#live-status"),
@@ -25,6 +26,9 @@ const elements = {
   totalSpent: document.querySelector("#total-spent"),
   peopleCount: document.querySelector("#people-count"),
   expenseCount: document.querySelector("#expense-count"),
+  peoplePanel: document.querySelector("#people-panel"),
+  peopleBody: document.querySelector("#people-body"),
+  togglePeoplePanel: document.querySelector("#toggle-people-panel"),
   personForm: document.querySelector("#person-form"),
   personName: document.querySelector("#person-name"),
   peopleList: document.querySelector("#people-list"),
@@ -51,6 +55,10 @@ let participantsTouched = false;
 let toastTimer = null;
 let tripNameTimer = null;
 let saving = false;
+let editingExpenseId = "";
+
+const peopleCollapsedKey = "tripSplitPeopleCollapsed";
+let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
 
 const moneyFormatter = new Intl.NumberFormat("ko-KR", {
   style: "currency",
@@ -119,6 +127,10 @@ function editLink() {
     linkParams.set("edit", editToken);
   }
   return pageUrl(linkParams);
+}
+
+function newTripLink() {
+  return pageUrl(new URLSearchParams());
 }
 
 function normalizeTrip(row) {
@@ -385,6 +397,12 @@ function renderSummary() {
 }
 
 function renderPeople() {
+  elements.peoplePanel.classList.toggle("is-collapsed", peopleCollapsed);
+  elements.peopleBody.hidden = peopleCollapsed;
+  elements.togglePeoplePanel.setAttribute("aria-expanded", String(!peopleCollapsed));
+  elements.togglePeoplePanel.title = peopleCollapsed ? "친구 펼치기" : "친구 접기";
+  elements.togglePeoplePanel.querySelector("span").textContent = peopleCollapsed ? "▾" : "▴";
+
   if (state.people.length === 0) {
     elements.peopleList.className = "people-list empty-state";
     elements.peopleList.textContent = "아직 추가된 친구가 없습니다.";
@@ -493,6 +511,13 @@ function renderSettlements() {
 }
 
 function renderExpenses() {
+  if (!canEdit()) {
+    editingExpenseId = "";
+  }
+  if (editingExpenseId && !state.expenses.some((expense) => expense.id === editingExpenseId)) {
+    editingExpenseId = "";
+  }
+
   if (state.expenses.length === 0) {
     elements.expenseList.className = "expense-list empty-state";
     elements.expenseList.textContent = "저장된 지출이 없습니다.";
@@ -501,7 +526,11 @@ function renderExpenses() {
 
   elements.expenseList.className = "expense-list";
   elements.expenseList.innerHTML = state.expenses.map((expense) => {
-    const participants = expense.participantIds.map(getPersonName).join(", ");
+    if (expense.id === editingExpenseId) {
+      return renderExpenseEditor(expense);
+    }
+
+    const participants = (expense.participantIds || []).map(getPersonName).join(", ");
     return `
       <article class="expense-item">
         <div class="expense-main">
@@ -515,11 +544,73 @@ function renderExpenses() {
         </div>
         <div class="expense-actions">
           <div class="expense-memo">${escapeHtml(expense.memo || "")}</div>
-          ${canEdit() ? `<button class="expense-delete" type="button" title="지출 삭제" aria-label="지출 삭제" data-remove-expense="${expense.id}">×</button>` : ""}
+          ${canEdit() ? `
+            <div class="expense-button-row">
+              <button class="text-button expense-edit-button" type="button" data-edit-expense="${expense.id}">수정</button>
+              <button class="expense-delete" type="button" title="지출 삭제" aria-label="지출 삭제" data-remove-expense="${expense.id}">×</button>
+            </div>
+          ` : ""}
         </div>
       </article>
     `;
   }).join("");
+}
+
+function renderExpenseEditor(expense) {
+  const participantIds = new Set(expense.participantIds || []);
+  const payerOptions = state.people.map((person) => {
+    const selected = person.id === expense.payerId ? "selected" : "";
+    return `<option value="${person.id}" ${selected}>${escapeHtml(person.name)}</option>`;
+  }).join("");
+  const participantOptions = state.people.map((person) => {
+    const checked = participantIds.has(person.id) ? "checked" : "";
+    return `
+      <label class="participant-option">
+        <input type="checkbox" value="${person.id}" data-edit-participant ${checked}>
+        <span>${escapeHtml(person.name)}</span>
+      </label>
+    `;
+  }).join("");
+
+  return `
+    <article class="expense-item expense-editor">
+      <form class="expense-edit-form" data-edit-expense-form="${expense.id}">
+        <div class="expense-edit-grid">
+          <label>
+            <span>내용</span>
+            <input data-edit-title type="text" maxlength="70" value="${escapeHtml(expense.title)}" autocomplete="off">
+          </label>
+          <label>
+            <span>금액</span>
+            <input data-edit-amount type="text" inputmode="numeric" value="${escapeHtml(expense.amount)}" autocomplete="off">
+          </label>
+          <label>
+            <span>결제자</span>
+            <select data-edit-payer>${payerOptions}</select>
+          </label>
+          <label>
+            <span>날짜</span>
+            <input data-edit-date type="date" value="${escapeHtml(expense.spentAt || localDateString())}">
+          </label>
+        </div>
+
+        <div>
+          <div class="field-label">n빵 참여자</div>
+          <div class="participant-list expense-edit-participants">${participantOptions}</div>
+        </div>
+
+        <label class="memo-field">
+          <span>메모</span>
+          <input data-edit-memo type="text" maxlength="140" value="${escapeHtml(expense.memo || "")}" autocomplete="off">
+        </label>
+
+        <div class="edit-actions">
+          <button class="text-button" type="button" data-cancel-expense-edit="${expense.id}">취소</button>
+          <button class="primary-button compact" type="submit">수정 저장</button>
+        </div>
+      </form>
+    </article>
+  `;
 }
 
 function escapeHtml(value) {
@@ -550,6 +641,21 @@ async function copyText(text, message) {
 
 elements.expenseDate.value = localDateString();
 
+elements.newTripLink.addEventListener("click", () => {
+  if (!isConfigured) {
+    showToast("Supabase 설정을 먼저 완료해 주세요.");
+    return;
+  }
+
+  const opened = window.open(newTripLink(), "_blank");
+  if (opened) {
+    opened.opener = null;
+    showToast("새 탭에서 새 여행방을 만듭니다.");
+  } else {
+    window.location.assign(newTripLink());
+  }
+});
+
 elements.copyViewLink.addEventListener("click", () => {
   if (!tripId) return;
   copyText(viewLink(), "보기 링크를 복사했습니다.");
@@ -579,6 +685,12 @@ elements.tripName.addEventListener("keydown", (event) => {
     event.preventDefault();
     elements.tripName.blur();
   }
+});
+
+elements.togglePeoplePanel.addEventListener("click", () => {
+  peopleCollapsed = !peopleCollapsed;
+  localStorage.setItem(peopleCollapsedKey, String(peopleCollapsed));
+  renderPeople();
 });
 
 elements.personForm.addEventListener("submit", async (event) => {
@@ -702,15 +814,93 @@ elements.expenseForm.addEventListener("submit", async (event) => {
 });
 
 elements.expenseList.addEventListener("click", async (event) => {
+  const editButton = event.target.closest("[data-edit-expense]");
+  if (editButton && canEdit() && state) {
+    editingExpenseId = editButton.dataset.editExpense;
+    renderExpenses();
+    return;
+  }
+
+  const cancelButton = event.target.closest("[data-cancel-expense-edit]");
+  if (cancelButton && canEdit() && state) {
+    editingExpenseId = "";
+    renderExpenses();
+    return;
+  }
+
   const button = event.target.closest("[data-remove-expense]");
   if (!button || !canEdit() || !state) return;
 
   try {
+    if (editingExpenseId === button.dataset.removeExpense) {
+      editingExpenseId = "";
+    }
     await saveTrip({
       ...state,
       expenses: state.expenses.filter((expense) => expense.id !== button.dataset.removeExpense)
     });
   } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.expenseList.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-edit-expense-form]");
+  if (!form || !canEdit() || !state) return;
+  event.preventDefault();
+
+  const expenseId = form.dataset.editExpenseForm;
+  const currentExpense = state.expenses.find((expense) => expense.id === expenseId);
+  if (!currentExpense) return;
+
+  const title = form.querySelector("[data-edit-title]").value.trim().slice(0, 70);
+  const amount = amountFromInput(form.querySelector("[data-edit-amount]").value);
+  const payerId = form.querySelector("[data-edit-payer]").value;
+  const participantIds = Array.from(form.querySelectorAll("[data-edit-participant]:checked"))
+    .map((input) => input.value);
+
+  if (!title) {
+    showToast("지출 내용을 입력해 주세요.");
+    return;
+  }
+  if (!amount) {
+    showToast("금액을 입력해 주세요.");
+    return;
+  }
+  if (!payerId) {
+    showToast("결제자를 선택해 주세요.");
+    return;
+  }
+  if (participantIds.length === 0) {
+    showToast("n빵 참여자를 한 명 이상 선택해 주세요.");
+    return;
+  }
+
+  const previousEditingId = editingExpenseId;
+  editingExpenseId = "";
+
+  try {
+    await saveTrip({
+      ...state,
+      expenses: state.expenses.map((expense) => (
+        expense.id === expenseId
+          ? {
+              ...expense,
+              title,
+              amount,
+              payerId,
+              participantIds,
+              memo: form.querySelector("[data-edit-memo]").value.trim().slice(0, 140),
+              spentAt: form.querySelector("[data-edit-date]").value || localDateString(),
+              updatedAt: new Date().toISOString()
+            }
+          : expense
+      ))
+    });
+    showToast("지출을 수정했습니다.");
+  } catch (error) {
+    editingExpenseId = previousEditingId;
+    renderExpenses();
     showToast(error.message);
   }
 });

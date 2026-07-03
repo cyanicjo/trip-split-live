@@ -25,6 +25,10 @@
             <span class="status-dot"></span>
             연결 중
           </div>
+          <button id="new-trip-link" class="icon-button labeled secondary-action" type="button" title="새 여행방 만들기">
+            <span aria-hidden="true">＋</span>
+            <span>새 여행</span>
+          </button>
           <button id="copy-view-link" class="icon-button labeled" type="button" title="보기 링크 복사">
             <span aria-hidden="true">↗</span>
             <span>보기 링크</span>
@@ -76,18 +80,23 @@
           </div>
         </section>
 
-        <section class="panel people-panel" aria-labelledby="people-heading">
+        <section id="people-panel" class="panel people-panel" aria-labelledby="people-heading">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Step 1</p>
               <h2 id="people-heading">친구</h2>
             </div>
+            <button id="toggle-people-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="people-body" title="친구 접기">
+              <span aria-hidden="true">▴</span>
+            </button>
           </div>
-          <form id="person-form" class="inline-form">
-            <input id="person-name" type="text" maxlength="40" placeholder="이름 추가" autocomplete="off" aria-label="이름 추가">
-            <button class="icon-button" type="submit" title="친구 추가" aria-label="친구 추가">+</button>
-          </form>
-          <div id="people-list" class="people-list empty-state">아직 추가된 친구가 없습니다.</div>
+          <div id="people-body" class="panel-body">
+            <form id="person-form" class="inline-form">
+              <input id="person-name" type="text" maxlength="40" placeholder="이름 추가" autocomplete="off" aria-label="이름 추가">
+              <button class="icon-button" type="submit" title="친구 추가" aria-label="친구 추가">+</button>
+            </form>
+            <div id="people-list" class="people-list empty-state">아직 추가된 친구가 없습니다.</div>
+          </div>
         </section>
 
         <section class="panel expense-panel" aria-labelledby="expense-heading">
