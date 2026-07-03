@@ -18,6 +18,7 @@ const elements = {
   setupPanel: document.querySelector("#setup-panel"),
   tripName: document.querySelector("#trip-name"),
   openDashboard: document.querySelector("#open-dashboard"),
+  openExport: document.querySelector("#open-export"),
   newTripLink: document.querySelector("#new-trip-link"),
   copyViewLink: document.querySelector("#copy-view-link"),
   copyEditLink: document.querySelector("#copy-edit-link"),
@@ -78,6 +79,9 @@ const elements = {
   dashboardBackdrop: document.querySelector("#dashboard-backdrop"),
   closeDashboard: document.querySelector("#close-dashboard"),
   dashboardList: document.querySelector("#dashboard-list"),
+  exportBackdrop: document.querySelector("#export-backdrop"),
+  closeExport: document.querySelector("#close-export"),
+  exportForm: document.querySelector("#export-form"),
   toast: document.querySelector("#toast")
 };
 
@@ -93,6 +97,14 @@ let editingExpenseId = "";
 const peopleCollapsedKey = "tripSplitPeopleCollapsed";
 let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
 const dashboardTripsKey = "tripSplitDashboardTrips";
+
+const exportSectionLabels = {
+  summary: "요약",
+  expenses: "지출 목록",
+  balances: "개인별 차액",
+  settlements: "송금표",
+  exchange: "환전 기록"
+};
 
 const currencyOptions = [
   "USD",
@@ -1079,6 +1091,23 @@ function closeDashboard() {
   document.body.classList.remove("dashboard-open");
 }
 
+function openExportModal() {
+  if (!state) {
+    showToast("여행 정보를 불러오는 중입니다.");
+    return;
+  }
+
+  elements.exportBackdrop.hidden = false;
+  document.body.classList.add("export-open");
+  elements.closeExport.focus();
+}
+
+function closeExportModal() {
+  elements.exportBackdrop.hidden = true;
+  document.body.classList.remove("export-open");
+  elements.openExport.focus();
+}
+
 function openExpenseModal() {
   if (!canEdit()) {
     showToast("보기 전용 링크에서는 수정할 수 없습니다.");
@@ -1207,6 +1236,517 @@ async function copyText(text, message) {
   } catch (error) {
     showToast(text);
   }
+}
+
+function exportViewLink() {
+  return tripId ? viewLink() : window.location.href;
+}
+
+function safeFileName(value) {
+  return String(value || "trip")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 60) || "trip";
+}
+
+function exportFileName(extension) {
+  return `${safeFileName(state?.name)}-${localDateString()}.${extension}`;
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1200);
+}
+
+function selectedExportSections() {
+  return Array.from(elements.exportForm.querySelectorAll("input[name='section']:checked"))
+    .map((input) => input.value);
+}
+
+function selectedExportFormat() {
+  return elements.exportForm.querySelector("input[name='format']:checked")?.value || "csv";
+}
+
+function buildExportData(sections) {
+  const overseas = overseasSettings();
+  const included = new Set(sections);
+  const data = {
+    exportedAt: new Date().toISOString(),
+    viewLink: exportViewLink(),
+    includedSections: sections.map((section) => exportSectionLabels[section] || section),
+    trip: {
+      name: state.name,
+      total: state.summary.total,
+      peopleCount: state.people.length,
+      expenseCount: state.expenses.length,
+      updatedAt: state.updatedAt || ""
+    }
+  };
+
+  if (included.has("summary")) {
+    data.summary = {
+      total: state.summary.total,
+      peopleCount: state.people.length,
+      expenseCount: state.expenses.length,
+      settlementCount: state.summary.settlements.length,
+      overseasEnabled: overseas.enabled,
+      currencies: overseas.enabled ? overseas.currencies : [],
+      rates: overseas.enabled ? overseas.rates : {}
+    };
+  }
+
+  if (included.has("expenses")) {
+    data.expenses = state.expenses.map((expense) => ({
+      title: expense.title,
+      spentAt: expense.spentAt || "",
+      payer: getPersonName(expense.payerId),
+      amountKrw: Math.round(Number(expense.amount) || 0),
+      currency: expense.currency || "KRW",
+      foreignAmount: expense.foreignAmount || "",
+      exchangeRate: expense.exchangeRate || "",
+      cardKrwAmount: expense.cardKrwAmount || "",
+      participants: (expense.participantIds || []).map(getPersonName).join(", "),
+      memo: expense.memo || ""
+    }));
+  }
+
+  if (included.has("balances")) {
+    data.balances = state.summary.people.map((person) => ({
+      name: person.name,
+      balance: person.balance,
+      paid: person.paid,
+      share: person.share
+    }));
+  }
+
+  if (included.has("settlements")) {
+    data.settlements = state.summary.settlements.map((item) => ({
+      from: item.fromName,
+      to: item.toName,
+      amount: item.amount
+    }));
+  }
+
+  if (included.has("exchange")) {
+    data.exchangeRecords = (overseas.exchangeRecords || []).map((record) => ({
+      exchangedAt: record.exchangedAt || "",
+      fromCurrency: record.fromCurrency,
+      fromAmount: record.fromAmount,
+      toCurrency: record.toCurrency,
+      toAmount: record.toAmount,
+      memo: record.memo || ""
+    }));
+  }
+
+  return data;
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function appendCsvSection(rows, title, header, items, mapItem) {
+  rows.push([]);
+  rows.push([title]);
+  rows.push(header);
+  if (items.length === 0) {
+    rows.push(["기록 없음"]);
+    return;
+  }
+  for (const item of items) {
+    rows.push(mapItem(item));
+  }
+}
+
+function buildCsv(data) {
+  const rows = [
+    ["여행 이름", data.trip.name],
+    ["보기 링크", data.viewLink],
+    ["내보낸 시간", data.exportedAt]
+  ];
+
+  if (data.summary) {
+    appendCsvSection(rows, "요약", ["항목", "값"], [
+      ["총 지출", formatMoney(data.summary.total)],
+      ["참여자", `${data.summary.peopleCount}명`],
+      ["지출 항목", `${data.summary.expenseCount}개`],
+      ["송금 수", `${data.summary.settlementCount}개`],
+      ["해외여행", data.summary.overseasEnabled ? "사용" : "미사용"],
+      ["외화", data.summary.currencies.join(", ")],
+      ["환율", Object.entries(data.summary.rates).map(([currency, rate]) => `${currency} ${rate}`).join(", ")]
+    ], (item) => item);
+  }
+
+  if (data.expenses) {
+    appendCsvSection(
+      rows,
+      "지출 목록",
+      ["날짜", "내용", "결제자", "원화 금액", "통화", "외화 금액", "적용 환율", "카드 청구액", "참여자", "메모"],
+      data.expenses,
+      (expense) => [
+        expense.spentAt,
+        expense.title,
+        expense.payer,
+        expense.amountKrw,
+        expense.currency,
+        expense.foreignAmount,
+        expense.exchangeRate,
+        expense.cardKrwAmount,
+        expense.participants,
+        expense.memo
+      ]
+    );
+  }
+
+  if (data.balances) {
+    appendCsvSection(
+      rows,
+      "개인별 차액",
+      ["이름", "차액", "낸 돈", "부담액"],
+      data.balances,
+      (person) => [person.name, person.balance, person.paid, person.share]
+    );
+  }
+
+  if (data.settlements) {
+    appendCsvSection(
+      rows,
+      "송금표",
+      ["보낼 사람", "받을 사람", "금액"],
+      data.settlements,
+      (item) => [item.from, item.to, item.amount]
+    );
+  }
+
+  if (data.exchangeRecords) {
+    appendCsvSection(
+      rows,
+      "환전 기록",
+      ["날짜", "보낸 통화", "보낸 금액", "받은 통화", "받은 금액", "메모"],
+      data.exchangeRecords,
+      (record) => [
+        record.exchangedAt,
+        record.fromCurrency,
+        record.fromAmount,
+        record.toCurrency,
+        record.toAmount,
+        record.memo
+      ]
+    );
+  }
+
+  return `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\n")}`;
+}
+
+function buildPdfLines(data) {
+  const lines = [
+    { text: data.trip.name, type: "title" },
+    { text: `보기 링크: ${data.viewLink}`, type: "meta" },
+    { text: `내보낸 시간: ${new Date(data.exportedAt).toLocaleString("ko-KR")}`, type: "meta" },
+    { text: "", type: "space" }
+  ];
+
+  const addSection = (title) => {
+    lines.push({ text: title, type: "section" });
+  };
+  const addLine = (text) => {
+    lines.push({ text, type: "body" });
+  };
+  const addEmpty = (text) => {
+    lines.push({ text, type: "empty" });
+  };
+  const endSection = () => {
+    lines.push({ text: "", type: "space" });
+  };
+
+  if (data.summary) {
+    addSection("요약");
+    addLine(`총 지출: ${formatMoney(data.summary.total)}`);
+    addLine(`참여자: ${data.summary.peopleCount}명`);
+    addLine(`지출 항목: ${data.summary.expenseCount}개`);
+    addLine(`송금 수: ${data.summary.settlementCount}개`);
+    addLine(`해외여행: ${data.summary.overseasEnabled ? "사용" : "미사용"}`);
+    if (data.summary.overseasEnabled) {
+      addLine(`외화: ${data.summary.currencies.join(", ")}`);
+      addLine(`환율: ${Object.entries(data.summary.rates).map(([currency, rate]) => `${currency} ${rate}`).join(", ")}`);
+    }
+    endSection();
+  }
+
+  if (data.expenses) {
+    addSection("지출 목록");
+    if (data.expenses.length === 0) {
+      addEmpty("저장된 지출이 없습니다.");
+    } else {
+      data.expenses.forEach((expense, index) => {
+        const foreign = expense.currency !== "KRW" && expense.foreignAmount
+          ? ` / ${formatCurrencyAmount(expense.foreignAmount, expense.currency)}`
+          : "";
+        addLine(`${index + 1}. ${expense.spentAt} ${expense.title} - ${formatMoney(expense.amountKrw)}${foreign}`);
+        addLine(`   결제자: ${expense.payer} / 참여자: ${expense.participants || "-"}`);
+        if (expense.exchangeRate) addLine(`   적용 환율: ${expense.exchangeRate}`);
+        if (expense.cardKrwAmount) addLine(`   카드 청구액: ${formatMoney(expense.cardKrwAmount)}`);
+        if (expense.memo) addLine(`   메모: ${expense.memo}`);
+      });
+    }
+    endSection();
+  }
+
+  if (data.balances) {
+    addSection("개인별 차액");
+    if (data.balances.length === 0) {
+      addEmpty("표시할 차액이 없습니다.");
+    } else {
+      data.balances.forEach((person) => {
+        addLine(`${person.name}: 차액 ${formatMoney(person.balance)}, 낸 돈 ${formatMoney(person.paid)}, 부담액 ${formatMoney(person.share)}`);
+      });
+    }
+    endSection();
+  }
+
+  if (data.settlements) {
+    addSection("송금표");
+    if (data.settlements.length === 0) {
+      addEmpty("정산할 송금이 없습니다.");
+    } else {
+      data.settlements.forEach((item) => {
+        addLine(`${item.from} → ${item.to}: ${formatMoney(item.amount)}`);
+      });
+    }
+    endSection();
+  }
+
+  if (data.exchangeRecords) {
+    addSection("환전 기록");
+    if (data.exchangeRecords.length === 0) {
+      addEmpty("저장된 환전 기록이 없습니다.");
+    } else {
+      data.exchangeRecords.forEach((record, index) => {
+        addLine(`${index + 1}. ${record.exchangedAt} ${formatCurrencyAmount(record.fromAmount, record.fromCurrency)} → ${formatCurrencyAmount(record.toAmount, record.toCurrency)}`);
+        if (record.memo) addLine(`   메모: ${record.memo}`);
+      });
+    }
+  }
+
+  return lines;
+}
+
+function wrapCanvasText(context, text, maxWidth) {
+  if (!text) return [""];
+  const words = String(text).split(" ");
+  const lines = [];
+  let current = "";
+
+  const pushLongWord = (word) => {
+    let part = "";
+    for (const char of word) {
+      const test = part + char;
+      if (part && context.measureText(test).width > maxWidth) {
+        lines.push(part);
+        part = char;
+      } else {
+        part = test;
+      }
+    }
+    return part;
+  };
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (context.measureText(test).width <= maxWidth) {
+      current = test;
+      continue;
+    }
+    if (current) {
+      lines.push(current);
+    }
+    current = context.measureText(word).width > maxWidth ? pushLongWord(word) : word;
+  }
+
+  if (current) lines.push(current);
+  return lines;
+}
+
+function dataUrlToBytes(dataUrl) {
+  const base64 = dataUrl.split(",")[1] || "";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function createPdfFromJpegs(images) {
+  const encoder = new TextEncoder();
+  const parts = [];
+  const offsets = [0];
+  let position = 0;
+
+  const addString = (text) => {
+    const bytes = encoder.encode(text);
+    parts.push(bytes);
+    position += bytes.length;
+  };
+  const addBytes = (bytes) => {
+    parts.push(bytes);
+    position += bytes.length;
+  };
+  const startObject = (id) => {
+    offsets[id] = position;
+    addString(`${id} 0 obj\n`);
+  };
+
+  addString("%PDF-1.4\n");
+  startObject(1);
+  addString("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  const kids = images.map((_, index) => `${3 + index * 3} 0 R`).join(" ");
+  startObject(2);
+  addString(`<< /Type /Pages /Kids [${kids}] /Count ${images.length} >>\nendobj\n`);
+
+  images.forEach((image, index) => {
+    const pageId = 3 + index * 3;
+    const imageId = pageId + 1;
+    const contentId = pageId + 2;
+    const pageWidth = 595;
+    const pageHeight = 842;
+    const imageName = `Im${index + 1}`;
+    const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/${imageName} Do\nQ\n`;
+
+    startObject(pageId);
+    addString(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /${imageName} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>\nendobj\n`);
+
+    startObject(imageId);
+    addString(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`);
+    addBytes(image.bytes);
+    addString("\nendstream\nendobj\n");
+
+    startObject(contentId);
+    addString(`<< /Length ${encoder.encode(content).length} >>\nstream\n${content}endstream\nendobj\n`);
+  });
+
+  const xrefPosition = position;
+  addString(`xref\n0 ${offsets.length}\n`);
+  addString("0000000000 65535 f \n");
+  for (let id = 1; id < offsets.length; id += 1) {
+    addString(`${String(offsets[id]).padStart(10, "0")} 00000 n \n`);
+  }
+  addString(`trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefPosition}\n%%EOF`);
+
+  return new Blob(parts, { type: "application/pdf" });
+}
+
+async function buildPdfBlob(data) {
+  const lines = buildPdfLines(data);
+  const pageWidth = 1240;
+  const pageHeight = 1754;
+  const margin = 82;
+  const maxWidth = pageWidth - margin * 2;
+  const pages = [];
+  let canvas;
+  let context;
+  let cursorY;
+
+  const beginPage = () => {
+    canvas = document.createElement("canvas");
+    canvas.width = pageWidth;
+    canvas.height = pageHeight;
+    context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, pageWidth, pageHeight);
+    context.fillStyle = "#1d2428";
+    cursorY = margin;
+  };
+  const finishPage = () => {
+    pages.push({
+      width: pageWidth,
+      height: pageHeight,
+      bytes: dataUrlToBytes(canvas.toDataURL("image/jpeg", 0.92))
+    });
+  };
+  const ensureSpace = (height) => {
+    if (cursorY + height <= pageHeight - margin) return;
+    finishPage();
+    beginPage();
+  };
+
+  beginPage();
+
+  for (const line of lines) {
+    const type = line.type || "body";
+    const font = type === "title"
+      ? "700 36px sans-serif"
+      : type === "section"
+        ? "700 26px sans-serif"
+        : type === "meta"
+          ? "500 18px sans-serif"
+          : "400 21px sans-serif";
+    const lineHeight = type === "title" ? 48 : type === "section" ? 38 : type === "space" ? 22 : 31;
+
+    if (type === "space") {
+      ensureSpace(lineHeight);
+      cursorY += lineHeight;
+      continue;
+    }
+
+    context.font = font;
+    context.fillStyle = type === "meta" || type === "empty" ? "#66747b" : "#1d2428";
+    const wrapped = wrapCanvasText(context, line.text, maxWidth);
+    ensureSpace(wrapped.length * lineHeight + (type === "section" ? 8 : 0));
+    for (const wrappedLine of wrapped) {
+      context.fillText(wrappedLine, margin, cursorY);
+      cursorY += lineHeight;
+    }
+    if (type === "section") {
+      cursorY += 8;
+    }
+  }
+
+  finishPage();
+  return createPdfFromJpegs(pages);
+}
+
+async function exportCurrentTrip() {
+  if (!state) {
+    showToast("여행 정보를 불러오는 중입니다.");
+    return false;
+  }
+
+  const sections = selectedExportSections();
+  if (sections.length === 0) {
+    showToast("내보낼 내용을 한 가지 이상 선택해 주세요.");
+    return false;
+  }
+
+  const data = buildExportData(sections);
+  const format = selectedExportFormat();
+
+  if (format === "json") {
+    downloadBlob(
+      new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" }),
+      exportFileName("json")
+    );
+  } else if (format === "pdf") {
+    const pdfBlob = await buildPdfBlob(data);
+    downloadBlob(pdfBlob, exportFileName("pdf"));
+  } else {
+    downloadBlob(
+      new Blob([buildCsv(data)], { type: "text/csv;charset=utf-8" }),
+      exportFileName("csv")
+    );
+  }
+
+  showToast("내보내기 파일을 만들었습니다.");
+  return true;
 }
 
 elements.expenseDate.value = localDateString();
@@ -1362,10 +1902,32 @@ elements.dashboardBackdrop.addEventListener("click", (event) => {
   }
 });
 
+elements.openExport.addEventListener("click", openExportModal);
+
+elements.closeExport.addEventListener("click", closeExportModal);
+
+elements.exportBackdrop.addEventListener("click", (event) => {
+  if (event.target === elements.exportBackdrop) {
+    closeExportModal();
+  }
+});
+
+elements.exportForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const exported = await exportCurrentTrip();
+  if (exported) {
+    closeExportModal();
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!elements.expenseBackdrop.hidden) {
     closeExpenseModal();
+    return;
+  }
+  if (!elements.exportBackdrop.hidden) {
+    closeExportModal();
     return;
   }
   if (!elements.dashboardBackdrop.hidden) {

@@ -37,6 +37,10 @@
             <span aria-hidden="true">↗</span>
             <span>보기 링크</span>
           </button>
+          <button id="open-export" class="icon-button labeled secondary-action" type="button" title="내보내기">
+            <span aria-hidden="true">⇩</span>
+            <span>내보내기</span>
+          </button>
           <button id="copy-edit-link" class="icon-button labeled" type="button" title="편집 링크 복사">
             <span aria-hidden="true">✎</span>
             <span>편집 링크</span>
@@ -233,6 +237,53 @@
           </button>
         </div>
         <div id="dashboard-list" class="dashboard-list empty-state">아직 저장된 여행이 없습니다.</div>
+      </section>
+    </div>
+
+    <div id="export-backdrop" class="export-backdrop" hidden>
+      <section class="export-panel" role="dialog" aria-modal="true" aria-labelledby="export-heading">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Export</p>
+            <h2 id="export-heading">내보내기</h2>
+          </div>
+          <button id="close-export" class="panel-toggle" type="button" title="내보내기 닫기" aria-label="내보내기 닫기">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <form id="export-form" class="export-form">
+          <fieldset>
+            <legend>파일 형식</legend>
+            <div class="segmented-options">
+              <label>
+                <input type="radio" name="format" value="csv" checked>
+                <span>CSV</span>
+              </label>
+              <label>
+                <input type="radio" name="format" value="pdf">
+                <span>PDF</span>
+              </label>
+              <label>
+                <input type="radio" name="format" value="json">
+                <span>JSON</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>포함할 내용</legend>
+            <div class="export-options">
+              <label><input type="checkbox" name="section" value="summary" checked><span>요약</span></label>
+              <label><input type="checkbox" name="section" value="expenses" checked><span>지출 목록</span></label>
+              <label><input type="checkbox" name="section" value="balances" checked><span>개인별 차액</span></label>
+              <label><input type="checkbox" name="section" value="settlements" checked><span>송금표</span></label>
+              <label><input type="checkbox" name="section" value="exchange" checked><span>환전 기록</span></label>
+            </div>
+          </fieldset>
+
+          <button class="primary-button" type="submit">파일 만들기</button>
+        </form>
       </section>
     </div>
 
