@@ -50,6 +50,7 @@ const elements = {
   togglePeoplePanel: document.querySelector("#toggle-people-panel"),
   personForm: document.querySelector("#person-form"),
   personName: document.querySelector("#person-name"),
+  personBank: document.querySelector("#person-bank"),
   personAccount: document.querySelector("#person-account"),
   peopleList: document.querySelector("#people-list"),
   openExpenseModal: document.querySelector("#open-expense-modal"),
@@ -88,6 +89,12 @@ const elements = {
   dashboardBackdrop: document.querySelector("#dashboard-backdrop"),
   closeDashboard: document.querySelector("#close-dashboard"),
   dashboardList: document.querySelector("#dashboard-list"),
+  accountBackdrop: document.querySelector("#account-backdrop"),
+  closeAccountModal: document.querySelector("#close-account-modal"),
+  accountPersonName: document.querySelector("#account-person-name"),
+  accountForm: document.querySelector("#account-form"),
+  accountBank: document.querySelector("#account-bank"),
+  accountNumber: document.querySelector("#account-number"),
   exportBackdrop: document.querySelector("#export-backdrop"),
   closeExport: document.querySelector("#close-export"),
   exportForm: document.querySelector("#export-form"),
@@ -102,6 +109,7 @@ let toastTimer = null;
 let tripNameTimer = null;
 let saving = false;
 let editingExpenseId = "";
+let editingAccountPersonId = "";
 
 const peopleCollapsedKey = "tripSplitPeopleCollapsed";
 let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
@@ -217,6 +225,14 @@ function formatCurrencyAmount(value, currency = "KRW") {
 
 function getPersonName(id) {
   return state?.people.find((person) => person.id === id)?.name || "알 수 없음";
+}
+
+function personBankName(person = {}) {
+  return String(person.bankName || person.bank || "").trim().slice(0, 30);
+}
+
+function personAccountNumber(person = {}) {
+  return String(person.accountNumber || person.account || "").trim().slice(0, 80);
 }
 
 function showToast(message) {
@@ -509,12 +525,18 @@ function calculateExpenseAmount({ currency, foreignAmount, exchangeRate, cardKrw
 function normalizePeople(people = []) {
   return people
     .filter((person) => person && person.id)
-    .map((person) => ({
-      ...person,
-      id: person.id,
-      name: String(person.name || "이름 없음").slice(0, 40),
-      account: String(person.account || "").trim().slice(0, 80)
-    }));
+    .map((person) => {
+      const accountNumber = personAccountNumber(person);
+      const bankName = personBankName(person);
+      return {
+        ...person,
+        id: person.id,
+        name: String(person.name || "이름 없음").slice(0, 40),
+        bankName,
+        accountNumber,
+        account: accountNumber
+      };
+    });
 }
 
 function normalizeExpenses(expenses = []) {
@@ -824,6 +846,7 @@ function render() {
   renderSettlements();
   renderExpenses();
   renderDashboard();
+  renderAccountModal();
 }
 
 function renderHeader() {
@@ -862,6 +885,42 @@ function renderSummary() {
     elements.summaryTitle.textContent = `${settlementCount}번 송금하면 정산 끝`;
     elements.summaryCaption.textContent = "송금표대로 보내면 전체 여행 n빵이 정리됩니다.";
   }
+}
+
+function renderAccountModal() {
+  if (elements.accountBackdrop.hidden) return;
+
+  const person = currentAccountPerson();
+  if (!person || !canEdit()) {
+    closeAccountModal();
+    return;
+  }
+
+  elements.accountPersonName.textContent = person.name;
+}
+
+function currentAccountPerson() {
+  return state?.people.find((person) => person.id === editingAccountPersonId) || null;
+}
+
+function openAccountModal(personId) {
+  if (!canEdit() || !state) return;
+  const person = state.people.find((item) => item.id === personId);
+  if (!person) return;
+
+  editingAccountPersonId = personId;
+  elements.accountPersonName.textContent = person.name;
+  elements.accountBank.value = personBankName(person);
+  elements.accountNumber.value = personAccountNumber(person);
+  elements.accountBackdrop.hidden = false;
+  document.body.classList.add("account-modal-open");
+  requestAnimationFrame(() => elements.accountBank.focus());
+}
+
+function closeAccountModal() {
+  elements.accountBackdrop.hidden = true;
+  document.body.classList.remove("account-modal-open");
+  editingAccountPersonId = "";
 }
 
 function renderOverseasPanel() {
@@ -968,12 +1027,18 @@ function renderPeople() {
 
   elements.peopleList.className = "people-list";
   elements.peopleList.innerHTML = state.people.map((person) => {
-    const account = String(person.account || "").trim();
+    const bankName = personBankName(person);
+    const accountNumber = personAccountNumber(person);
     return `
       <div class="person-chip">
         <div class="person-main">
           <span class="person-name">${escapeHtml(person.name)}</span>
-          ${account ? `<button class="account-copy" type="button" data-copy-account="${person.id}" title="계좌번호 복사">${escapeHtml(account)}</button>` : ""}
+          ${accountNumber ? `
+            <span class="account-line">
+              ${bankName ? `<span class="account-bank">${escapeHtml(bankName)}</span>` : ""}
+              <button class="account-copy" type="button" data-copy-account="${person.id}" title="계좌번호 복사">${escapeHtml(accountNumber)}</button>
+            </span>
+          ` : ""}
         </div>
         ${canEdit() ? `
           <div class="person-actions">
@@ -1022,6 +1087,7 @@ function renderExpenseForm() {
       ? "지출 추가"
       : "친구를 먼저 추가";
   elements.personName.disabled = !editable;
+  elements.personBank.disabled = !editable;
   elements.personAccount.disabled = !editable;
   elements.personForm.querySelector("button").disabled = !editable;
   elements.addExpense.disabled = !editable || !hasPeople;
@@ -2222,6 +2288,45 @@ elements.dashboardBackdrop.addEventListener("click", (event) => {
   }
 });
 
+elements.closeAccountModal.addEventListener("click", closeAccountModal);
+
+elements.accountBackdrop.addEventListener("click", (event) => {
+  if (event.target === elements.accountBackdrop) {
+    closeAccountModal();
+  }
+});
+
+elements.accountForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canEdit() || !state) return;
+
+  const person = currentAccountPerson();
+  if (!person) return;
+
+  const bankName = elements.accountBank.value.trim().slice(0, 30);
+  const accountNumber = elements.accountNumber.value.trim().slice(0, 80);
+
+  try {
+    await saveTrip({
+      ...state,
+      people: state.people.map((item) => (
+        item.id === person.id
+          ? {
+              ...item,
+              bankName,
+              accountNumber,
+              account: accountNumber
+            }
+          : item
+      ))
+    });
+    closeAccountModal();
+    showToast(accountNumber ? "계좌 정보를 저장했습니다." : "계좌 정보를 비웠습니다.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
 elements.openExport.addEventListener("click", openExportModal);
 
 elements.closeExport.addEventListener("click", closeExportModal);
@@ -2242,6 +2347,10 @@ elements.exportForm.addEventListener("submit", async (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (!elements.accountBackdrop.hidden) {
+    closeAccountModal();
+    return;
+  }
   if (!elements.expenseBackdrop.hidden) {
     closeExpenseModal();
     return;
@@ -2395,7 +2504,8 @@ elements.personForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!canEdit() || !state) return;
   const name = elements.personName.value.trim();
-  const account = elements.personAccount.value.trim();
+  const bankName = elements.personBank.value.trim();
+  const accountNumber = elements.personAccount.value.trim();
   if (!name) return;
 
   const nextPeople = [
@@ -2403,7 +2513,9 @@ elements.personForm.addEventListener("submit", async (event) => {
     {
       id: makeId("p_"),
       name: name.slice(0, 40),
-      account: account.slice(0, 80),
+      bankName: bankName.slice(0, 30),
+      accountNumber: accountNumber.slice(0, 80),
+      account: accountNumber.slice(0, 80),
       createdAt: new Date().toISOString()
     }
   ];
@@ -2411,6 +2523,7 @@ elements.personForm.addEventListener("submit", async (event) => {
   try {
     await saveTrip({ ...state, people: nextPeople });
     elements.personName.value = "";
+    elements.personBank.value = "";
     elements.personAccount.value = "";
   } catch (error) {
     showToast(error.message);
@@ -2421,34 +2534,16 @@ elements.peopleList.addEventListener("click", async (event) => {
   const accountCopyButton = event.target.closest("[data-copy-account]");
   if (accountCopyButton) {
     const person = state?.people.find((item) => item.id === accountCopyButton.dataset.copyAccount);
-    if (person?.account) {
-      await copyText(person.account, "계좌번호를 복사했습니다.");
+    const accountNumber = personAccountNumber(person);
+    if (accountNumber) {
+      await copyText(accountNumber, "계좌번호를 복사했습니다.");
     }
     return;
   }
 
   const accountEditButton = event.target.closest("[data-edit-person-account]");
   if (accountEditButton && canEdit() && state) {
-    const personId = accountEditButton.dataset.editPersonAccount;
-    const person = state.people.find((item) => item.id === personId);
-    if (!person) return;
-
-    const nextAccount = window.prompt(`${person.name} 계좌번호`, person.account || "");
-    if (nextAccount === null) return;
-
-    try {
-      await saveTrip({
-        ...state,
-        people: state.people.map((item) => (
-          item.id === personId
-            ? { ...item, account: nextAccount.trim().slice(0, 80) }
-            : item
-        ))
-      });
-      showToast(nextAccount.trim() ? "계좌번호를 저장했습니다." : "계좌번호를 비웠습니다.");
-    } catch (error) {
-      showToast(error.message);
-    }
+    openAccountModal(accountEditButton.dataset.editPersonAccount);
     return;
   }
 
