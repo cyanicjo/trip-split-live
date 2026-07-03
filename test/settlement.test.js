@@ -6,6 +6,8 @@ function calculateSummary(trip) {
   const balances = new Map(people.map((person) => [person.id, 0]));
   const paidTotals = new Map(people.map((person) => [person.id, 0]));
   const shareTotals = new Map(people.map((person) => [person.id, 0]));
+  const completedSentTotals = new Map(people.map((person) => [person.id, 0]));
+  const completedReceivedTotals = new Map(people.map((person) => [person.id, 0]));
   let total = 0;
 
   for (const expense of trip.expenses || []) {
@@ -35,6 +37,23 @@ function calculateSummary(trip) {
     });
   }
 
+  for (const record of trip.completedSettlements || []) {
+    const amount = Math.round(Number(record.amount) || 0);
+    if (
+      amount <= 0 ||
+      record.fromId === record.toId ||
+      !peopleById.has(record.fromId) ||
+      !peopleById.has(record.toId)
+    ) {
+      continue;
+    }
+
+    balances.set(record.fromId, balances.get(record.fromId) + amount);
+    balances.set(record.toId, balances.get(record.toId) - amount);
+    completedSentTotals.set(record.fromId, completedSentTotals.get(record.fromId) + amount);
+    completedReceivedTotals.set(record.toId, completedReceivedTotals.get(record.toId) + amount);
+  }
+
   const peopleSummary = people.map((person) => {
     const balance = balances.get(person.id) || 0;
     return {
@@ -42,6 +61,8 @@ function calculateSummary(trip) {
       name: person.name,
       paid: paidTotals.get(person.id) || 0,
       share: shareTotals.get(person.id) || 0,
+      completedSent: completedSentTotals.get(person.id) || 0,
+      completedReceived: completedReceivedTotals.get(person.id) || 0,
       balance
     };
   });
@@ -124,6 +145,28 @@ assert.deepStrictEqual(
   summary.settlements.map((item) => [item.fromId, item.toId, item.amount]),
   [
     ["c", "a", 30000],
+    ["b", "a", 15000]
+  ]
+);
+
+const completedSummary = calculateSummary({
+  ...trip,
+  completedSettlements: [
+    { fromId: "c", toId: "a", amount: 30000 }
+  ]
+});
+
+assert.deepStrictEqual(
+  completedSummary.people.map((person) => [person.id, person.balance, person.completedSent, person.completedReceived]),
+  [
+    ["a", 15000, 0, 30000],
+    ["b", -15000, 0, 0],
+    ["c", 0, 30000, 0]
+  ]
+);
+assert.deepStrictEqual(
+  completedSummary.settlements.map((item) => [item.fromId, item.toId, item.amount]),
+  [
     ["b", "a", 15000]
   ]
 );

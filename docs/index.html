@@ -94,10 +94,15 @@
               <p class="eyebrow">Option</p>
               <h2 id="overseas-heading">해외여행</h2>
             </div>
-            <label class="switch-field">
-              <input id="overseas-enabled" type="checkbox">
-              <span>사용</span>
-            </label>
+            <div class="panel-actions">
+              <label class="switch-field">
+                <input id="overseas-enabled" type="checkbox">
+                <span>사용</span>
+              </label>
+              <button id="toggle-overseas-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="overseas-body" title="해외여행 접기">
+                <span aria-hidden="true">▴</span>
+              </button>
+            </div>
           </div>
 
           <div id="overseas-body" class="overseas-body" hidden>
@@ -211,6 +216,7 @@
             </div>
           </div>
           <div id="settlement-list" class="settlement-list empty-state">아직 정산할 송금이 없습니다.</div>
+          <div id="completed-settlement-list" class="completed-settlement-list" hidden></div>
         </section>
 
         <section class="panel expense-list-panel" aria-labelledby="expense-list-heading">

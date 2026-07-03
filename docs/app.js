@@ -31,6 +31,7 @@ const elements = {
   overseasPanel: document.querySelector("#overseas-panel"),
   overseasEnabled: document.querySelector("#overseas-enabled"),
   overseasQuickEnabled: document.querySelector("#overseas-quick-enabled"),
+  toggleOverseasPanel: document.querySelector("#toggle-overseas-panel"),
   overseasBody: document.querySelector("#overseas-body"),
   overseasForm: document.querySelector("#overseas-form"),
   currencyOne: document.querySelector("#currency-one"),
@@ -75,6 +76,7 @@ const elements = {
   addExpense: document.querySelector("#add-expense"),
   balanceList: document.querySelector("#balance-list"),
   settlementList: document.querySelector("#settlement-list"),
+  completedSettlementList: document.querySelector("#completed-settlement-list"),
   expenseList: document.querySelector("#expense-list"),
   dashboardBackdrop: document.querySelector("#dashboard-backdrop"),
   closeDashboard: document.querySelector("#close-dashboard"),
@@ -96,6 +98,8 @@ let editingExpenseId = "";
 
 const peopleCollapsedKey = "tripSplitPeopleCollapsed";
 let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
+const overseasCollapsedKey = "tripSplitOverseasCollapsed";
+let overseasCollapsed = localStorage.getItem(overseasCollapsedKey) === "true";
 const dashboardTripsKey = "tripSplitDashboardTrips";
 
 const exportSectionLabels = {
@@ -383,15 +387,37 @@ function normalizeOverseasSettings(settings = {}) {
   };
 }
 
+function normalizeCompletedSettlements(settings = {}) {
+  const records = Array.isArray(settings.completedSettlements)
+    ? settings.completedSettlements
+    : [];
+
+  return records
+    .filter((record) => record && record.fromId && record.toId)
+    .map((record, index) => ({
+      id: record.id || `done_${record.fromId}_${record.toId}_${Math.round(Number(record.amount) || 0)}_${index}`,
+      fromId: record.fromId,
+      toId: record.toId,
+      amount: Math.round(Number(record.amount) || 0),
+      completedAt: record.completedAt || record.createdAt || new Date().toISOString()
+    }))
+    .filter((record) => record.amount > 0 && record.fromId !== record.toId);
+}
+
 function normalizeSettings(settings = {}) {
   return {
     ...settings,
-    overseas: normalizeOverseasSettings(settings)
+    overseas: normalizeOverseasSettings(settings),
+    completedSettlements: normalizeCompletedSettlements(settings)
   };
 }
 
 function overseasSettings() {
   return state?.settings?.overseas || normalizeOverseasSettings();
+}
+
+function completedSettlements() {
+  return state?.settings?.completedSettlements || [];
 }
 
 function overseasCurrencies({ includeKrw = false } = {}) {
@@ -429,18 +455,20 @@ function calculateExpenseAmount({ currency, foreignAmount, exchangeRate, cardKrw
 function normalizeTrip(row) {
   const people = Array.isArray(row.people) ? row.people : [];
   const expenses = Array.isArray(row.expenses) ? row.expenses : [];
+  const settings = normalizeSettings(row.settings || {});
   return {
     id: row.public_id,
     publicId: row.public_id,
     name: row.name || "새 여행 정산",
     people,
     expenses,
-    settings: normalizeSettings(row.settings || {}),
+    settings,
     version: row.version || 0,
     updatedAt: row.updated_at,
     summary: calculateSummary({
       people,
-      expenses
+      expenses,
+      completedSettlements: settings.completedSettlements
     })
   };
 }
@@ -451,6 +479,8 @@ function calculateSummary(trip) {
   const balances = new Map(people.map((person) => [person.id, 0]));
   const paidTotals = new Map(people.map((person) => [person.id, 0]));
   const shareTotals = new Map(people.map((person) => [person.id, 0]));
+  const completedSentTotals = new Map(people.map((person) => [person.id, 0]));
+  const completedReceivedTotals = new Map(people.map((person) => [person.id, 0]));
   let total = 0;
 
   for (const expense of trip.expenses || []) {
@@ -480,6 +510,23 @@ function calculateSummary(trip) {
     });
   }
 
+  for (const record of trip.completedSettlements || []) {
+    const amount = Math.round(Number(record.amount) || 0);
+    if (
+      amount <= 0 ||
+      record.fromId === record.toId ||
+      !peopleById.has(record.fromId) ||
+      !peopleById.has(record.toId)
+    ) {
+      continue;
+    }
+
+    balances.set(record.fromId, balances.get(record.fromId) + amount);
+    balances.set(record.toId, balances.get(record.toId) - amount);
+    completedSentTotals.set(record.fromId, completedSentTotals.get(record.fromId) + amount);
+    completedReceivedTotals.set(record.toId, completedReceivedTotals.get(record.toId) + amount);
+  }
+
   const peopleSummary = people.map((person) => {
     const balance = balances.get(person.id) || 0;
     return {
@@ -487,6 +534,8 @@ function calculateSummary(trip) {
       name: person.name,
       paid: paidTotals.get(person.id) || 0,
       share: shareTotals.get(person.id) || 0,
+      completedSent: completedSentTotals.get(person.id) || 0,
+      completedReceived: completedReceivedTotals.get(person.id) || 0,
       balance
     };
   });
@@ -700,7 +749,9 @@ function renderSummary() {
   if (!canEdit()) {
     elements.summaryTitle.textContent = expenseCount === 0
       ? "여행 정산을 볼 수 있습니다"
-      : `${settlementCount}번 송금하면 정산 끝`;
+      : settlementCount === 0
+        ? "현재 정산은 딱 맞습니다"
+        : `${settlementCount}번 송금하면 정산 끝`;
     elements.summaryCaption.textContent = "보기 전용 링크입니다. 지출을 수정하려면 편집 링크가 필요합니다.";
   } else if (peopleCount === 0) {
     elements.summaryTitle.textContent = "친구를 추가하면 정산이 시작됩니다";
@@ -727,8 +778,11 @@ function renderOverseasPanel() {
   elements.overseasQuickEnabled.checked = overseas.enabled;
   elements.overseasEnabled.disabled = !editable;
   elements.overseasQuickEnabled.disabled = !editable;
-  elements.overseasBody.hidden = !overseas.enabled;
-  elements.overseasPanel.classList.toggle("is-collapsed", !overseas.enabled);
+  elements.overseasBody.hidden = !overseas.enabled || overseasCollapsed;
+  elements.overseasPanel.classList.toggle("is-collapsed", overseas.enabled && overseasCollapsed);
+  elements.toggleOverseasPanel.setAttribute("aria-expanded", String(overseas.enabled && !overseasCollapsed));
+  elements.toggleOverseasPanel.title = overseasCollapsed ? "해외여행 펼치기" : "해외여행 접기";
+  elements.toggleOverseasPanel.querySelector("span").textContent = overseasCollapsed ? "▾" : "▴";
 
   elements.currencyOne.innerHTML = createCurrencyOptions(currencyOne);
   elements.currencyTwo.innerHTML = createCurrencyOptions(currencyTwo);
@@ -914,6 +968,16 @@ async function saveOverseasSettings(overseas) {
   });
 }
 
+async function saveCompletedSettlements(records) {
+  await saveTrip({
+    ...state,
+    settings: {
+      ...state.settings,
+      completedSettlements: normalizeCompletedSettlements({ completedSettlements: records })
+    }
+  });
+}
+
 async function setOverseasEnabled(enabled) {
   if (!canEdit() || !state) return;
   try {
@@ -948,6 +1012,8 @@ function renderBalances() {
         <div class="balance-detail">
           <span>낸 돈 ${formatMoney(person.paid)}</span>
           <span>부담액 ${formatMoney(person.share)}</span>
+          ${person.completedSent ? `<span>완료 송금 ${formatMoney(person.completedSent)}</span>` : ""}
+          ${person.completedReceived ? `<span>완료 수령 ${formatMoney(person.completedReceived)}</span>` : ""}
         </div>
       </div>
     `;
@@ -961,20 +1027,52 @@ function renderSettlements() {
     elements.settlementList.textContent = state.expenses.length === 0
       ? "아직 정산할 송금이 없습니다."
       : "보낼 돈 없이 정산이 맞아떨어졌습니다.";
+    renderCompletedSettlements();
     return;
   }
 
   elements.settlementList.className = "settlement-list";
-  elements.settlementList.innerHTML = settlements.map((item) => `
+  elements.settlementList.innerHTML = settlements.map((item, index) => `
     <div class="settlement-item">
       <div class="settlement-route">
         <strong>${escapeHtml(item.fromName)}</strong>
         <span> → </span>
         <strong>${escapeHtml(item.toName)}</strong>
       </div>
-      <div class="settlement-amount">${formatMoney(item.amount)}</div>
+      <div class="settlement-side">
+        <div class="settlement-amount">${formatMoney(item.amount)}</div>
+        ${canEdit() ? `<button class="text-button" type="button" data-complete-settlement="${index}">완료</button>` : ""}
+      </div>
     </div>
   `).join("");
+  renderCompletedSettlements();
+}
+
+function renderCompletedSettlements() {
+  const records = completedSettlements();
+  if (records.length === 0) {
+    elements.completedSettlementList.hidden = true;
+    elements.completedSettlementList.innerHTML = "";
+    return;
+  }
+
+  elements.completedSettlementList.hidden = false;
+  elements.completedSettlementList.innerHTML = `
+    <div class="completed-title">완료된 송금</div>
+    ${records.map((record) => `
+      <div class="completed-settlement-item">
+        <div class="settlement-route">
+          <strong>${escapeHtml(getPersonName(record.fromId))}</strong>
+          <span> → </span>
+          <strong>${escapeHtml(getPersonName(record.toId))}</strong>
+        </div>
+        <div class="settlement-side">
+          <div class="settlement-amount done">${formatMoney(record.amount)}</div>
+          ${canEdit() ? `<button class="text-button" type="button" data-undo-settlement="${escapeHtml(record.id)}">되돌리기</button>` : ""}
+        </div>
+      </div>
+    `).join("")}
+  `;
 }
 
 function renderExpenses() {
@@ -1322,7 +1420,9 @@ function buildExportData(sections) {
       name: person.name,
       balance: person.balance,
       paid: person.paid,
-      share: person.share
+      share: person.share,
+      completedSent: person.completedSent || 0,
+      completedReceived: person.completedReceived || 0
     }));
   }
 
@@ -1331,6 +1431,12 @@ function buildExportData(sections) {
       from: item.fromName,
       to: item.toName,
       amount: item.amount
+    }));
+    data.completedSettlements = completedSettlements().map((record) => ({
+      from: getPersonName(record.fromId),
+      to: getPersonName(record.toId),
+      amount: record.amount,
+      completedAt: record.completedAt || ""
     }));
   }
 
@@ -1410,19 +1516,29 @@ function buildCsv(data) {
     appendCsvSection(
       rows,
       "개인별 차액",
-      ["이름", "차액", "낸 돈", "부담액"],
+      ["이름", "차액", "낸 돈", "부담액", "완료 송금", "완료 수령"],
       data.balances,
-      (person) => [person.name, person.balance, person.paid, person.share]
+      (person) => [person.name, person.balance, person.paid, person.share, person.completedSent, person.completedReceived]
     );
   }
 
   if (data.settlements) {
     appendCsvSection(
       rows,
-      "송금표",
+      "남은 송금표",
       ["보낼 사람", "받을 사람", "금액"],
       data.settlements,
       (item) => [item.from, item.to, item.amount]
+    );
+  }
+
+  if (data.completedSettlements) {
+    appendCsvSection(
+      rows,
+      "완료된 송금",
+      ["보낸 사람", "받은 사람", "금액", "완료 시간"],
+      data.completedSettlements,
+      (item) => [item.from, item.to, item.amount, item.completedAt]
     );
   }
 
@@ -1507,17 +1623,32 @@ function buildPdfLines(data) {
     } else {
       data.balances.forEach((person) => {
         addLine(`${person.name}: 차액 ${formatMoney(person.balance)}, 낸 돈 ${formatMoney(person.paid)}, 부담액 ${formatMoney(person.share)}`);
+        if (person.completedSent || person.completedReceived) {
+          addLine(`   완료 송금 ${formatMoney(person.completedSent)}, 완료 수령 ${formatMoney(person.completedReceived)}`);
+        }
       });
     }
     endSection();
   }
 
   if (data.settlements) {
-    addSection("송금표");
+    addSection("남은 송금표");
     if (data.settlements.length === 0) {
       addEmpty("정산할 송금이 없습니다.");
     } else {
       data.settlements.forEach((item) => {
+        addLine(`${item.from} → ${item.to}: ${formatMoney(item.amount)}`);
+      });
+    }
+    endSection();
+  }
+
+  if (data.completedSettlements) {
+    addSection("완료된 송금");
+    if (data.completedSettlements.length === 0) {
+      addEmpty("완료된 송금이 없습니다.");
+    } else {
+      data.completedSettlements.forEach((item) => {
         addLine(`${item.from} → ${item.to}: ${formatMoney(item.amount)}`);
       });
     }
@@ -1760,6 +1891,12 @@ elements.overseasQuickEnabled.addEventListener("change", () => {
   setOverseasEnabled(elements.overseasQuickEnabled.checked);
 });
 
+elements.toggleOverseasPanel.addEventListener("click", () => {
+  overseasCollapsed = !overseasCollapsed;
+  localStorage.setItem(overseasCollapsedKey, String(overseasCollapsed));
+  renderOverseasPanel();
+});
+
 elements.currencyOne.addEventListener("change", () => {
   elements.currencyOneRate.value = overseasSettings().rates[elements.currencyOne.value]
     || defaultOverseasSettings.rates[elements.currencyOne.value]
@@ -1983,6 +2120,44 @@ elements.dashboardList.addEventListener("keydown", (event) => {
   if (trip) {
     event.preventDefault();
     window.location.assign(tripLinkFromRecord(trip));
+  }
+});
+
+elements.settlementList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-complete-settlement]");
+  if (!button || !canEdit() || !state) return;
+
+  const settlement = state.summary.settlements[Number(button.dataset.completeSettlement)];
+  if (!settlement) return;
+
+  try {
+    await saveCompletedSettlements([
+      {
+        id: makeId("done_"),
+        fromId: settlement.fromId,
+        toId: settlement.toId,
+        amount: settlement.amount,
+        completedAt: new Date().toISOString()
+      },
+      ...completedSettlements()
+    ]);
+    showToast("완료한 송금으로 표시했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.completedSettlementList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-undo-settlement]");
+  if (!button || !canEdit() || !state) return;
+
+  try {
+    await saveCompletedSettlements(
+      completedSettlements().filter((record) => record.id !== button.dataset.undoSettlement)
+    );
+    showToast("완료 표시를 되돌렸습니다.");
+  } catch (error) {
+    showToast(error.message);
   }
 });
 

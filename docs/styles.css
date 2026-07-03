@@ -415,6 +415,13 @@ body.has-overseas .workspace {
   margin-bottom: 14px;
 }
 
+.panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .panel h2 {
   margin: 0;
   font-size: 1.15rem;
@@ -790,7 +797,8 @@ label span,
   font-size: 0.84rem;
 }
 
-.settlement-item {
+.settlement-item,
+.completed-settlement-item {
   justify-content: space-between;
   gap: 14px;
   padding: 14px;
@@ -813,6 +821,43 @@ label span,
   white-space: nowrap;
   color: var(--blue);
   font-weight: 950;
+}
+
+.settlement-amount.done {
+  color: var(--muted);
+}
+
+.settlement-side {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.completed-settlement-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.completed-settlement-list[hidden] {
+  display: none;
+}
+
+.completed-title {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.completed-settlement-item {
+  display: flex;
+  border: 1px solid rgba(223, 230, 232, 0.78);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .expense-list {
@@ -1385,9 +1430,11 @@ body.is-readonly .export-form .primary-button {
   }
 
   .settlement-item,
+  .completed-settlement-item,
   .expense-main,
   .expense-actions {
     align-items: flex-start;
+    flex-direction: column;
     grid-template-columns: 1fr;
   }
 
@@ -1422,6 +1469,11 @@ body.is-readonly .export-form .primary-button {
   .dashboard-trip-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .settlement-side {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .settlement-amount,
