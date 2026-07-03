@@ -234,12 +234,8 @@ button {
   box-shadow: none;
 }
 
-body.is-readonly #copy-edit-link {
-  display: none;
-}
-
-body.is-readonly input:not(#trip-name),
-body.is-readonly select,
+body.is-readonly input:not(#trip-name):not(#expense-filter-date),
+body.is-readonly select:not(#expense-filter-category),
 body.is-readonly .primary-button,
 body.is-readonly #select-all,
 body.is-readonly #clear-all {
@@ -526,6 +522,10 @@ body.has-overseas .workspace {
   margin-bottom: 12px;
 }
 
+.person-form {
+  grid-template-columns: 1fr 1fr 42px;
+}
+
 input,
 select {
   width: 100%;
@@ -583,6 +583,40 @@ select:focus {
   font-weight: 800;
 }
 
+.person-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.person-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.person-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.account-copy {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--mint-soft);
+  color: var(--mint);
+  font-size: 0.78rem;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
 .person-chip button,
 .expense-delete {
   display: inline-grid;
@@ -595,6 +629,26 @@ select:focus {
   color: var(--muted);
   font-size: 1rem;
   line-height: 1;
+}
+
+.person-chip .account-copy,
+.person-actions .text-button {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  height: auto;
+  min-height: 32px;
+}
+
+.person-chip .account-copy {
+  max-width: 100%;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: var(--mint-soft);
+  color: var(--mint);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
 }
 
 .expense-form {
@@ -680,6 +734,49 @@ label span,
 
 .participant-tools {
   gap: 8px;
+}
+
+.category-manager {
+  display: grid;
+  gap: 10px;
+}
+
+.category-add-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto;
+  gap: 8px;
+}
+
+.category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.category-chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f4f4;
+  color: var(--muted);
+  line-height: 1;
 }
 
 .text-button {
@@ -868,6 +965,14 @@ label span,
   max-height: 640px;
   overflow: auto;
   padding-right: 2px;
+}
+
+.expense-filters {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(160px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .expense-item {
@@ -1403,7 +1508,9 @@ body.is-readonly .export-form .primary-button {
   }
 
   .expense-edit-grid,
-  .expense-modal .form-grid {
+  .expense-modal .form-grid,
+  .person-form,
+  .expense-filters {
     grid-template-columns: 1fr;
   }
 
@@ -1449,6 +1556,10 @@ body.is-readonly .export-form .primary-button {
 
   .expense-amount-stack {
     text-align: left;
+  }
+
+  .category-add-row {
+    grid-template-columns: 1fr;
   }
 
   .expense-original {

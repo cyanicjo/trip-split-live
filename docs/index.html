@@ -41,10 +41,6 @@
             <span aria-hidden="true">⇩</span>
             <span>내보내기</span>
           </button>
-          <button id="copy-edit-link" class="icon-button labeled" type="button" title="편집 링크 복사">
-            <span aria-hidden="true">✎</span>
-            <span>편집 링크</span>
-          </button>
         </div>
       </header>
 
@@ -173,8 +169,9 @@
             </button>
           </div>
           <div id="people-body" class="panel-body">
-            <form id="person-form" class="inline-form">
+            <form id="person-form" class="inline-form person-form">
               <input id="person-name" type="text" maxlength="40" placeholder="이름 추가" autocomplete="off" aria-label="이름 추가">
+              <input id="person-account" type="text" maxlength="80" placeholder="계좌번호 선택 사항" autocomplete="off" aria-label="계좌번호 선택 사항">
               <button class="icon-button" type="submit" title="친구 추가" aria-label="친구 추가">+</button>
             </form>
             <div id="people-list" class="people-list empty-state">아직 추가된 친구가 없습니다.</div>
@@ -225,6 +222,17 @@
               <p class="eyebrow">History</p>
               <h2 id="expense-list-heading">지출 목록</h2>
             </div>
+          </div>
+          <div class="expense-filters" aria-label="지출 목록 필터">
+            <label>
+              <span>날짜</span>
+              <input id="expense-filter-date" type="date">
+            </label>
+            <label>
+              <span>카테고리</span>
+              <select id="expense-filter-category"></select>
+            </label>
+            <button id="clear-expense-filters" class="text-button" type="button">초기화</button>
           </div>
           <div id="expense-list" class="expense-list empty-state">저장된 지출이 없습니다.</div>
         </section>
@@ -311,6 +319,10 @@
               <span>내용</span>
               <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
             </label>
+            <label>
+              <span>카테고리</span>
+              <select id="expense-category"></select>
+            </label>
             <label id="expense-currency-field" hidden>
               <span>통화</span>
               <select id="expense-currency"></select>
@@ -336,6 +348,17 @@
               <span>날짜</span>
               <input id="expense-date" type="date">
             </label>
+          </div>
+
+          <div class="category-manager">
+            <div class="participant-row">
+              <div class="field-label">카테고리 항목</div>
+              <div class="category-add-row">
+                <input id="category-name" type="text" maxlength="20" placeholder="새 카테고리" autocomplete="off" aria-label="새 카테고리">
+                <button id="add-category" type="button" class="text-button">추가</button>
+              </div>
+            </div>
+            <div id="category-list" class="category-list"></div>
           </div>
 
           <div class="participant-row">

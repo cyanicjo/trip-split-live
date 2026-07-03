@@ -1,5 +1,29 @@
 const assert = require("assert");
 
+function expenseShares(amount, participantIds, payerId) {
+  const count = participantIds.length;
+  const baseShare = Math.floor(amount / count);
+  const remainder = amount % count;
+
+  if (remainder === 0) {
+    return new Map(participantIds.map((id) => [id, baseShare]));
+  }
+
+  if (participantIds.includes(payerId)) {
+    const nonPayerShare = Math.ceil(amount / count);
+    const payerShare = amount - nonPayerShare * (count - 1);
+    return new Map(participantIds.map((id) => [
+      id,
+      id === payerId ? payerShare : nonPayerShare
+    ]));
+  }
+
+  return new Map(participantIds.map((id, index) => [
+    id,
+    baseShare + (index < remainder ? 1 : 0)
+  ]));
+}
+
 function calculateSummary(trip) {
   const people = trip.people || [];
   const peopleById = new Map(people.map((person) => [person.id, person]));
@@ -27,11 +51,10 @@ function calculateSummary(trip) {
     balances.set(expense.payerId, balances.get(expense.payerId) + amount);
     paidTotals.set(expense.payerId, paidTotals.get(expense.payerId) + amount);
 
-    const baseShare = Math.floor(amount / participantIds.length);
-    const remainder = amount % participantIds.length;
+    const shares = expenseShares(amount, participantIds, expense.payerId);
 
-    participantIds.forEach((id, index) => {
-      const share = baseShare + (index < remainder ? 1 : 0);
+    participantIds.forEach((id) => {
+      const share = shares.get(id) || 0;
       balances.set(id, balances.get(id) - share);
       shareTotals.set(id, shareTotals.get(id) + share);
     });
@@ -168,6 +191,39 @@ assert.deepStrictEqual(
   completedSummary.settlements.map((item) => [item.fromId, item.toId, item.amount]),
   [
     ["b", "a", 15000]
+  ]
+);
+
+const roundedSummary = calculateSummary({
+  people: [
+    { id: "a", name: "민수" },
+    { id: "b", name: "지연" },
+    { id: "c", name: "하나" }
+  ],
+  expenses: [
+    {
+      id: "e3",
+      title: "테스트",
+      amount: 100,
+      payerId: "a",
+      participantIds: ["a", "b", "c"]
+    }
+  ]
+});
+
+assert.deepStrictEqual(
+  roundedSummary.people.map((person) => [person.id, person.share, person.balance]),
+  [
+    ["a", 32, 68],
+    ["b", 34, -34],
+    ["c", 34, -34]
+  ]
+);
+assert.deepStrictEqual(
+  roundedSummary.settlements.map((item) => [item.fromId, item.toId, item.amount]),
+  [
+    ["b", "a", 34],
+    ["c", "a", 34]
   ]
 );
 
