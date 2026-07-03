@@ -82,7 +82,8 @@ const elements = {
   balanceList: document.querySelector("#balance-list"),
   settlementList: document.querySelector("#settlement-list"),
   completedSettlementList: document.querySelector("#completed-settlement-list"),
-  expenseFilterDate: document.querySelector("#expense-filter-date"),
+  expenseFilterStartDate: document.querySelector("#expense-filter-start-date"),
+  expenseFilterEndDate: document.querySelector("#expense-filter-end-date"),
   expenseFilterCategory: document.querySelector("#expense-filter-category"),
   clearExpenseFilters: document.querySelector("#clear-expense-filters"),
   expenseList: document.querySelector("#expense-list"),
@@ -233,6 +234,13 @@ function personBankName(person = {}) {
 
 function personAccountNumber(person = {}) {
   return String(person.accountNumber || person.account || "").trim().slice(0, 80);
+}
+
+function personAccountCopyText(person = {}) {
+  const accountNumber = personAccountNumber(person);
+  const bankName = personBankName(person);
+  if (!accountNumber) return "";
+  return bankName ? `${accountNumber} ${bankName}` : accountNumber;
 }
 
 function showToast(message) {
@@ -1027,16 +1035,14 @@ function renderPeople() {
 
   elements.peopleList.className = "people-list";
   elements.peopleList.innerHTML = state.people.map((person) => {
-    const bankName = personBankName(person);
-    const accountNumber = personAccountNumber(person);
+    const accountCopyText = personAccountCopyText(person);
     return `
       <div class="person-chip">
         <div class="person-main">
           <span class="person-name">${escapeHtml(person.name)}</span>
-          ${accountNumber ? `
+          ${accountCopyText ? `
             <span class="account-line">
-              ${bankName ? `<span class="account-bank">${escapeHtml(bankName)}</span>` : ""}
-              <button class="account-copy" type="button" data-copy-account="${person.id}" title="계좌번호 복사">${escapeHtml(accountNumber)}</button>
+              <button class="account-copy" type="button" data-copy-account="${person.id}" title="계좌 정보 복사">${escapeHtml(accountCopyText)}</button>
             </span>
           ` : ""}
         </div>
@@ -1278,7 +1284,8 @@ function renderCompletedSettlements() {
 }
 
 function renderExpenseFilters() {
-  const selectedDate = elements.expenseFilterDate.value;
+  const selectedStartDate = elements.expenseFilterStartDate.value;
+  const selectedEndDate = elements.expenseFilterEndDate.value;
   const selectedCategory = elements.expenseFilterCategory.value;
   const categoryValues = uniqueCategoryList(state.expenses.map((expense) => expense.category));
   elements.expenseFilterCategory.innerHTML = `
@@ -1292,18 +1299,24 @@ function renderExpenseFilters() {
     : "";
 
   const disabled = state.expenses.length === 0;
-  elements.expenseFilterDate.disabled = disabled;
+  elements.expenseFilterStartDate.disabled = disabled;
+  elements.expenseFilterEndDate.disabled = disabled;
   elements.expenseFilterCategory.disabled = disabled;
-  elements.clearExpenseFilters.disabled = !selectedDate && !elements.expenseFilterCategory.value;
+  elements.clearExpenseFilters.disabled = !selectedStartDate && !selectedEndDate && !elements.expenseFilterCategory.value;
 }
 
 function filteredExpenses() {
-  const date = elements.expenseFilterDate.value;
+  const startDate = elements.expenseFilterStartDate.value;
+  const endDate = elements.expenseFilterEndDate.value;
   const category = elements.expenseFilterCategory.value;
+  const rangeStart = startDate && endDate && startDate > endDate ? endDate : startDate;
+  const rangeEnd = startDate && endDate && startDate > endDate ? startDate : endDate;
   return state.expenses.filter((expense) => {
-    const matchesDate = !date || expense.spentAt === date;
+    const spentAt = expense.spentAt || "";
+    const matchesStart = !rangeStart || spentAt >= rangeStart;
+    const matchesEnd = !rangeEnd || spentAt <= rangeEnd;
     const matchesCategory = !category || expense.category === category;
-    return matchesDate && matchesCategory;
+    return matchesStart && matchesEnd && matchesCategory;
   });
 }
 
@@ -2534,9 +2547,9 @@ elements.peopleList.addEventListener("click", async (event) => {
   const accountCopyButton = event.target.closest("[data-copy-account]");
   if (accountCopyButton) {
     const person = state?.people.find((item) => item.id === accountCopyButton.dataset.copyAccount);
-    const accountNumber = personAccountNumber(person);
-    if (accountNumber) {
-      await copyText(accountNumber, "계좌번호를 복사했습니다.");
+    const accountCopyText = personAccountCopyText(person);
+    if (accountCopyText) {
+      await copyText(accountCopyText, "계좌 정보를 복사했습니다.");
     }
     return;
   }
@@ -2667,7 +2680,12 @@ elements.categoryList.addEventListener("click", async (event) => {
   }
 });
 
-elements.expenseFilterDate.addEventListener("change", () => {
+elements.expenseFilterStartDate.addEventListener("change", () => {
+  editingExpenseId = "";
+  renderExpenses();
+});
+
+elements.expenseFilterEndDate.addEventListener("change", () => {
   editingExpenseId = "";
   renderExpenses();
 });
@@ -2678,7 +2696,8 @@ elements.expenseFilterCategory.addEventListener("change", () => {
 });
 
 elements.clearExpenseFilters.addEventListener("click", () => {
-  elements.expenseFilterDate.value = "";
+  elements.expenseFilterStartDate.value = "";
+  elements.expenseFilterEndDate.value = "";
   elements.expenseFilterCategory.value = "";
   editingExpenseId = "";
   renderExpenses();

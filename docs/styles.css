@@ -235,7 +235,7 @@ button {
   box-shadow: none;
 }
 
-body.is-readonly input:not(#trip-name):not(#expense-filter-date),
+body.is-readonly input:not(#trip-name):not(#expense-filter-start-date):not(#expense-filter-end-date),
 body.is-readonly select:not(#expense-filter-category),
 body.is-readonly .primary-button,
 body.is-readonly #select-all,
@@ -258,10 +258,10 @@ body.is-readonly #clear-all {
 body.has-overseas .workspace {
   grid-template-areas:
     "summary summary summary"
-    "overseas overseas overseas"
     "people expense settlement"
     "balance expense settlement"
-    "balance history settlement";
+    "balance history settlement"
+    "overseas overseas overseas";
 }
 
 .summary-band,
@@ -632,12 +632,6 @@ select:focus {
   min-width: 0;
 }
 
-.account-bank {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 850;
-}
-
 .person-chip button,
 .expense-delete {
   display: inline-grid;
@@ -991,7 +985,7 @@ label span,
 
 .expense-filters {
   display: grid;
-  grid-template-columns: minmax(150px, 0.7fr) minmax(160px, 1fr) auto;
+  grid-template-columns: minmax(132px, 0.8fr) minmax(132px, 0.8fr) minmax(150px, 1fr) auto;
   align-items: end;
   gap: 10px;
   margin-bottom: 12px;
@@ -1439,10 +1433,10 @@ body.is-readonly .export-form .primary-button {
   body.has-overseas .workspace {
     grid-template-areas:
       "summary summary"
-      "overseas overseas"
       "people expense"
       "balance expense"
-      "settlement history";
+      "settlement history"
+      "overseas overseas";
   }
 
   .settlement-panel {
@@ -1493,12 +1487,12 @@ body.is-readonly .export-form .primary-button {
   body.has-overseas .workspace {
     grid-template-areas:
       "summary"
-      "overseas"
       "people"
       "expense"
       "settlement"
       "balance"
-      "history";
+      "history"
+      "overseas";
   }
 
   .summary-band {
