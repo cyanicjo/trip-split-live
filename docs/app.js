@@ -224,6 +224,38 @@ function formatCurrencyAmount(value, currency = "KRW") {
   return `${currencySymbol(currency)}${formatted} ${currency}`;
 }
 
+function directionalRateDisplay(rateValue, baseCurrency, quoteCurrency, label = "환율") {
+  const directRate = Number(rateValue) || 0;
+  if (directRate <= 0) {
+    return null;
+  }
+
+  const shouldInvert = directRate < 1;
+  const displayRate = shouldInvert ? 1 / directRate : directRate;
+  const displayBaseCurrency = shouldInvert ? quoteCurrency : baseCurrency;
+  const displayQuoteCurrency = shouldInvert ? baseCurrency : quoteCurrency;
+
+  return {
+    label: `${label} ${formatRate(displayRate)}`,
+    direction: `${displayBaseCurrency} 1 = ${displayQuoteCurrency} ${formatRate(displayRate)}`
+  };
+}
+
+function exchangeRateDisplay(record) {
+  const fromAmount = Number(record.fromAmount) || 0;
+  const toAmount = Number(record.toAmount) || 0;
+  if (fromAmount <= 0 || toAmount <= 0) {
+    return null;
+  }
+
+  return directionalRateDisplay(
+    toAmount / fromAmount,
+    record.fromCurrency,
+    record.toCurrency,
+    "환산"
+  );
+}
+
 function getPersonName(id) {
   return state?.people.find((person) => person.id === id)?.name || "알 수 없음";
 }
@@ -999,9 +1031,7 @@ function renderExchangeList() {
   elements.exchangeList.innerHTML = records.map((record) => {
     const from = formatCurrencyAmount(record.fromAmount, record.fromCurrency);
     const to = formatCurrencyAmount(record.toAmount, record.toCurrency);
-    const impliedRate = Number(record.fromAmount) > 0
-      ? Number(record.toAmount) / Number(record.fromAmount)
-      : 0;
+    const rate = exchangeRateDisplay(record);
     return `
       <article class="exchange-item">
         <div class="exchange-main">
@@ -1011,7 +1041,12 @@ function renderExchangeList() {
         </div>
         <div class="expense-meta">
           <span>${escapeHtml(record.exchangedAt || "")}</span>
-          ${impliedRate > 0 ? `<span>환산 ${formatRate(impliedRate)}</span>` : ""}
+          ${rate ? `
+            <span class="exchange-rate-chip">
+              <strong>${escapeHtml(rate.label)}</strong>
+              <small>${escapeHtml(rate.direction)}</small>
+            </span>
+          ` : ""}
           ${record.memo ? `<span>${escapeHtml(record.memo)}</span>` : ""}
         </div>
         ${canEdit() ? `<button class="expense-delete" type="button" title="환전 기록 삭제" aria-label="환전 기록 삭제" data-remove-exchange="${escapeHtml(record.id)}">×</button>` : ""}
@@ -1351,7 +1386,7 @@ function renderExpenses() {
 
     const participants = (expense.participantIds || []).map(getPersonName).join(", ");
     const originalAmount = expenseOriginalText(expense);
-    const rateText = expenseRateText(expense);
+    const rate = expenseRateDisplay(expense);
     return `
       <article class="expense-item">
         <div class="expense-main">
@@ -1365,7 +1400,12 @@ function renderExpenses() {
           ${expense.category ? `<span>${escapeHtml(expense.category)}</span>` : ""}
           <span>결제 ${escapeHtml(getPersonName(expense.payerId))}</span>
           <span>${escapeHtml(expense.spentAt)}</span>
-          ${rateText ? `<span>${escapeHtml(rateText)}</span>` : ""}
+          ${rate ? rate.direction ? `
+            <span class="exchange-rate-chip">
+              <strong>${escapeHtml(rate.label)}</strong>
+              <small>${escapeHtml(rate.direction)}</small>
+            </span>
+          ` : `<span>${escapeHtml(rate.label)}</span>` : ""}
           <span>${escapeHtml(participants)}</span>
         </div>
         <div class="expense-actions">
@@ -1389,14 +1429,14 @@ function expenseOriginalText(expense) {
   return formatCurrencyAmount(expense.foreignAmount, expense.currency);
 }
 
-function expenseRateText(expense) {
+function expenseRateDisplay(expense) {
   if (!expense.currency || expense.currency === "KRW" || !expense.exchangeRate) {
-    return "";
+    return null;
   }
   if (expense.cardKrwAmount) {
-    return `청구 ${formatMoney(expense.cardKrwAmount)}`;
+    return { label: `청구 ${formatMoney(expense.cardKrwAmount)}` };
   }
-  return `환율 ${formatRate(expense.exchangeRate)}`;
+  return directionalRateDisplay(expense.exchangeRate, expense.currency, "KRW", "환율");
 }
 
 function renderDashboard() {
