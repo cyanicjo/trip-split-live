@@ -1,7 +1,8 @@
-create extension if not exists pgcrypto;
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.trips (
-  id uuid primary key default gen_random_uuid(),
+  id uuid primary key default extensions.gen_random_uuid(),
   public_id text not null unique,
   name text not null default '새 여행 정산',
   people jsonb not null default '[]'::jsonb,
@@ -36,7 +37,7 @@ returns text
 language sql
 stable
 as $$
-  select encode(digest(coalesce(p_token, ''), 'sha256'), 'hex')
+  select encode(extensions.digest(coalesce(p_token, ''), 'sha256'), 'hex')
 $$;
 
 create or replace function public.create_trip()
@@ -50,8 +51,8 @@ declare
   v_public_id text;
   v_edit_token text;
 begin
-  v_public_id := 'trip-' || encode(gen_random_bytes(8), 'hex');
-  v_edit_token := encode(gen_random_bytes(18), 'hex');
+  v_public_id := 'trip-' || encode(extensions.gen_random_bytes(8), 'hex');
+  v_edit_token := encode(extensions.gen_random_bytes(18), 'hex');
 
   insert into public.trips (public_id)
   values (v_public_id)

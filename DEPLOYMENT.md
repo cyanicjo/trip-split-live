@@ -30,6 +30,10 @@ supabase/schema.sql
 
 이 SQL은 `trips`, `trip_secrets` 테이블과 여행 생성/조회/저장 함수를 만듭니다.
 
+이미 한 번 실행한 뒤에도 같은 파일 전체를 다시 실행해도 됩니다. 테이블은 유지되고 저장 함수만 최신 내용으로 덮어써집니다.
+
+`function gen_random_bytes(integer) does not exist` 오류가 보이면 이 파일의 최신 버전을 다시 실행해 주세요. Supabase에서 랜덤 토큰 함수가 `extensions` 스키마에 있어서 생기는 오류입니다.
+
 ## 3. Supabase URL과 anon key 넣기
 
 Supabase 프로젝트에서 아래로 이동합니다.
