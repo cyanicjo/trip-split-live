@@ -1094,6 +1094,10 @@ label span,
 }
 
 .settlement-route {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -1104,6 +1108,21 @@ label span,
 .settlement-route span {
   color: var(--muted);
   font-weight: 850;
+}
+
+.settlement-recipient {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink);
+}
+
+.settlement-account-copy {
+  max-width: min(230px, 100%);
+  color: var(--mint);
+  line-height: 1.25;
 }
 
 .settlement-amount {

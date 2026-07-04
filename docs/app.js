@@ -276,6 +276,28 @@ function personAccountCopyText(person = {}) {
   return bankName ? `${accountNumber} ${bankName}` : accountNumber;
 }
 
+function personById(id) {
+  return state?.people.find((person) => person.id === id);
+}
+
+function settlementRecipientHtml(personId, name) {
+  const accountCopyText = personAccountCopyText(personById(personId));
+  return `
+    <span class="settlement-recipient">
+      <strong>${escapeHtml(name)}</strong>
+      ${accountCopyText ? `<button class="account-copy settlement-account-copy" type="button" data-copy-account="${escapeHtml(personId)}" title="계좌 정보 복사">${escapeHtml(accountCopyText)}</button>` : ""}
+    </span>
+  `;
+}
+
+async function copyAccountFromButton(accountCopyButton) {
+  const person = personById(accountCopyButton.dataset.copyAccount);
+  const accountCopyText = personAccountCopyText(person);
+  if (accountCopyText) {
+    await copyText(accountCopyText, "계좌 정보를 복사했습니다.");
+  }
+}
+
 function showToast(message) {
   clearTimeout(toastTimer);
   elements.toast.textContent = message;
@@ -1463,7 +1485,7 @@ function renderSettlements() {
       <div class="settlement-route">
         <strong>${escapeHtml(item.fromName)}</strong>
         <span> → </span>
-        <strong>${escapeHtml(item.toName)}</strong>
+        ${settlementRecipientHtml(item.toId, item.toName)}
       </div>
       <div class="settlement-side">
         <div class="settlement-amount">${formatMoney(item.amount)}</div>
@@ -1490,7 +1512,7 @@ function renderCompletedSettlements() {
         <div class="settlement-route">
           <strong>${escapeHtml(getPersonName(record.fromId))}</strong>
           <span> → </span>
-          <strong>${escapeHtml(getPersonName(record.toId))}</strong>
+          ${settlementRecipientHtml(record.toId, getPersonName(record.toId))}
         </div>
         <div class="settlement-side">
           <div class="settlement-amount done">${formatMoney(record.amount)}</div>
@@ -2655,6 +2677,12 @@ elements.dashboardList.addEventListener("keydown", (event) => {
 });
 
 elements.settlementList.addEventListener("click", async (event) => {
+  const accountCopyButton = event.target.closest("[data-copy-account]");
+  if (accountCopyButton) {
+    await copyAccountFromButton(accountCopyButton);
+    return;
+  }
+
   const button = event.target.closest("[data-complete-settlement]");
   if (!button || !canEdit() || !state) return;
 
@@ -2679,6 +2707,12 @@ elements.settlementList.addEventListener("click", async (event) => {
 });
 
 elements.completedSettlementList.addEventListener("click", async (event) => {
+  const accountCopyButton = event.target.closest("[data-copy-account]");
+  if (accountCopyButton) {
+    await copyAccountFromButton(accountCopyButton);
+    return;
+  }
+
   const button = event.target.closest("[data-undo-settlement]");
   if (!button || !canEdit() || !state) return;
 
@@ -2772,11 +2806,7 @@ elements.personForm.addEventListener("submit", async (event) => {
 elements.peopleList.addEventListener("click", async (event) => {
   const accountCopyButton = event.target.closest("[data-copy-account]");
   if (accountCopyButton) {
-    const person = state?.people.find((item) => item.id === accountCopyButton.dataset.copyAccount);
-    const accountCopyText = personAccountCopyText(person);
-    if (accountCopyText) {
-      await copyText(accountCopyText, "계좌 정보를 복사했습니다.");
-    }
+    await copyAccountFromButton(accountCopyButton);
     return;
   }
 
