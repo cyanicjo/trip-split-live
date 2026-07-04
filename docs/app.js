@@ -111,6 +111,7 @@ let tripNameTimer = null;
 let saving = false;
 let editingExpenseId = "";
 let editingAccountPersonId = "";
+let openCustomSelect = null;
 
 const peopleCollapsedKey = "tripSplitPeopleCollapsed";
 let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
@@ -549,6 +550,187 @@ function createCurrencyOptions(selected, { includeKrw = false } = {}) {
   }).join("");
 }
 
+function customSelectParts(select) {
+  const shell = select.nextElementSibling;
+  if (!shell?.classList.contains("custom-select")) {
+    return null;
+  }
+
+  return {
+    shell,
+    button: shell.querySelector(".custom-select-button"),
+    value: shell.querySelector(".custom-select-value"),
+    menu: shell.querySelector(".custom-select-menu")
+  };
+}
+
+function closeCustomSelect() {
+  if (!openCustomSelect) return;
+
+  const parts = customSelectParts(openCustomSelect);
+  if (parts) {
+    parts.shell.classList.remove("is-open");
+    parts.button.setAttribute("aria-expanded", "false");
+    parts.menu.hidden = true;
+  }
+
+  openCustomSelect = null;
+}
+
+function selectCustomOption(select, value) {
+  select.value = value;
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  syncCustomSelect(select);
+  closeCustomSelect();
+}
+
+function renderCustomSelectOptions(select) {
+  const parts = customSelectParts(select);
+  if (!parts) return;
+
+  parts.menu.replaceChildren();
+
+  for (const option of Array.from(select.options)) {
+    const item = document.createElement("button");
+    const isSelected = option.value === select.value;
+    item.type = "button";
+    item.className = `custom-select-option${isSelected ? " is-selected" : ""}`;
+    item.dataset.value = option.value;
+    item.disabled = option.disabled;
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", String(isSelected));
+    item.innerHTML = `<span></span><span class="custom-select-check" aria-hidden="true">${isSelected ? "✓" : ""}</span>`;
+    item.querySelector("span").textContent = option.textContent;
+    item.addEventListener("click", () => selectCustomOption(select, option.value));
+    parts.menu.append(item);
+  }
+}
+
+function syncCustomSelect(select) {
+  const parts = customSelectParts(select);
+  if (!parts) return;
+
+  const selectedOption = select.selectedOptions[0] || select.options[0];
+  parts.value.textContent = selectedOption?.textContent || "선택";
+  parts.shell.classList.toggle("is-disabled", select.disabled);
+  parts.button.disabled = select.disabled;
+  parts.button.tabIndex = select.disabled ? -1 : 0;
+  renderCustomSelectOptions(select);
+}
+
+function focusCustomOption(select, direction = 1) {
+  const parts = customSelectParts(select);
+  if (!parts) return;
+
+  const options = Array.from(parts.menu.querySelectorAll(".custom-select-option:not(:disabled)"));
+  if (options.length === 0) return;
+
+  const activeIndex = options.indexOf(document.activeElement);
+  const selectedIndex = options.findIndex((option) => option.classList.contains("is-selected"));
+  const baseIndex = activeIndex >= 0 ? activeIndex : selectedIndex;
+  const nextIndex = baseIndex < 0
+    ? 0
+    : (baseIndex + direction + options.length) % options.length;
+  options[nextIndex].focus();
+}
+
+function openCustomSelectMenu(select) {
+  const parts = customSelectParts(select);
+  if (!parts || select.disabled) return;
+
+  if (openCustomSelect && openCustomSelect !== select) {
+    closeCustomSelect();
+  }
+
+  openCustomSelect = select;
+  parts.shell.classList.add("is-open");
+  parts.button.setAttribute("aria-expanded", "true");
+  parts.menu.hidden = false;
+  renderCustomSelectOptions(select);
+}
+
+function toggleCustomSelect(select) {
+  if (openCustomSelect === select) {
+    closeCustomSelect();
+  } else {
+    openCustomSelectMenu(select);
+  }
+}
+
+function handleCustomSelectKeydown(event, select) {
+  const isOpen = openCustomSelect === select;
+  if (event.key === "Escape") {
+    closeCustomSelect();
+    customSelectParts(select)?.button.focus();
+    return;
+  }
+
+  if (event.key === "Enter" || event.key === " ") {
+    const option = event.target.closest(".custom-select-option");
+    event.preventDefault();
+    if (option) {
+      selectCustomOption(select, option.dataset.value);
+    } else {
+      toggleCustomSelect(select);
+    }
+    return;
+  }
+
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    if (!isOpen) {
+      openCustomSelectMenu(select);
+    }
+    focusCustomOption(select, event.key === "ArrowDown" ? 1 : -1);
+  }
+}
+
+function enhanceCustomSelect(select) {
+  if (select.dataset.customSelect === "true") {
+    syncCustomSelect(select);
+    return;
+  }
+
+  const shell = document.createElement("div");
+  shell.className = "custom-select";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "custom-select-button";
+  button.setAttribute("aria-haspopup", "listbox");
+  button.setAttribute("aria-expanded", "false");
+  button.innerHTML = `
+    <span class="custom-select-value"></span>
+    <span class="custom-select-arrow" aria-hidden="true">▾</span>
+  `;
+
+  const menu = document.createElement("div");
+  menu.className = "custom-select-menu";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+
+  shell.append(button, menu);
+  select.classList.add("native-select-hidden");
+  select.dataset.customSelect = "true";
+  select.tabIndex = -1;
+  select.setAttribute("aria-hidden", "true");
+  select.insertAdjacentElement("afterend", shell);
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleCustomSelect(select);
+  });
+  shell.addEventListener("keydown", (event) => handleCustomSelectKeydown(event, select));
+  select.addEventListener("change", () => syncCustomSelect(select));
+  syncCustomSelect(select);
+}
+
+function refreshCustomSelects(root = document) {
+  for (const select of root.querySelectorAll("select")) {
+    enhanceCustomSelect(select);
+  }
+}
+
 function calculateExpenseAmount({ currency, foreignAmount, exchangeRate, cardKrwAmount }) {
   if (currency === "KRW") {
     return Math.round(Number(foreignAmount) || 0);
@@ -887,6 +1069,7 @@ function render() {
   renderExpenses();
   renderDashboard();
   renderAccountModal();
+  refreshCustomSelects();
 }
 
 function renderHeader() {
@@ -1369,12 +1552,14 @@ function renderExpenses() {
   if (state.expenses.length === 0) {
     elements.expenseList.className = "expense-list empty-state";
     elements.expenseList.textContent = "저장된 지출이 없습니다.";
+    refreshCustomSelects();
     return;
   }
 
   if (expenses.length === 0) {
     elements.expenseList.className = "expense-list empty-state";
     elements.expenseList.textContent = "조건에 맞는 지출이 없습니다.";
+    refreshCustomSelects();
     return;
   }
 
@@ -1420,6 +1605,7 @@ function renderExpenses() {
       </article>
     `;
   }).join("");
+  refreshCustomSelects();
 }
 
 function expenseOriginalText(expense) {
@@ -2937,6 +3123,18 @@ elements.expenseList.addEventListener("submit", async (event) => {
     editingExpenseId = previousEditingId;
     renderExpenses();
     showToast(error.message);
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".custom-select")) {
+    closeCustomSelect();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeCustomSelect();
   }
 });
 
