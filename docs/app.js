@@ -798,7 +798,7 @@ async function saveTrip(nextState) {
     } catch (error) {
       if (error.message.includes("p_settings") || error.message.includes("settings") || error.message.includes("function")) {
         if (settingsChanged) {
-          throw new Error("Supabase SQL Editor에서 최신 schema.sql을 다시 실행해야 해외여행 설정을 저장할 수 있습니다.");
+          throw new Error("Supabase SQL Editor에서 최신 schema.sql을 다시 실행해야 외화 정산 설정을 저장할 수 있습니다.");
         }
         result = await callRpc("update_trip_state", {
           p_public_id: tripId,
@@ -976,7 +976,7 @@ function renderOverseasPanel() {
   elements.overseasBody.hidden = !overseas.enabled || overseasCollapsed;
   elements.overseasPanel.classList.toggle("is-collapsed", overseas.enabled && overseasCollapsed);
   elements.toggleOverseasPanel.setAttribute("aria-expanded", String(overseas.enabled && !overseasCollapsed));
-  elements.toggleOverseasPanel.title = overseasCollapsed ? "해외여행 펼치기" : "해외여행 접기";
+  elements.toggleOverseasPanel.title = overseasCollapsed ? "외화 정산 펼치기" : "외화 정산 접기";
   elements.toggleOverseasPanel.querySelector("span").textContent = overseasCollapsed ? "▾" : "▴";
 
   elements.currencyOne.innerHTML = createCurrencyOptions(currencyOne);
@@ -1559,7 +1559,7 @@ function renderExpenseEditor(expense) {
           </label>
           ${showFx ? `
             <label>
-              <span>통화</span>
+              <span>결제 통화</span>
               <select data-edit-currency>${editCurrencies.map((item) => (
                 `<option value="${item}" ${item === currency ? "selected" : ""}>${item}</option>`
               )).join("")}</select>
@@ -1571,9 +1571,9 @@ function renderExpenseEditor(expense) {
           </label>
           ${showFx ? `
             <label>
-              <span>적용 환율</span>
+              <span>원화 계산 환율</span>
               <input data-edit-rate type="text" inputmode="decimal" value="${escapeHtml(rateValue)}" autocomplete="off">
-              <small class="field-help">외화 1단위를 원화로 얼마로 계산할지입니다. 예: 1 USD = 1350원.</small>
+              <small class="field-help">선택한 통화 1단위를 몇 원으로 계산할지입니다. 예: 1 USD = 1350원.</small>
             </label>
             <label>
               <span>카드 실제 청구액</span>
@@ -1785,7 +1785,7 @@ function buildCsv(data) {
       ["참여자", `${data.summary.peopleCount}명`],
       ["지출 항목", `${data.summary.expenseCount}개`],
       ["송금 수", `${data.summary.settlementCount}개`],
-      ["해외여행", data.summary.overseasEnabled ? "사용" : "미사용"],
+      ["외화 정산", data.summary.overseasEnabled ? "사용" : "미사용"],
       ["외화", data.summary.currencies.join(", ")],
       ["환율", Object.entries(data.summary.rates).map(([currency, rate]) => `${currency} ${rate}`).join(", ")]
     ], (item) => item);
@@ -1795,7 +1795,7 @@ function buildCsv(data) {
     appendCsvSection(
       rows,
       "지출 목록",
-      ["날짜", "카테고리", "내용", "결제자", "원화 금액", "통화", "외화 금액", "적용 환율", "카드 청구액", "참여자", "메모"],
+      ["날짜", "카테고리", "내용", "결제자", "원화 금액", "결제 통화", "외화 금액", "원화 계산 환율", "카드 청구액", "참여자", "메모"],
       data.expenses,
       (expense) => [
         expense.spentAt,
@@ -1847,7 +1847,7 @@ function buildCsv(data) {
     appendCsvSection(
       rows,
       "환전 기록",
-      ["날짜", "보낸 통화", "보낸 금액", "받은 통화", "받은 금액", "메모"],
+      ["날짜", "낸 통화", "낸 금액", "받은 통화", "받은 금액", "메모"],
       data.exchangeRecords,
       (record) => [
         record.exchangedAt,
@@ -1890,7 +1890,7 @@ function buildPdfLines(data) {
     addLine(`참여자: ${data.summary.peopleCount}명`);
     addLine(`지출 항목: ${data.summary.expenseCount}개`);
     addLine(`송금 수: ${data.summary.settlementCount}개`);
-    addLine(`해외여행: ${data.summary.overseasEnabled ? "사용" : "미사용"}`);
+    addLine(`외화 정산: ${data.summary.overseasEnabled ? "사용" : "미사용"}`);
     if (data.summary.overseasEnabled) {
       addLine(`외화: ${data.summary.currencies.join(", ")}`);
       addLine(`환율: ${Object.entries(data.summary.rates).map(([currency, rate]) => `${currency} ${rate}`).join(", ")}`);
@@ -1910,7 +1910,7 @@ function buildPdfLines(data) {
         const category = expense.category ? `[${expense.category}] ` : "";
         addLine(`${index + 1}. ${expense.spentAt} ${category}${expense.title} - ${formatMoney(expense.amountKrw)}${foreign}`);
         addLine(`   결제자: ${expense.payer} / 참여자: ${expense.participants || "-"}`);
-        if (expense.exchangeRate) addLine(`   적용 환율: ${expense.exchangeRate}`);
+        if (expense.exchangeRate) addLine(`   원화 계산 환율: ${expense.exchangeRate}`);
         if (expense.cardKrwAmount) addLine(`   카드 청구액: ${formatMoney(expense.cardKrwAmount)}`);
         if (expense.memo) addLine(`   메모: ${expense.memo}`);
       });
@@ -2225,7 +2225,7 @@ elements.overseasForm.addEventListener("submit", async (event) => {
     return;
   }
   if (!currencyOneRate || !currencyTwoRate) {
-    showToast("두 외화의 원화 환율을 입력해 주세요.");
+    showToast("두 외화의 기본 환율을 입력해 주세요.");
     return;
   }
 
@@ -2242,7 +2242,7 @@ elements.overseasForm.addEventListener("submit", async (event) => {
       }
     });
     syncExpenseCurrencyFields({ resetRate: true });
-    showToast("환율을 저장했습니다.");
+    showToast("기본 환율을 저장했습니다.");
   } catch (error) {
     showToast(error.message);
   }
@@ -2778,7 +2778,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     return;
   }
   if (currency !== "KRW" && !exchangeRate) {
-    showToast("환율을 입력해 주세요.");
+    showToast("원화 계산 환율을 입력해 주세요.");
     return;
   }
   if (!payerId) {
@@ -2894,7 +2894,7 @@ elements.expenseList.addEventListener("submit", async (event) => {
     return;
   }
   if (currency !== "KRW" && !exchangeRate) {
-    showToast("환율을 입력해 주세요.");
+    showToast("원화 계산 환율을 입력해 주세요.");
     return;
   }
   if (!payerId) {

@@ -88,73 +88,85 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Option</p>
-              <h2 id="overseas-heading">해외여행</h2>
+              <h2 id="overseas-heading">외화 정산</h2>
             </div>
             <div class="panel-actions">
               <label class="switch-field">
                 <input id="overseas-enabled" type="checkbox">
                 <span>사용</span>
               </label>
-              <button id="toggle-overseas-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="overseas-body" title="해외여행 접기">
+              <button id="toggle-overseas-panel" class="panel-toggle" type="button" aria-expanded="true" aria-controls="overseas-body" title="외화 정산 접기">
                 <span aria-hidden="true">▴</span>
               </button>
             </div>
           </div>
 
           <div id="overseas-body" class="overseas-body" hidden>
-            <form id="overseas-form" class="overseas-form">
-              <div class="fx-settings-grid">
-                <label>
-                  <span>외화 1</span>
-                  <select id="currency-one"></select>
-                </label>
-                <label>
-                  <span>원화 환율</span>
-                  <input id="currency-one-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off">
-                </label>
-                <label>
-                  <span>외화 2</span>
-                  <select id="currency-two"></select>
-                </label>
-                <label>
-                  <span>원화 환율</span>
-                  <input id="currency-two-rate" type="text" inputmode="decimal" placeholder="예: 1350" autocomplete="off">
-                </label>
+            <section class="fx-section" aria-labelledby="base-rate-heading">
+              <div class="fx-section-heading">
+                <p class="eyebrow">1. 기본 환율</p>
+                <h3 id="base-rate-heading">지출을 원화로 계산할 기준</h3>
               </div>
-              <button class="primary-button compact" type="submit">환율 저장</button>
-            </form>
+              <form id="overseas-form" class="overseas-form">
+                <div class="fx-settings-grid">
+                  <label>
+                    <span>첫 번째 외화</span>
+                    <select id="currency-one"></select>
+                  </label>
+                  <label>
+                    <span>1단위당 원화</span>
+                    <input id="currency-one-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off">
+                  </label>
+                  <label>
+                    <span>두 번째 외화</span>
+                    <select id="currency-two"></select>
+                  </label>
+                  <label>
+                    <span>1단위당 원화</span>
+                    <input id="currency-two-rate" type="text" inputmode="decimal" placeholder="예: 1350" autocomplete="off">
+                  </label>
+                </div>
+                <button class="primary-button compact" type="submit">기본 환율 저장</button>
+              </form>
+            </section>
 
-            <form id="exchange-form" class="exchange-form">
-              <div class="exchange-grid">
-                <label>
-                  <span>보낸 통화</span>
-                  <select id="exchange-from-currency"></select>
-                </label>
-                <label>
-                  <span>보낸 금액</span>
-                  <input id="exchange-from-amount" type="text" inputmode="decimal" placeholder="예: 300000" autocomplete="off">
-                </label>
-                <label>
-                  <span>받은 통화</span>
-                  <select id="exchange-to-currency"></select>
-                </label>
-                <label>
-                  <span>받은 금액</span>
-                  <input id="exchange-to-amount" type="text" inputmode="decimal" placeholder="예: 30000" autocomplete="off">
-                </label>
-                <label>
-                  <span>날짜</span>
-                  <input id="exchange-date" type="date">
-                </label>
-                <label>
-                  <span>메모</span>
-                  <input id="exchange-memo" type="text" maxlength="100" placeholder="선택 사항" autocomplete="off">
-                </label>
+            <section class="fx-section" aria-labelledby="exchange-record-heading">
+              <div class="fx-section-heading">
+                <p class="eyebrow">2. 환전 기록</p>
+                <h3 id="exchange-record-heading">실제로 바꾼 돈</h3>
               </div>
-              <button class="text-button" type="submit">환전 기록 추가</button>
-            </form>
+              <form id="exchange-form" class="exchange-form">
+                <div class="exchange-grid">
+                  <label>
+                    <span>낸 통화</span>
+                    <select id="exchange-from-currency"></select>
+                  </label>
+                  <label>
+                    <span>낸 금액</span>
+                    <input id="exchange-from-amount" type="text" inputmode="decimal" placeholder="예: 300000" autocomplete="off">
+                  </label>
+                  <label>
+                    <span>받은 통화</span>
+                    <select id="exchange-to-currency"></select>
+                  </label>
+                  <label>
+                    <span>받은 금액</span>
+                    <input id="exchange-to-amount" type="text" inputmode="decimal" placeholder="예: 30000" autocomplete="off">
+                  </label>
+                  <label>
+                    <span>날짜</span>
+                    <input id="exchange-date" type="date">
+                  </label>
+                  <label>
+                    <span>메모</span>
+                    <input id="exchange-memo" type="text" maxlength="100" placeholder="선택 사항" autocomplete="off">
+                  </label>
+                </div>
+                <button class="text-button" type="submit">환전 기록 추가</button>
+              </form>
 
-            <div id="exchange-list" class="exchange-list empty-state">저장된 환전 기록이 없습니다.</div>
+              <div id="exchange-list" class="exchange-list empty-state">저장된 환전 기록이 없습니다.</div>
+            </section>
           </div>
         </section>
 
@@ -187,7 +199,7 @@
             </div>
             <label class="quick-switch-field">
               <input id="overseas-quick-enabled" type="checkbox">
-              <span>해외여행</span>
+              <span>외화</span>
             </label>
           </div>
           <button id="open-expense-modal" class="expense-launch" type="button">
@@ -355,7 +367,7 @@
               <select id="expense-category"></select>
             </label>
             <label id="expense-currency-field" hidden>
-              <span>통화</span>
+              <span>결제 통화</span>
               <select id="expense-currency"></select>
             </label>
             <label>
@@ -363,9 +375,9 @@
               <input id="expense-amount" type="text" inputmode="numeric" placeholder="예: 120000" autocomplete="off">
             </label>
             <label id="expense-rate-field" hidden>
-              <span>적용 환율</span>
+              <span>원화 계산 환율</span>
               <input id="expense-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off" aria-describedby="expense-rate-help">
-              <small id="expense-rate-help" class="field-help">외화 1단위를 원화로 얼마로 계산할지입니다. 예: 1 USD = 1350원.</small>
+              <small id="expense-rate-help" class="field-help">선택한 통화 1단위를 몇 원으로 계산할지입니다. 예: 1 USD = 1350원.</small>
             </label>
             <label id="expense-card-krw-field" hidden>
               <span>카드 실제 청구액</span>

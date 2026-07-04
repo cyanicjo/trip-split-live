@@ -505,6 +505,31 @@ body.has-overseas .workspace {
   display: none;
 }
 
+.fx-section {
+  min-width: 0;
+}
+
+.fx-section + .fx-section {
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.fx-section-heading {
+  margin-bottom: 10px;
+}
+
+.fx-section-heading .eyebrow {
+  margin-bottom: 4px;
+}
+
+.fx-section-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.98rem;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
 .fx-settings-grid,
 .exchange-grid {
   display: grid;
