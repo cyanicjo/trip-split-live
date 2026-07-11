@@ -19,6 +19,7 @@ const elements = {
   tripName: document.querySelector("#trip-name"),
   openDashboard: document.querySelector("#open-dashboard"),
   openExport: document.querySelector("#open-export"),
+  openImport: document.querySelector("#open-import"),
   newTripLink: document.querySelector("#new-trip-link"),
   copyViewLink: document.querySelector("#copy-view-link"),
   liveStatus: document.querySelector("#live-status"),
@@ -99,6 +100,17 @@ const elements = {
   exportBackdrop: document.querySelector("#export-backdrop"),
   closeExport: document.querySelector("#close-export"),
   exportForm: document.querySelector("#export-form"),
+  importBackdrop: document.querySelector("#import-backdrop"),
+  closeImport: document.querySelector("#close-import"),
+  importForm: document.querySelector("#import-form"),
+  importFile: document.querySelector("#import-file"),
+  importMappingPanel: document.querySelector("#import-mapping-panel"),
+  importMappingGrid: document.querySelector("#import-mapping-grid"),
+  refreshImportPreview: document.querySelector("#refresh-import-preview"),
+  importPreviewSummary: document.querySelector("#import-preview-summary"),
+  importPreview: document.querySelector("#import-preview"),
+  resetImport: document.querySelector("#reset-import"),
+  saveImport: document.querySelector("#save-import"),
   toast: document.querySelector("#toast")
 };
 
@@ -112,6 +124,12 @@ let saving = false;
 let editingExpenseId = "";
 let editingAccountPersonId = "";
 let openCustomSelect = null;
+let csvImportState = {
+  fileName: "",
+  headers: [],
+  rows: [],
+  mappings: {}
+};
 
 const peopleCollapsedKey = "tripSplitPeopleCollapsed";
 let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
@@ -125,6 +143,26 @@ const exportSectionLabels = {
   balances: "개인별 차액",
   settlements: "송금표",
   exchange: "환전 기록"
+};
+
+const csvImportFields = [
+  { key: "spentAt", label: "날짜" },
+  { key: "title", label: "내용" },
+  { key: "amount", label: "금액", required: true },
+  { key: "payerName", label: "결제자", required: true },
+  { key: "participantNames", label: "참여자" },
+  { key: "category", label: "카테고리" },
+  { key: "memo", label: "메모" }
+];
+
+const csvImportAliases = {
+  spentAt: ["날짜", "결제일", "사용일", "date", "spentat", "spentdate"],
+  title: ["내용", "지출내용", "항목", "이름", "title", "description", "name"],
+  amount: ["금액", "원화금액", "가격", "비용", "amount", "price", "cost"],
+  payerName: ["결제자", "낸사람", "결제", "payer", "paidby", "paid"],
+  participantNames: ["참여자", "n빵참여자", "엔빵참여자", "정산참여자", "participants", "split", "members"],
+  category: ["카테고리", "분류", "category", "type"],
+  memo: ["메모", "비고", "memo", "note", "notes"]
 };
 
 const defaultCategories = ["숙소", "교통", "식비", "관광", "쇼핑", "기타"];
@@ -1099,6 +1137,7 @@ function renderHeader() {
     elements.tripName.value = state.name;
   }
   elements.tripName.readOnly = !canEdit();
+  elements.openImport.disabled = !canEdit();
 }
 
 function renderSummary() {
@@ -1832,6 +1871,458 @@ function amountFromInput(value) {
     return null;
   }
   return Math.round(numeric);
+}
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let quoted = false;
+  const source = String(text || "").replace(/^\uFEFF/, "");
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = true;
+    } else if (char === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else if (char !== "\r") {
+      cell += char;
+    }
+  }
+
+  row.push(cell);
+  rows.push(row);
+  return rows.filter((items) => items.some((item) => String(item || "").trim()));
+}
+
+function normalizeImportHeader(value) {
+  return String(value || "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_()-]/g, "");
+}
+
+function guessCsvImportMappings(headers) {
+  const normalized = headers.map(normalizeImportHeader);
+  const used = new Set();
+  const mappings = {};
+
+  for (const field of csvImportFields) {
+    const aliases = csvImportAliases[field.key] || [];
+    const foundIndex = normalized.findIndex((header, index) => (
+      !used.has(index) &&
+      aliases.some((alias) => header === normalizeImportHeader(alias))
+    ));
+
+    if (foundIndex >= 0) {
+      mappings[field.key] = foundIndex;
+      used.add(foundIndex);
+    } else {
+      mappings[field.key] = -1;
+    }
+  }
+
+  return mappings;
+}
+
+function currentCsvImportMappings() {
+  const mappings = {};
+  for (const select of elements.importMappingGrid.querySelectorAll("[data-import-field]")) {
+    mappings[select.dataset.importField] = select.value === "" ? -1 : Number(select.value);
+  }
+  return mappings;
+}
+
+function csvImportCell(row, fieldKey) {
+  const index = Number(csvImportState.mappings[fieldKey]);
+  return index >= 0 ? String(row[index] || "").trim() : "";
+}
+
+function normalizeImportDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+
+  const yyyyFirst = text.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
+  if (yyyyFirst) {
+    return [
+      yyyyFirst[1],
+      yyyyFirst[2].padStart(2, "0"),
+      yyyyFirst[3].padStart(2, "0")
+    ].join("-");
+  }
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  parsed.setMinutes(parsed.getMinutes() - parsed.getTimezoneOffset());
+  return parsed.toISOString().slice(0, 10);
+}
+
+function splitImportNames(value) {
+  const names = [];
+  for (const item of String(value || "").split(/[,，、;]/)) {
+    const name = item.trim().slice(0, 40);
+    if (name && !names.includes(name)) {
+      names.push(name);
+    }
+  }
+  return names;
+}
+
+function csvImportRowsFromMapping() {
+  return csvImportState.rows.map((row, index) => ({
+    sourceIndex: index + 2,
+    spentAt: normalizeImportDate(csvImportCell(row, "spentAt")),
+    title: csvImportCell(row, "title").slice(0, 70),
+    amount: csvImportCell(row, "amount"),
+    payerName: csvImportCell(row, "payerName").slice(0, 40),
+    participantNames: csvImportCell(row, "participantNames"),
+    category: csvImportCell(row, "category").slice(0, 20),
+    memo: csvImportCell(row, "memo").slice(0, 140)
+  }));
+}
+
+function importExpenseKey({ spentAt, title, amount, payerName }) {
+  return [
+    spentAt || localDateString(),
+    String(title || "CSV 지출").trim().toLowerCase(),
+    Math.round(Number(amount) || 0),
+    String(payerName || "").trim().toLowerCase()
+  ].join("|");
+}
+
+function existingImportExpenseKeys() {
+  return new Set(state.expenses.map((expense) => importExpenseKey({
+    spentAt: expense.spentAt,
+    title: expense.title,
+    amount: expense.amount,
+    payerName: getPersonName(expense.payerId)
+  })));
+}
+
+function importPreviewStatus(row, seenKeys) {
+  const amount = amountFromInput(row.amount);
+  const payerName = String(row.payerName || "").trim();
+  const messages = [];
+
+  if (!amount) messages.push("금액 필요");
+  if (!payerName) messages.push("결제자 필요");
+  if (messages.length > 0) {
+    return { kind: "error", label: messages.join(", ") };
+  }
+
+  const key = importExpenseKey({
+    ...row,
+    title: row.title || "CSV 지출",
+    amount,
+    payerName
+  });
+
+  if (seenKeys.has(key)) {
+    return { kind: "skip", label: "중복 건너뜀" };
+  }
+  seenKeys.add(key);
+
+  if (!row.title || !row.spentAt || !row.participantNames) {
+    return { kind: "warn", label: "기본값 사용" };
+  }
+
+  return { kind: "ready", label: "저장 예정" };
+}
+
+function renderCsvImportMapping() {
+  if (csvImportState.headers.length === 0) {
+    elements.importMappingPanel.hidden = true;
+    elements.importMappingGrid.innerHTML = "";
+    return;
+  }
+
+  elements.importMappingPanel.hidden = false;
+  elements.importMappingGrid.innerHTML = csvImportFields.map((field) => {
+    const selectedIndex = Number(csvImportState.mappings[field.key]);
+    const options = [
+      `<option value="">사용 안 함</option>`,
+      ...csvImportState.headers.map((header, index) => {
+        const selected = index === selectedIndex ? "selected" : "";
+        return `<option value="${index}" ${selected}>${escapeHtml(header || `컬럼 ${index + 1}`)}</option>`;
+      })
+    ].join("");
+
+    return `
+      <label>
+        <span>${escapeHtml(field.label)}${field.required ? " *" : ""}</span>
+        <select data-import-field="${field.key}">${options}</select>
+      </label>
+    `;
+  }).join("");
+  refreshCustomSelects(elements.importMappingPanel);
+}
+
+function renderCsvImportPreview() {
+  if (csvImportState.rows.length === 0) {
+    elements.importPreviewSummary.className = "import-preview-summary empty-state";
+    elements.importPreviewSummary.textContent = "CSV 파일을 선택해 주세요.";
+    elements.importPreview.innerHTML = "";
+    elements.saveImport.disabled = true;
+    return;
+  }
+
+  const seenKeys = existingImportExpenseKeys();
+  const rows = csvImportRowsFromMapping();
+  const statuses = rows.map((row) => importPreviewStatus(row, seenKeys));
+  const readyCount = statuses.filter((status) => status.kind === "ready" || status.kind === "warn").length;
+  const skipCount = statuses.filter((status) => status.kind === "skip").length;
+  const errorCount = statuses.filter((status) => status.kind === "error").length;
+
+  elements.importPreviewSummary.className = "import-preview-summary";
+  elements.importPreviewSummary.innerHTML = `
+    <strong>${escapeHtml(csvImportState.fileName)}</strong>
+    <span>${rows.length}개 행 · 저장 ${readyCount}개 · 중복 ${skipCount}개 · 수정 필요 ${errorCount}개</span>
+  `;
+
+  elements.importPreview.innerHTML = `
+    <div class="import-table-wrap">
+      <table class="import-table">
+        <thead>
+          <tr>
+            <th>상태</th>
+            <th>날짜</th>
+            <th>내용</th>
+            <th>금액</th>
+            <th>결제자</th>
+            <th>참여자</th>
+            <th>카테고리</th>
+            <th>메모</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row, index) => {
+            const status = statuses[index];
+            return `
+              <tr data-import-row="${row.sourceIndex}" class="import-row-${status.kind}">
+                <td>
+                  <span class="import-status ${status.kind}">${escapeHtml(status.label)}</span>
+                  <small>${row.sourceIndex}행</small>
+                </td>
+                <td><input data-import-spent-at type="date" value="${escapeHtml(row.spentAt)}"></td>
+                <td><input data-import-title type="text" maxlength="70" value="${escapeHtml(row.title)}" placeholder="CSV 지출"></td>
+                <td><input data-import-amount type="text" inputmode="numeric" value="${escapeHtml(row.amount)}" placeholder="필수"></td>
+                <td><input data-import-payer type="text" maxlength="40" value="${escapeHtml(row.payerName)}" placeholder="필수"></td>
+                <td><input data-import-participants type="text" value="${escapeHtml(row.participantNames)}" placeholder="비우면 전체 참여"></td>
+                <td><input data-import-category type="text" maxlength="20" value="${escapeHtml(row.category)}"></td>
+                <td><input data-import-memo type="text" maxlength="140" value="${escapeHtml(row.memo)}"></td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+  elements.saveImport.disabled = readyCount === 0 || !canEdit();
+}
+
+function refreshCsvImportPreviewStatuses() {
+  const rowElements = Array.from(elements.importPreview.querySelectorAll("[data-import-row]"));
+  if (rowElements.length === 0) return;
+
+  const seenKeys = existingImportExpenseKeys();
+  let readyCount = 0;
+  let skipCount = 0;
+  let errorCount = 0;
+
+  for (const rowElement of rowElements) {
+    const row = {
+      sourceIndex: Number(rowElement.dataset.importRow),
+      spentAt: rowElement.querySelector("[data-import-spent-at]").value || "",
+      title: rowElement.querySelector("[data-import-title]").value.trim(),
+      amount: rowElement.querySelector("[data-import-amount]").value,
+      payerName: rowElement.querySelector("[data-import-payer]").value.trim(),
+      participantNames: rowElement.querySelector("[data-import-participants]").value
+    };
+    const status = importPreviewStatus(row, seenKeys);
+    const statusElement = rowElement.querySelector(".import-status");
+
+    rowElement.className = `import-row-${status.kind}`;
+    statusElement.className = `import-status ${status.kind}`;
+    statusElement.textContent = status.label;
+
+    if (status.kind === "skip") {
+      skipCount += 1;
+    } else if (status.kind === "error") {
+      errorCount += 1;
+    } else {
+      readyCount += 1;
+    }
+  }
+
+  const summary = elements.importPreviewSummary.querySelector("span");
+  if (summary) {
+    summary.textContent = `${rowElements.length}개 행 · 저장 ${readyCount}개 · 중복 ${skipCount}개 · 수정 필요 ${errorCount}개`;
+  }
+  elements.saveImport.disabled = readyCount === 0 || !canEdit();
+}
+
+function resetCsvImport() {
+  csvImportState = {
+    fileName: "",
+    headers: [],
+    rows: [],
+    mappings: {}
+  };
+  elements.importFile.value = "";
+  renderCsvImportMapping();
+  renderCsvImportPreview();
+}
+
+function readCsvImportPreviewRows() {
+  return Array.from(elements.importPreview.querySelectorAll("[data-import-row]")).map((row) => ({
+    sourceIndex: Number(row.dataset.importRow),
+    spentAt: row.querySelector("[data-import-spent-at]").value || "",
+    title: row.querySelector("[data-import-title]").value.trim().slice(0, 70),
+    amountInput: row.querySelector("[data-import-amount]").value,
+    payerName: row.querySelector("[data-import-payer]").value.trim().slice(0, 40),
+    participantNames: row.querySelector("[data-import-participants]").value,
+    category: row.querySelector("[data-import-category]").value.trim().slice(0, 20),
+    memo: row.querySelector("[data-import-memo]").value.trim().slice(0, 140)
+  }));
+}
+
+function buildCsvImportPlan() {
+  const rows = readCsvImportPreviewRows();
+  const existingKeys = existingImportExpenseKeys();
+  const importKeys = new Set();
+  const errors = [];
+  const skipped = [];
+  const preparedRows = [];
+
+  for (const row of rows) {
+    const amount = amountFromInput(row.amountInput);
+    const payerName = row.payerName;
+    if (!amount || !payerName) {
+      errors.push(`${row.sourceIndex}행`);
+      continue;
+    }
+
+    const prepared = {
+      sourceIndex: row.sourceIndex,
+      spentAt: row.spentAt || localDateString(),
+      title: row.title || "CSV 지출",
+      amount,
+      payerName,
+      participantNames: splitImportNames(row.participantNames),
+      category: row.category,
+      memo: row.memo
+    };
+    const key = importExpenseKey(prepared);
+
+    if (existingKeys.has(key) || importKeys.has(key)) {
+      skipped.push(row.sourceIndex);
+      continue;
+    }
+
+    importKeys.add(key);
+    preparedRows.push(prepared);
+  }
+
+  if (errors.length > 0) {
+    return { errors, skipped, preparedRows: [], people: state.people, expenses: [], categories: tripCategories() };
+  }
+
+  const people = [...state.people];
+  const peopleByName = new Map(people.map((person) => [person.name.trim(), person]));
+  const ensurePerson = (name) => {
+    const cleanName = String(name || "").trim().slice(0, 40);
+    if (!cleanName) return null;
+    const existing = peopleByName.get(cleanName);
+    if (existing) return existing;
+
+    const nextPerson = {
+      id: makeId("p_"),
+      name: cleanName,
+      bankName: "",
+      accountNumber: "",
+      account: "",
+      createdAt: new Date().toISOString()
+    };
+    people.push(nextPerson);
+    peopleByName.set(cleanName, nextPerson);
+    return nextPerson;
+  };
+
+  for (const row of preparedRows) {
+    ensurePerson(row.payerName);
+    row.participantNames.forEach(ensurePerson);
+  }
+
+  const categories = uniqueCategoryList(preparedRows.map((row) => row.category));
+  const expenses = preparedRows.map((row) => {
+    const payer = ensurePerson(row.payerName);
+    const participants = row.participantNames.length > 0
+      ? row.participantNames.map(ensurePerson).filter(Boolean)
+      : people;
+
+    return {
+      id: makeId("e_"),
+      title: row.title,
+      category: row.category,
+      amount: row.amount,
+      currency: "KRW",
+      foreignAmount: null,
+      exchangeRate: null,
+      cardKrwAmount: null,
+      payerId: payer.id,
+      participantIds: participants.map((person) => person.id),
+      memo: row.memo,
+      spentAt: row.spentAt,
+      createdAt: new Date().toISOString()
+    };
+  });
+
+  return { errors, skipped, preparedRows, people, expenses, categories };
+}
+
+function openImportModal() {
+  if (!canEdit()) {
+    showToast("보기 전용 링크에서는 수정할 수 없습니다.");
+    return;
+  }
+  if (!state) {
+    showToast("여행 정보를 불러오는 중입니다.");
+    return;
+  }
+
+  elements.importBackdrop.hidden = false;
+  document.body.classList.add("import-open");
+  requestAnimationFrame(() => elements.importFile.focus());
+}
+
+function closeImportModal() {
+  elements.importBackdrop.hidden = true;
+  document.body.classList.remove("import-open");
+  elements.openImport.focus();
 }
 
 async function copyText(text, message) {
@@ -2606,6 +3097,95 @@ elements.exportForm.addEventListener("submit", async (event) => {
   }
 });
 
+elements.openImport.addEventListener("click", openImportModal);
+
+elements.closeImport.addEventListener("click", closeImportModal);
+
+elements.importBackdrop.addEventListener("click", (event) => {
+  if (event.target === elements.importBackdrop) {
+    closeImportModal();
+  }
+});
+
+elements.importFile.addEventListener("change", async () => {
+  const file = elements.importFile.files?.[0];
+  if (!file) {
+    resetCsvImport();
+    return;
+  }
+
+  try {
+    const rows = parseCsv(await file.text());
+    if (rows.length < 2) {
+      resetCsvImport();
+      showToast("컬럼명과 지출 행이 있는 CSV 파일을 선택해 주세요.");
+      return;
+    }
+
+    const headers = rows[0].map((header, index) => String(header || `컬럼 ${index + 1}`).trim() || `컬럼 ${index + 1}`);
+    csvImportState = {
+      fileName: file.name,
+      headers,
+      rows: rows.slice(1),
+      mappings: guessCsvImportMappings(headers)
+    };
+    renderCsvImportMapping();
+    renderCsvImportPreview();
+  } catch (error) {
+    resetCsvImport();
+    showToast("CSV 파일을 읽지 못했습니다.");
+  }
+});
+
+elements.importMappingGrid.addEventListener("change", () => {
+  csvImportState.mappings = currentCsvImportMappings();
+  renderCsvImportPreview();
+});
+
+elements.refreshImportPreview.addEventListener("click", () => {
+  csvImportState.mappings = currentCsvImportMappings();
+  renderCsvImportPreview();
+});
+
+elements.resetImport.addEventListener("click", resetCsvImport);
+
+elements.importPreview.addEventListener("input", refreshCsvImportPreviewStatuses);
+
+elements.importPreview.addEventListener("change", refreshCsvImportPreviewStatuses);
+
+elements.importForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canEdit() || !state) return;
+
+  const plan = buildCsvImportPlan();
+  if (plan.errors.length > 0) {
+    showToast(`${plan.errors.join(", ")}의 금액 또는 결제자를 입력해 주세요.`);
+    return;
+  }
+  if (plan.expenses.length === 0) {
+    showToast(plan.skipped.length > 0 ? "모든 행이 중복이라 저장하지 않았습니다." : "저장할 지출이 없습니다.");
+    return;
+  }
+
+  try {
+    await saveTrip({
+      ...state,
+      people: plan.people,
+      expenses: [...plan.expenses, ...state.expenses],
+      settings: {
+        ...state.settings,
+        categories: normalizeCategories({ categories: plan.categories })
+      }
+    });
+    resetCsvImport();
+    closeImportModal();
+    const skippedText = plan.skipped.length > 0 ? ` 중복 ${plan.skipped.length}개는 건너뛰었습니다.` : "";
+    showToast(`CSV 지출 ${plan.expenses.length}개를 저장했습니다.${skippedText}`);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!elements.accountBackdrop.hidden) {
@@ -2618,6 +3198,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (!elements.exportBackdrop.hidden) {
     closeExportModal();
+    return;
+  }
+  if (!elements.importBackdrop.hidden) {
+    closeImportModal();
     return;
   }
   if (!elements.dashboardBackdrop.hidden) {

@@ -34,6 +34,7 @@ body {
 
 body.dashboard-open,
 body.export-open,
+body.import-open,
 body.account-modal-open,
 body.expense-modal-open {
   overflow: hidden;
@@ -1364,6 +1365,7 @@ label span,
 
 .dashboard-backdrop,
 .export-backdrop,
+.import-backdrop,
 .account-backdrop,
 .expense-backdrop {
   position: fixed;
@@ -1380,6 +1382,12 @@ label span,
   place-items: start end;
 }
 
+.import-backdrop {
+  z-index: 19;
+  place-items: center;
+  background: rgba(29, 36, 40, 0.34);
+}
+
 .account-backdrop {
   z-index: 19;
   place-items: center;
@@ -1394,6 +1402,7 @@ label span,
 
 .dashboard-backdrop[hidden],
 .export-backdrop[hidden],
+.import-backdrop[hidden],
 .account-backdrop[hidden],
 .expense-backdrop[hidden] {
   display: none;
@@ -1401,6 +1410,7 @@ label span,
 
 .dashboard-panel,
 .export-panel,
+.import-panel,
 .account-modal,
 .expense-modal {
   display: grid;
@@ -1420,6 +1430,11 @@ label span,
 
 .export-panel {
   width: min(500px, 100%);
+  overflow: auto;
+}
+
+.import-panel {
+  width: min(1120px, 100%);
   overflow: auto;
 }
 
@@ -1531,6 +1546,190 @@ label span,
 .export-form {
   display: grid;
   gap: 16px;
+}
+
+.import-form {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.import-file-field {
+  display: grid;
+  gap: 7px;
+}
+
+.import-file-field input {
+  min-height: 48px;
+  padding: 11px;
+  cursor: pointer;
+}
+
+.import-mapping-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdfd;
+}
+
+.import-mapping-panel[hidden] {
+  display: none;
+}
+
+.import-mapping-panel legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.import-mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.import-preview-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.import-preview-summary strong,
+.import-preview-summary span {
+  min-width: 0;
+}
+
+.import-preview-summary strong {
+  overflow: hidden;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-preview-summary span {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.import-preview {
+  min-width: 0;
+}
+
+.import-table-wrap {
+  max-height: min(48vh, 520px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.import-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+}
+
+.import-table th,
+.import-table td {
+  padding: 9px;
+  border-bottom: 1px solid #edf2f3;
+  text-align: left;
+  vertical-align: top;
+}
+
+.import-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f6f9f9;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.import-table td:first-child {
+  width: 132px;
+}
+
+.import-table small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.import-table input {
+  width: 100%;
+  min-width: 110px;
+  min-height: 40px;
+  padding: 8px 9px;
+}
+
+.import-table [data-import-title],
+.import-table [data-import-participants],
+.import-table [data-import-memo] {
+  min-width: 150px;
+}
+
+.import-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.import-status.ready {
+  background: var(--mint-soft);
+  color: #126c54;
+}
+
+.import-status.warn {
+  background: var(--blue-soft);
+  color: #235f91;
+}
+
+.import-status.skip {
+  background: #eef2f2;
+  color: var(--muted);
+}
+
+.import-status.error {
+  background: var(--coral-soft);
+  color: #a64231;
+}
+
+.import-row-skip input {
+  color: var(--muted);
+}
+
+.import-row-error input[data-import-amount],
+.import-row-error input[data-import-payer] {
+  border-color: rgba(229, 107, 87, 0.72);
+  background: #fffafa;
+}
+
+.import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .export-form fieldset {
@@ -1740,6 +1939,7 @@ body.is-readonly .export-form .primary-button {
 
   .dashboard-backdrop,
   .export-backdrop,
+  .import-backdrop,
   .account-backdrop,
   .expense-backdrop {
     place-items: end stretch;
@@ -1748,6 +1948,7 @@ body.is-readonly .export-form .primary-button {
 
   .dashboard-panel,
   .export-panel,
+  .import-panel,
   .account-modal,
   .expense-modal {
     width: 100%;
@@ -1762,8 +1963,14 @@ body.is-readonly .export-form .primary-button {
   }
 
   .fx-settings-grid,
-  .exchange-grid {
+  .exchange-grid,
+  .import-mapping-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .import-preview-summary {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
@@ -1776,6 +1983,10 @@ body.is-readonly .export-form .primary-button {
   .route-mark {
     width: 42px;
     grid-template-columns: repeat(3, 9px);
+  }
+
+  .import-mapping-grid {
+    grid-template-columns: 1fr;
   }
 
   .route-mark span {

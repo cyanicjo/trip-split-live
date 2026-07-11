@@ -37,6 +37,10 @@
             <span aria-hidden="true">↗</span>
             <span>보기 링크</span>
           </button>
+          <button id="open-import" class="icon-button labeled secondary-action" type="button" title="CSV 업로드">
+            <span aria-hidden="true">⇧</span>
+            <span>CSV 업로드</span>
+          </button>
           <button id="open-export" class="icon-button labeled secondary-action" type="button" title="내보내기">
             <span aria-hidden="true">⇩</span>
             <span>내보내기</span>
@@ -340,6 +344,41 @@
           </fieldset>
 
           <button class="primary-button" type="submit">파일 만들기</button>
+        </form>
+      </section>
+    </div>
+
+    <div id="import-backdrop" class="import-backdrop" hidden>
+      <section class="import-panel" role="dialog" aria-modal="true" aria-labelledby="import-heading">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Import</p>
+            <h2 id="import-heading">CSV 업로드</h2>
+          </div>
+          <button id="close-import" class="panel-toggle" type="button" title="CSV 업로드 닫기" aria-label="CSV 업로드 닫기">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <form id="import-form" class="import-form">
+          <label class="import-file-field">
+            <span>CSV 파일</span>
+            <input id="import-file" type="file" accept=".csv,text/csv">
+          </label>
+
+          <fieldset id="import-mapping-panel" class="import-mapping-panel" hidden>
+            <legend>컬럼 매핑</legend>
+            <div id="import-mapping-grid" class="import-mapping-grid"></div>
+            <button id="refresh-import-preview" class="text-button" type="button">미리보기 새로고침</button>
+          </fieldset>
+
+          <div id="import-preview-summary" class="import-preview-summary empty-state">CSV 파일을 선택해 주세요.</div>
+          <div id="import-preview" class="import-preview"></div>
+
+          <div class="import-actions">
+            <button id="reset-import" class="text-button" type="button">초기화</button>
+            <button id="save-import" class="primary-button" type="submit" disabled>지출 저장</button>
+          </div>
         </form>
       </section>
     </div>
