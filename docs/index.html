@@ -410,8 +410,8 @@
               <select id="expense-currency"></select>
             </label>
             <label>
-              <span id="expense-amount-label">금액</span>
-              <input id="expense-amount" type="text" inputmode="numeric" placeholder="예: 120000" autocomplete="off">
+              <span id="expense-amount-label">총액</span>
+              <input id="expense-amount" type="text" inputmode="numeric" placeholder="품목 합계" autocomplete="off" readonly>
             </label>
             <label id="expense-rate-field" hidden>
               <span>원화 계산 환율</span>
@@ -431,6 +431,17 @@
               <input id="expense-date" type="date">
             </label>
           </div>
+
+          <section class="itemized-section" aria-labelledby="expense-items-heading">
+            <div class="participant-row">
+              <div>
+                <div id="expense-items-heading" class="field-label">품목</div>
+                <div id="expense-items-total" class="items-total">합계 0원</div>
+              </div>
+              <button id="add-expense-item" type="button" class="text-button">품목 추가</button>
+            </div>
+            <div id="expense-item-list" class="expense-item-list"></div>
+          </section>
 
           <div class="category-manager">
             <div class="participant-row">

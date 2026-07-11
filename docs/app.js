@@ -69,6 +69,9 @@ const elements = {
   expenseCurrency: document.querySelector("#expense-currency"),
   expenseAmountLabel: document.querySelector("#expense-amount-label"),
   expenseAmount: document.querySelector("#expense-amount"),
+  expenseItemsTotal: document.querySelector("#expense-items-total"),
+  expenseItemList: document.querySelector("#expense-item-list"),
+  addExpenseItem: document.querySelector("#add-expense-item"),
   expenseRateField: document.querySelector("#expense-rate-field"),
   expenseRate: document.querySelector("#expense-rate"),
   expenseCardKrwField: document.querySelector("#expense-card-krw-field"),
@@ -148,20 +151,28 @@ const exportSectionLabels = {
 const csvImportFields = [
   { key: "spentAt", label: "날짜" },
   { key: "title", label: "내용" },
-  { key: "amount", label: "금액", required: true },
+  { key: "itemTitle", label: "품목" },
+  { key: "quantity", label: "수량" },
+  { key: "amount", label: "금액/단가", required: true },
   { key: "payerName", label: "결제자", required: true },
   { key: "participantNames", label: "참여자" },
   { key: "category", label: "카테고리" },
+  { key: "itemCategory", label: "품목 카테고리" },
+  { key: "itemParticipantNames", label: "품목 참여자" },
   { key: "memo", label: "메모" }
 ];
 
 const csvImportAliases = {
   spentAt: ["날짜", "결제일", "사용일", "date", "spentat", "spentdate"],
   title: ["내용", "지출내용", "항목", "이름", "title", "description", "name"],
-  amount: ["금액", "원화금액", "가격", "비용", "amount", "price", "cost"],
+  itemTitle: ["품목", "품목명", "상품", "메뉴", "item", "itemname"],
+  quantity: ["수량", "개수", "qty", "quantity"],
+  amount: ["금액", "단가", "품목단가", "원화금액", "가격", "비용", "amount", "price", "cost"],
   payerName: ["결제자", "낸사람", "결제", "payer", "paidby", "paid"],
   participantNames: ["참여자", "n빵참여자", "엔빵참여자", "정산참여자", "participants", "split", "members"],
   category: ["카테고리", "분류", "category", "type"],
+  itemCategory: ["품목카테고리", "품목분류", "itemcategory", "itemtype"],
+  itemParticipantNames: ["품목참여자", "품목n빵참여자", "itemparticipants", "itemsplit"],
   memo: ["메모", "비고", "memo", "note", "notes"]
 };
 
@@ -804,6 +815,111 @@ function calculateExpenseAmount({ currency, foreignAmount, exchangeRate, cardKrw
   return Math.round((Number(foreignAmount) || 0) * (Number(exchangeRate) || 0));
 }
 
+function itemLineAmount(quantity, unitAmount, currency = "KRW") {
+  const count = Number(quantity) || 0;
+  const price = Number(unitAmount) || 0;
+  const total = count * price;
+  if (currency === "KRW" || zeroDecimalCurrencies.has(currency)) {
+    return Math.round(total);
+  }
+  return Math.round(total * 100) / 100;
+}
+
+function formatItemOriginalAmount(value, currency = "KRW") {
+  if (currency === "KRW") {
+    return formatMoney(value);
+  }
+  return formatCurrencyAmount(value, currency);
+}
+
+function normalizeParticipantIds(ids = []) {
+  return Array.from(new Set(Array.isArray(ids) ? ids : []))
+    .filter(Boolean);
+}
+
+function normalizeExpenseItems(expense = {}) {
+  const currency = expense.currency || "KRW";
+  const sourceItems = Array.isArray(expense.items) && expense.items.length > 0
+    ? expense.items
+    : [{
+        id: `${expense.id || "legacy"}_item`,
+        title: expense.title || "품목",
+        quantity: 1,
+        unitAmount: currency === "KRW" ? expense.amount : expense.foreignAmount || expense.amount,
+        amount: currency === "KRW" ? expense.amount : expense.foreignAmount || expense.amount,
+        category: expense.category || "",
+        participantIds: []
+      }];
+
+  return sourceItems
+    .map((item, index) => {
+      const quantity = Number(item.quantity) > 0 ? Number(item.quantity) : 1;
+      const rawUnitAmount = Number(item.unitAmount) > 0
+        ? Number(item.unitAmount)
+        : Number(item.amount) > 0
+          ? Number(item.amount) / quantity
+          : 0;
+      const unitAmount = currency === "KRW" || zeroDecimalCurrencies.has(currency)
+        ? Math.round(rawUnitAmount)
+        : Math.round(rawUnitAmount * 100) / 100;
+      const amount = itemLineAmount(quantity, unitAmount, currency);
+
+      return {
+        id: item.id || makeId("it_"),
+        title: String(item.title || `품목 ${index + 1}`).trim().slice(0, 70) || `품목 ${index + 1}`,
+        quantity,
+        unitAmount,
+        amount,
+        category: String(item.category || expense.category || "").trim().slice(0, 20),
+        participantIds: normalizeParticipantIds(item.participantIds)
+      };
+    })
+    .filter((item) => item.amount > 0);
+}
+
+function expenseItemsTotal(items = []) {
+  return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+}
+
+function distributeAmountByWeights(total, weights) {
+  const roundedTotal = Math.round(Number(total) || 0);
+  const normalizedWeights = weights.map((weight) => Math.max(0, Number(weight) || 0));
+  const weightTotal = normalizedWeights.reduce((sum, weight) => sum + weight, 0);
+  if (roundedTotal <= 0 || weightTotal <= 0) {
+    return normalizedWeights.map(() => 0);
+  }
+
+  const allocations = normalizedWeights.map((weight, index) => {
+    const exact = (roundedTotal * weight) / weightTotal;
+    return {
+      index,
+      floor: Math.floor(exact),
+      fraction: exact - Math.floor(exact)
+    };
+  });
+  let remainder = roundedTotal - allocations.reduce((sum, item) => sum + item.floor, 0);
+
+  allocations
+    .slice()
+    .sort((a, b) => b.fraction - a.fraction)
+    .forEach((item) => {
+      if (remainder <= 0) return;
+      allocations[item.index].floor += 1;
+      remainder -= 1;
+    });
+
+  return allocations.map((item) => item.floor);
+}
+
+function expenseItemKrwAmounts(expense, items = normalizeExpenseItems(expense)) {
+  const currency = expense.currency || "KRW";
+  const expenseAmount = Math.round(Number(expense.amount) || 0);
+  if (currency === "KRW") {
+    return distributeAmountByWeights(expenseAmount, items.map((item) => item.amount));
+  }
+  return distributeAmountByWeights(expenseAmount, items.map((item) => item.amount));
+}
+
 function normalizePeople(people = []) {
   return people
     .filter((person) => person && person.id)
@@ -824,10 +940,28 @@ function normalizePeople(people = []) {
 function normalizeExpenses(expenses = []) {
   return expenses
     .filter((expense) => expense && expense.id)
-    .map((expense) => ({
-      ...expense,
-      category: String(expense.category || "").trim().slice(0, 20)
-    }));
+    .map((expense) => {
+      const category = String(expense.category || "").trim().slice(0, 20);
+      const currency = expense.currency || "KRW";
+      const items = normalizeExpenseItems({ ...expense, category, currency });
+      const itemTotal = expenseItemsTotal(items);
+      const foreignAmount = currency === "KRW" ? null : Number(expense.foreignAmount) || itemTotal;
+      const amount = Math.round(Number(expense.amount) || calculateExpenseAmount({
+        currency,
+        foreignAmount: currency === "KRW" ? itemTotal : foreignAmount,
+        exchangeRate: expense.exchangeRate || 1,
+        cardKrwAmount: expense.cardKrwAmount || null
+      }));
+
+      return {
+        ...expense,
+        category,
+        currency,
+        amount,
+        foreignAmount,
+        items
+      };
+    });
 }
 
 function normalizeTrip(row) {
@@ -891,24 +1025,37 @@ function calculateSummary(trip) {
       continue;
     }
 
-    const participantIds = Array.from(new Set(expense.participantIds || []))
+    const expenseParticipantIds = Array.from(new Set(expense.participantIds || []))
       .filter((id) => peopleById.has(id));
 
-    if (participantIds.length === 0) {
+    const items = normalizeExpenseItems(expense);
+    const itemAmounts = expenseItemKrwAmounts(expense, items);
+    const shareJobs = items.map((item, index) => {
+      const participantIds = (item.participantIds?.length ? item.participantIds : expenseParticipantIds)
+        .filter((id) => peopleById.has(id));
+      return {
+        amount: itemAmounts[index] || 0,
+        participantIds
+      };
+    }).filter((job) => job.amount > 0 && job.participantIds.length > 0);
+
+    if (shareJobs.length === 0) {
       continue;
     }
 
-    total += amount;
-    balances.set(expense.payerId, balances.get(expense.payerId) + amount);
-    paidTotals.set(expense.payerId, paidTotals.get(expense.payerId) + amount);
+    const appliedAmount = shareJobs.reduce((sum, job) => sum + job.amount, 0);
+    total += appliedAmount;
+    balances.set(expense.payerId, balances.get(expense.payerId) + appliedAmount);
+    paidTotals.set(expense.payerId, paidTotals.get(expense.payerId) + appliedAmount);
 
-    const shares = expenseShares(amount, participantIds, expense.payerId);
-
-    participantIds.forEach((id) => {
-      const share = shares.get(id) || 0;
-      balances.set(id, balances.get(id) - share);
-      shareTotals.set(id, shareTotals.get(id) + share);
-    });
+    for (const job of shareJobs) {
+      const shares = expenseShares(job.amount, job.participantIds, expense.payerId);
+      job.participantIds.forEach((id) => {
+        const share = shares.get(id) || 0;
+        balances.set(id, balances.get(id) - share);
+        shareTotals.set(id, shareTotals.get(id) + share);
+      });
+    }
   }
 
   for (const record of trip.completedSettlements || []) {
@@ -1380,6 +1527,7 @@ function renderExpenseForm() {
   elements.expenseCategory.disabled = !editable || !hasPeople;
   elements.expenseCurrency.disabled = !editable || !hasPeople;
   elements.expenseAmount.disabled = !editable || !hasPeople;
+  elements.addExpenseItem.disabled = !editable || !hasPeople;
   elements.expenseRate.disabled = !editable || !hasPeople;
   elements.expenseCardKrw.disabled = !editable || !hasPeople;
   elements.expensePayer.disabled = !editable || !hasPeople;
@@ -1426,13 +1574,181 @@ function renderExpenseForm() {
       </label>
     `;
   }).join("");
+
+  renderExpenseItemInputs({
+    container: elements.expenseItemList,
+    totalElement: elements.expenseItemsTotal,
+    amountInput: elements.expenseAmount,
+    currency: elements.expenseCurrency.value || "KRW",
+    defaultCategory: elements.expenseCategory.value,
+    defaultParticipantIds: Array.from(participantSelection),
+    editable
+  });
+}
+
+function defaultExpenseItem({ category = "", participantIds = [] } = {}) {
+  return {
+    id: makeId("it_"),
+    title: "",
+    quantity: 1,
+    unitAmount: "",
+    amount: 0,
+    category,
+    participantIds
+  };
+}
+
+function itemParticipantOptionsHtml(selectedIds = [], disabled = false) {
+  const selected = new Set(selectedIds);
+  return state.people.map((person) => `
+    <label class="participant-option item-participant-option">
+      <input type="checkbox" value="${person.id}" data-expense-item-participant ${selected.has(person.id) ? "checked" : ""} ${disabled ? "disabled" : ""}>
+      <span>${escapeHtml(person.name)}</span>
+    </label>
+  `).join("");
+}
+
+function expenseItemRowHtml(item, index, {
+  currency = "KRW",
+  defaultCategory = "",
+  editable = true
+} = {}) {
+  const category = item.category || defaultCategory || "";
+  const useDefaultParticipants = !item.participantIds || item.participantIds.length === 0;
+  const disabled = editable ? "" : "disabled";
+  const removable = index > 0 ? "" : "disabled";
+  const unitLabel = currency === "KRW" ? "단가" : `${currency} 단가`;
+
+  return `
+    <article class="expense-item-row" data-expense-item-row data-item-id="${escapeHtml(item.id || makeId("it_"))}">
+      <div class="expense-item-grid">
+        <label>
+          <span>품목명</span>
+          <input data-expense-item-title type="text" maxlength="70" value="${escapeHtml(item.title || "")}" placeholder="예: 파스타" autocomplete="off" ${disabled}>
+        </label>
+        <label>
+          <span>수량</span>
+          <input data-expense-item-quantity type="text" inputmode="decimal" value="${escapeHtml(item.quantity || 1)}" autocomplete="off" ${disabled}>
+        </label>
+        <label>
+          <span>${escapeHtml(unitLabel)}</span>
+          <input data-expense-item-unit type="text" inputmode="decimal" value="${escapeHtml(item.unitAmount || "")}" placeholder="예: 18000" autocomplete="off" ${disabled}>
+        </label>
+        <label>
+          <span>카테고리</span>
+          <select data-expense-item-category ${disabled}>${categoryOptionsHtml(category, { extraCategories: [category] })}</select>
+        </label>
+        <button class="expense-delete expense-item-remove" type="button" title="품목 삭제" aria-label="품목 삭제" data-remove-expense-item ${removable}>×</button>
+      </div>
+      <label class="item-default-participants">
+        <input type="checkbox" data-expense-item-default-participants ${useDefaultParticipants ? "checked" : ""} ${disabled}>
+        <span>이 품목은 지출 전체 참여자와 같이 나눔</span>
+      </label>
+      <div class="participant-list item-participants" ${useDefaultParticipants ? "hidden" : ""}>
+        ${itemParticipantOptionsHtml(item.participantIds || [], !editable)}
+      </div>
+    </article>
+  `;
+}
+
+function readExpenseItemsFromContainer(container, { currency = "KRW", defaultCategory = "" } = {}) {
+  return Array.from(container.querySelectorAll("[data-expense-item-row]")).map((row, index) => {
+    const quantity = parsePositiveNumber(row.querySelector("[data-expense-item-quantity]")?.value) || 1;
+    const unitAmount = parsePositiveNumber(row.querySelector("[data-expense-item-unit]")?.value) || 0;
+    const useDefaultParticipants = row.querySelector("[data-expense-item-default-participants]")?.checked !== false;
+    const participantIds = useDefaultParticipants
+      ? []
+      : Array.from(row.querySelectorAll("[data-expense-item-participant]:checked")).map((input) => input.value);
+
+    return {
+      id: row.dataset.itemId || makeId("it_"),
+      title: row.querySelector("[data-expense-item-title]")?.value.trim().slice(0, 70) || "",
+      quantity,
+      unitAmount,
+      amount: itemLineAmount(quantity, unitAmount, currency),
+      category: row.querySelector("[data-expense-item-category]")?.value.trim().slice(0, 20) || defaultCategory,
+      participantIds,
+      useDefaultParticipants,
+      index
+    };
+  });
+}
+
+function syncExpenseItemsTotal({
+  container = elements.expenseItemList,
+  totalElement = elements.expenseItemsTotal,
+  amountInput = elements.expenseAmount,
+  currency = elements.expenseCurrency.value || "KRW",
+  defaultCategory = elements.expenseCategory.value
+} = {}) {
+  const items = readExpenseItemsFromContainer(container, { currency, defaultCategory });
+  const total = expenseItemsTotal(items);
+  const formatted = formatItemOriginalAmount(total, currency);
+  if (amountInput) {
+    amountInput.value = total > 0 ? formatted : "";
+  }
+  if (totalElement) {
+    totalElement.textContent = `합계 ${formatted}`;
+  }
+  return { items, total };
+}
+
+function renderExpenseItemInputs({
+  container,
+  totalElement,
+  amountInput,
+  currency = "KRW",
+  defaultCategory = "",
+  defaultParticipantIds = [],
+  editable = true,
+  items = null
+}) {
+  const currentItems = Array.isArray(items)
+    ? items
+    : readExpenseItemsFromContainer(container, { currency, defaultCategory });
+  const nextItems = currentItems.length > 0
+    ? currentItems
+    : [defaultExpenseItem({ category: defaultCategory, participantIds: [] })];
+
+  container.innerHTML = nextItems.map((item, index) => (
+    expenseItemRowHtml(item, index, { currency, defaultCategory, defaultParticipantIds, editable })
+  )).join("");
+  refreshCustomSelects(container);
+  syncExpenseItemsTotal({ container, totalElement, amountInput, currency, defaultCategory });
+}
+
+function applyBulkCategoryToItems(container, category) {
+  for (const select of container.querySelectorAll("[data-expense-item-category]")) {
+    select.value = category;
+    syncCustomSelect(select);
+  }
+}
+
+function toggleItemParticipantPicker(row) {
+  const useDefault = row.querySelector("[data-expense-item-default-participants]")?.checked !== false;
+  const participants = row.querySelector(".item-participants");
+  if (participants) {
+    participants.hidden = useDefault;
+  }
+}
+
+function syncEditExpenseItemsTotal(form) {
+  const currency = form.querySelector("[data-edit-currency]")?.value || "KRW";
+  const defaultCategory = form.querySelector("[data-edit-category]")?.value || "";
+  return syncExpenseItemsTotal({
+    container: form.querySelector(".expense-item-list"),
+    totalElement: form.querySelector("[data-edit-items-total]"),
+    amountInput: form.querySelector("[data-edit-amount]"),
+    currency,
+    defaultCategory
+  });
 }
 
 function syncExpenseCurrencyFields({ resetRate = false } = {}) {
   const overseas = overseasSettings();
   const currency = overseas.enabled ? elements.expenseCurrency.value : "KRW";
   const isForeign = overseas.enabled && currency !== "KRW";
-  elements.expenseAmountLabel.textContent = isForeign ? "외화 금액" : "금액";
+  elements.expenseAmountLabel.textContent = isForeign ? "외화 총액" : "총액";
   elements.expenseRateField.hidden = !isForeign;
   elements.expenseCardKrwField.hidden = !isForeign;
 
@@ -1442,6 +1758,17 @@ function syncExpenseCurrencyFields({ resetRate = false } = {}) {
   if (!isForeign) {
     elements.expenseRate.value = "";
     elements.expenseCardKrw.value = "";
+  }
+  if (elements.expenseItemList) {
+    renderExpenseItemInputs({
+      container: elements.expenseItemList,
+      totalElement: elements.expenseItemsTotal,
+      amountInput: elements.expenseAmount,
+      currency,
+      defaultCategory: elements.expenseCategory.value,
+      defaultParticipantIds: Array.from(participantSelection),
+      editable: canEdit() && state?.people.length > 0
+    });
   }
 }
 
@@ -1631,6 +1958,7 @@ function renderExpenses() {
     }
 
     const participants = (expense.participantIds || []).map(getPersonName).join(", ");
+    const items = normalizeExpenseItems(expense);
     const originalAmount = expenseOriginalText(expense);
     const rate = expenseRateDisplay(expense);
     return `
@@ -1646,6 +1974,7 @@ function renderExpenses() {
           ${expense.category ? `<span>${escapeHtml(expense.category)}</span>` : ""}
           <span>결제 ${escapeHtml(getPersonName(expense.payerId))}</span>
           <span>${escapeHtml(expense.spentAt)}</span>
+          <span>${items.length}개 품목</span>
           ${rate ? rate.direction ? `
             <span class="exchange-rate-chip">
               <strong>${escapeHtml(rate.label)}</strong>
@@ -1654,6 +1983,7 @@ function renderExpenses() {
           ` : `<span>${escapeHtml(rate.label)}</span>` : ""}
           <span>${escapeHtml(participants)}</span>
         </div>
+        ${expenseItemsSummaryHtml(expense)}
         <div class="expense-actions">
           <div class="expense-memo">${escapeHtml(expense.memo || "")}</div>
           ${canEdit() ? `
@@ -1674,6 +2004,25 @@ function expenseOriginalText(expense) {
     return "";
   }
   return formatCurrencyAmount(expense.foreignAmount, expense.currency);
+}
+
+function expenseItemsSummaryHtml(expense) {
+  const items = normalizeExpenseItems(expense);
+  if (items.length === 0) return "";
+  const currency = expense.currency || "KRW";
+  const visibleItems = items.slice(0, 4);
+  const hiddenCount = items.length - visibleItems.length;
+  return `
+    <div class="expense-item-snippets" aria-label="품목 요약">
+      ${visibleItems.map((item) => `
+        <span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <small>${escapeHtml(item.quantity)}개 · ${escapeHtml(formatItemOriginalAmount(item.unitAmount, currency))}</small>
+        </span>
+      `).join("")}
+      ${hiddenCount > 0 ? `<span><strong>+${hiddenCount}</strong><small>품목 더 있음</small></span>` : ""}
+    </div>
+  `;
 }
 
 function expenseRateDisplay(expense) {
@@ -1775,7 +2124,9 @@ function renderExpenseEditor(expense) {
   const showFx = overseasSettings().enabled || (expense.currency && expense.currency !== "KRW");
   const currency = expense.currency || "KRW";
   const editCurrencies = Array.from(new Set([...overseasCurrencies({ includeKrw: true }), currency]));
-  const amountValue = currency === "KRW" ? expense.amount : expense.foreignAmount || "";
+  const items = normalizeExpenseItems(expense);
+  const itemTotal = expenseItemsTotal(items);
+  const amountValue = currency === "KRW" ? itemTotal : expense.foreignAmount || itemTotal;
   const rateValue = currency === "KRW" ? "" : expense.exchangeRate || defaultRateFor(currency);
   const cardKrwValue = currency === "KRW" ? "" : expense.cardKrwAmount || "";
   const payerOptions = state.people.map((person) => {
@@ -1813,8 +2164,8 @@ function renderExpenseEditor(expense) {
             </label>
           ` : ""}
           <label>
-            <span>${showFx && currency !== "KRW" ? "외화 금액" : "금액"}</span>
-            <input data-edit-amount type="text" inputmode="numeric" value="${escapeHtml(amountValue)}" autocomplete="off">
+            <span>${showFx && currency !== "KRW" ? "외화 총액" : "총액"}</span>
+            <input data-edit-amount type="text" inputmode="numeric" value="${escapeHtml(formatItemOriginalAmount(amountValue, currency))}" autocomplete="off" readonly>
           </label>
           ${showFx ? `
             <label>
@@ -1836,6 +2187,23 @@ function renderExpenseEditor(expense) {
             <input data-edit-date type="date" value="${escapeHtml(expense.spentAt || localDateString())}">
           </label>
         </div>
+
+        <section class="itemized-section">
+          <div class="participant-row">
+            <div>
+              <div class="field-label">품목</div>
+              <div class="items-total" data-edit-items-total>합계 ${escapeHtml(formatItemOriginalAmount(amountValue, currency))}</div>
+            </div>
+            <button class="text-button" type="button" data-add-edit-item>품목 추가</button>
+          </div>
+          <div class="expense-item-list">
+            ${items.map((item, index) => expenseItemRowHtml(item, index, {
+              currency,
+              defaultCategory: expense.category || "",
+              editable: true
+            })).join("")}
+          </div>
+        </section>
 
         <div>
           <div class="field-label">n빵 참여자</div>
@@ -1997,10 +2365,14 @@ function csvImportRowsFromMapping() {
     sourceIndex: index + 2,
     spentAt: normalizeImportDate(csvImportCell(row, "spentAt")),
     title: csvImportCell(row, "title").slice(0, 70),
+    itemTitle: csvImportCell(row, "itemTitle").slice(0, 70),
+    quantity: csvImportCell(row, "quantity"),
     amount: csvImportCell(row, "amount"),
     payerName: csvImportCell(row, "payerName").slice(0, 40),
     participantNames: csvImportCell(row, "participantNames"),
     category: csvImportCell(row, "category").slice(0, 20),
+    itemCategory: csvImportCell(row, "itemCategory").slice(0, 20),
+    itemParticipantNames: csvImportCell(row, "itemParticipantNames"),
     memo: csvImportCell(row, "memo").slice(0, 140)
   }));
 }
@@ -2023,7 +2395,7 @@ function existingImportExpenseKeys() {
   })));
 }
 
-function importPreviewStatus(row, seenKeys) {
+function importPreviewStatus(row) {
   const amount = amountFromInput(row.amount);
   const payerName = String(row.payerName || "").trim();
   const messages = [];
@@ -2034,19 +2406,7 @@ function importPreviewStatus(row, seenKeys) {
     return { kind: "error", label: messages.join(", ") };
   }
 
-  const key = importExpenseKey({
-    ...row,
-    title: row.title || "CSV 지출",
-    amount,
-    payerName
-  });
-
-  if (seenKeys.has(key)) {
-    return { kind: "skip", label: "중복 건너뜀" };
-  }
-  seenKeys.add(key);
-
-  if (!row.title || !row.spentAt || !row.participantNames) {
+  if (!row.title || !row.itemTitle || !row.quantity || !row.spentAt || !row.participantNames) {
     return { kind: "warn", label: "기본값 사용" };
   }
 
@@ -2090,9 +2450,8 @@ function renderCsvImportPreview() {
     return;
   }
 
-  const seenKeys = existingImportExpenseKeys();
   const rows = csvImportRowsFromMapping();
-  const statuses = rows.map((row) => importPreviewStatus(row, seenKeys));
+  const statuses = rows.map((row) => importPreviewStatus(row));
   const readyCount = statuses.filter((status) => status.kind === "ready" || status.kind === "warn").length;
   const skipCount = statuses.filter((status) => status.kind === "skip").length;
   const errorCount = statuses.filter((status) => status.kind === "error").length;
@@ -2111,10 +2470,14 @@ function renderCsvImportPreview() {
             <th>상태</th>
             <th>날짜</th>
             <th>내용</th>
+            <th>품목</th>
+            <th>수량</th>
             <th>금액</th>
             <th>결제자</th>
             <th>참여자</th>
             <th>카테고리</th>
+            <th>품목 카테고리</th>
+            <th>품목 참여자</th>
             <th>메모</th>
           </tr>
         </thead>
@@ -2129,10 +2492,14 @@ function renderCsvImportPreview() {
                 </td>
                 <td><input data-import-spent-at type="date" value="${escapeHtml(row.spentAt)}"></td>
                 <td><input data-import-title type="text" maxlength="70" value="${escapeHtml(row.title)}" placeholder="CSV 지출"></td>
+                <td><input data-import-item-title type="text" maxlength="70" value="${escapeHtml(row.itemTitle)}" placeholder="비우면 내용과 같음"></td>
+                <td><input data-import-quantity type="text" inputmode="decimal" value="${escapeHtml(row.quantity)}" placeholder="1"></td>
                 <td><input data-import-amount type="text" inputmode="numeric" value="${escapeHtml(row.amount)}" placeholder="필수"></td>
                 <td><input data-import-payer type="text" maxlength="40" value="${escapeHtml(row.payerName)}" placeholder="필수"></td>
                 <td><input data-import-participants type="text" value="${escapeHtml(row.participantNames)}" placeholder="비우면 전체 참여"></td>
                 <td><input data-import-category type="text" maxlength="20" value="${escapeHtml(row.category)}"></td>
+                <td><input data-import-item-category type="text" maxlength="20" value="${escapeHtml(row.itemCategory)}"></td>
+                <td><input data-import-item-participants type="text" value="${escapeHtml(row.itemParticipantNames)}"></td>
                 <td><input data-import-memo type="text" maxlength="140" value="${escapeHtml(row.memo)}"></td>
               </tr>
             `;
@@ -2148,7 +2515,6 @@ function refreshCsvImportPreviewStatuses() {
   const rowElements = Array.from(elements.importPreview.querySelectorAll("[data-import-row]"));
   if (rowElements.length === 0) return;
 
-  const seenKeys = existingImportExpenseKeys();
   let readyCount = 0;
   let skipCount = 0;
   let errorCount = 0;
@@ -2158,11 +2524,13 @@ function refreshCsvImportPreviewStatuses() {
       sourceIndex: Number(rowElement.dataset.importRow),
       spentAt: rowElement.querySelector("[data-import-spent-at]").value || "",
       title: rowElement.querySelector("[data-import-title]").value.trim(),
+      itemTitle: rowElement.querySelector("[data-import-item-title]").value.trim(),
+      quantity: rowElement.querySelector("[data-import-quantity]").value,
       amount: rowElement.querySelector("[data-import-amount]").value,
       payerName: rowElement.querySelector("[data-import-payer]").value.trim(),
       participantNames: rowElement.querySelector("[data-import-participants]").value
     };
-    const status = importPreviewStatus(row, seenKeys);
+    const status = importPreviewStatus(row);
     const statusElement = rowElement.querySelector(".import-status");
 
     rowElement.className = `import-row-${status.kind}`;
@@ -2202,10 +2570,14 @@ function readCsvImportPreviewRows() {
     sourceIndex: Number(row.dataset.importRow),
     spentAt: row.querySelector("[data-import-spent-at]").value || "",
     title: row.querySelector("[data-import-title]").value.trim().slice(0, 70),
+    itemTitle: row.querySelector("[data-import-item-title]").value.trim().slice(0, 70),
+    quantityInput: row.querySelector("[data-import-quantity]").value,
     amountInput: row.querySelector("[data-import-amount]").value,
     payerName: row.querySelector("[data-import-payer]").value.trim().slice(0, 40),
     participantNames: row.querySelector("[data-import-participants]").value,
     category: row.querySelector("[data-import-category]").value.trim().slice(0, 20),
+    itemCategory: row.querySelector("[data-import-item-category]").value.trim().slice(0, 20),
+    itemParticipantNames: row.querySelector("[data-import-item-participants]").value,
     memo: row.querySelector("[data-import-memo]").value.trim().slice(0, 140)
   }));
 }
@@ -2216,30 +2588,76 @@ function buildCsvImportPlan() {
   const importKeys = new Set();
   const errors = [];
   const skipped = [];
-  const preparedRows = [];
+  const preparedGroups = new Map();
 
   for (const row of rows) {
-    const amount = amountFromInput(row.amountInput);
+    const unitAmount = amountFromInput(row.amountInput);
     const payerName = row.payerName;
-    if (!amount || !payerName) {
+    if (!unitAmount || !payerName) {
       errors.push(`${row.sourceIndex}행`);
       continue;
     }
 
+    const quantity = parsePositiveNumber(row.quantityInput) || 1;
+    const title = row.title || row.itemTitle || "CSV 지출";
+    const itemTitle = row.itemTitle || row.title || `품목 ${row.sourceIndex}행`;
+    const category = row.category || row.itemCategory || "";
+    const itemCategory = row.itemCategory || category;
+    const participantNames = splitImportNames(row.participantNames);
+    const itemParticipantNames = splitImportNames(row.itemParticipantNames);
+    const groupKey = [
+      row.spentAt || localDateString(),
+      title.trim().toLowerCase(),
+      payerName.trim().toLowerCase(),
+      participantNames.join(",").toLowerCase(),
+      String(row.memo || "").trim().toLowerCase()
+    ].join("|");
+
+    if (!preparedGroups.has(groupKey)) {
+      preparedGroups.set(groupKey, {
+        sourceIndexes: [],
+        firstSourceIndex: row.sourceIndex,
+        spentAt: row.spentAt || localDateString(),
+        title,
+        payerName,
+        participantNames,
+        category,
+        memo: row.memo,
+        items: []
+      });
+    }
+
+    const group = preparedGroups.get(groupKey);
+    group.sourceIndexes.push(row.sourceIndex);
+    if (!group.category && category) group.category = category;
+    group.items.push({
+      id: makeId("it_"),
+      title: itemTitle,
+      quantity,
+      unitAmount,
+      amount: itemLineAmount(quantity, unitAmount, "KRW"),
+      category: itemCategory,
+      itemParticipantNames,
+      sourceIndex: row.sourceIndex
+    });
+  }
+
+  const preparedRows = [];
+  for (const group of preparedGroups.values()) {
+    const amount = expenseItemsTotal(group.items);
     const prepared = {
-      sourceIndex: row.sourceIndex,
-      spentAt: row.spentAt || localDateString(),
-      title: row.title || "CSV 지출",
-      amount,
-      payerName,
-      participantNames: splitImportNames(row.participantNames),
-      category: row.category,
-      memo: row.memo
+      ...group,
+      amount
     };
-    const key = importExpenseKey(prepared);
+    const key = importExpenseKey({
+      spentAt: prepared.spentAt,
+      title: prepared.title,
+      amount,
+      payerName: prepared.payerName
+    });
 
     if (existingKeys.has(key) || importKeys.has(key)) {
-      skipped.push(row.sourceIndex);
+      skipped.push(...group.sourceIndexes);
       continue;
     }
 
@@ -2275,14 +2693,29 @@ function buildCsvImportPlan() {
   for (const row of preparedRows) {
     ensurePerson(row.payerName);
     row.participantNames.forEach(ensurePerson);
+    row.items.forEach((item) => item.itemParticipantNames.forEach(ensurePerson));
   }
 
-  const categories = uniqueCategoryList(preparedRows.map((row) => row.category));
+  const categories = uniqueCategoryList(preparedRows.flatMap((row) => [
+    row.category,
+    ...row.items.map((item) => item.category)
+  ]));
   const expenses = preparedRows.map((row) => {
     const payer = ensurePerson(row.payerName);
     const participants = row.participantNames.length > 0
       ? row.participantNames.map(ensurePerson).filter(Boolean)
       : people;
+    const items = row.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      quantity: item.quantity,
+      unitAmount: item.unitAmount,
+      amount: item.amount,
+      category: item.category,
+      participantIds: item.itemParticipantNames.length > 0
+        ? item.itemParticipantNames.map(ensurePerson).filter(Boolean).map((person) => person.id)
+        : []
+    }));
 
     return {
       id: makeId("e_"),
@@ -2295,6 +2728,7 @@ function buildCsvImportPlan() {
       cardKrwAmount: null,
       payerId: payer.id,
       participantIds: participants.map((person) => person.id),
+      items,
       memo: row.memo,
       spentAt: row.spentAt,
       createdAt: new Date().toISOString()
@@ -2399,19 +2833,32 @@ function buildExportData(sections) {
   }
 
   if (included.has("expenses")) {
-    data.expenses = state.expenses.map((expense) => ({
-      title: expense.title,
-      category: expense.category || "",
-      spentAt: expense.spentAt || "",
-      payer: getPersonName(expense.payerId),
-      amountKrw: Math.round(Number(expense.amount) || 0),
-      currency: expense.currency || "KRW",
-      foreignAmount: expense.foreignAmount || "",
-      exchangeRate: expense.exchangeRate || "",
-      cardKrwAmount: expense.cardKrwAmount || "",
-      participants: (expense.participantIds || []).map(getPersonName).join(", "),
-      memo: expense.memo || ""
-    }));
+    data.expenses = state.expenses.map((expense) => {
+      const items = normalizeExpenseItems(expense);
+      return {
+        title: expense.title,
+        category: expense.category || "",
+        spentAt: expense.spentAt || "",
+        payer: getPersonName(expense.payerId),
+        amountKrw: Math.round(Number(expense.amount) || 0),
+        currency: expense.currency || "KRW",
+        foreignAmount: expense.foreignAmount || "",
+        exchangeRate: expense.exchangeRate || "",
+        cardKrwAmount: expense.cardKrwAmount || "",
+        participants: (expense.participantIds || []).map(getPersonName).join(", "),
+        memo: expense.memo || "",
+        items: items.map((item) => ({
+          title: item.title,
+          quantity: item.quantity,
+          unitAmount: item.unitAmount,
+          amount: item.amount,
+          category: item.category || expense.category || "",
+          participants: item.participantIds?.length
+            ? item.participantIds.map(getPersonName).join(", ")
+            : ""
+        }))
+      };
+    });
   }
 
   if (included.has("balances")) {
@@ -2494,12 +2941,26 @@ function buildCsv(data) {
     appendCsvSection(
       rows,
       "지출 목록",
-      ["날짜", "카테고리", "내용", "결제자", "원화 금액", "결제 통화", "외화 금액", "원화 계산 환율", "카드 청구액", "참여자", "메모"],
-      data.expenses,
-      (expense) => [
+      ["날짜", "내용", "품목", "수량", "금액", "품목 금액", "카테고리", "품목 카테고리", "결제자", "원화 총액", "결제 통화", "외화 총액", "원화 계산 환율", "카드 청구액", "참여자", "품목 참여자", "메모"],
+      data.expenses.flatMap((expense) => (
+        (expense.items?.length ? expense.items : [{
+          title: expense.title,
+          quantity: 1,
+          unitAmount: expense.currency === "KRW" ? expense.amountKrw : expense.foreignAmount,
+          amount: expense.currency === "KRW" ? expense.amountKrw : expense.foreignAmount,
+          category: expense.category,
+          participants: ""
+        }]).map((item) => ({ expense, item }))
+      )),
+      ({ expense, item }) => [
         expense.spentAt,
-        expense.category,
         expense.title,
+        item.title,
+        item.quantity,
+        item.unitAmount,
+        item.amount,
+        expense.category,
+        item.category,
         expense.payer,
         expense.amountKrw,
         expense.currency,
@@ -2507,6 +2968,7 @@ function buildCsv(data) {
         expense.exchangeRate,
         expense.cardKrwAmount,
         expense.participants,
+        item.participants,
         expense.memo
       ]
     );
@@ -2609,6 +3071,16 @@ function buildPdfLines(data) {
         const category = expense.category ? `[${expense.category}] ` : "";
         addLine(`${index + 1}. ${expense.spentAt} ${category}${expense.title} - ${formatMoney(expense.amountKrw)}${foreign}`);
         addLine(`   결제자: ${expense.payer} / 참여자: ${expense.participants || "-"}`);
+        if (expense.items?.length) {
+          expense.items.forEach((item) => {
+            const itemAmount = expense.currency === "KRW"
+              ? formatMoney(item.amount)
+              : formatCurrencyAmount(item.amount, expense.currency);
+            const itemParticipants = item.participants ? ` / 참여자: ${item.participants}` : "";
+            const itemCategory = item.category ? `[${item.category}] ` : "";
+            addLine(`   - ${itemCategory}${item.title}: ${item.quantity}개, ${itemAmount}${itemParticipants}`);
+          });
+        }
         if (expense.exchangeRate) addLine(`   원화 계산 환율: ${expense.exchangeRate}`);
         if (expense.cardKrwAmount) addLine(`   카드 청구액: ${formatMoney(expense.cardKrwAmount)}`);
         if (expense.memo) addLine(`   메모: ${expense.memo}`);
@@ -3011,6 +3483,52 @@ elements.exchangeList.addEventListener("click", async (event) => {
 
 elements.expenseCurrency.addEventListener("change", () => {
   syncExpenseCurrencyFields({ resetRate: true });
+});
+
+elements.expenseCategory.addEventListener("change", () => {
+  applyBulkCategoryToItems(elements.expenseItemList, elements.expenseCategory.value);
+  syncExpenseItemsTotal();
+});
+
+elements.addExpenseItem.addEventListener("click", () => {
+  if (!canEdit() || !state) return;
+  const currency = elements.expenseCurrency.value || "KRW";
+  const items = readExpenseItemsFromContainer(elements.expenseItemList, {
+    currency,
+    defaultCategory: elements.expenseCategory.value
+  });
+  items.push(defaultExpenseItem({ category: elements.expenseCategory.value }));
+  renderExpenseItemInputs({
+    container: elements.expenseItemList,
+    totalElement: elements.expenseItemsTotal,
+    amountInput: elements.expenseAmount,
+    currency,
+    defaultCategory: elements.expenseCategory.value,
+    defaultParticipantIds: Array.from(participantSelection),
+    editable: true,
+    items
+  });
+});
+
+elements.expenseItemList.addEventListener("click", (event) => {
+  const removeButton = event.target.closest("[data-remove-expense-item]");
+  if (!removeButton || !canEdit()) return;
+  const rows = Array.from(elements.expenseItemList.querySelectorAll("[data-expense-item-row]"));
+  if (rows.length <= 1) return;
+  removeButton.closest("[data-expense-item-row]")?.remove();
+  syncExpenseItemsTotal();
+});
+
+elements.expenseItemList.addEventListener("input", () => {
+  syncExpenseItemsTotal();
+});
+
+elements.expenseItemList.addEventListener("change", (event) => {
+  const row = event.target.closest("[data-expense-item-row]");
+  if (row && event.target.matches("[data-expense-item-default-participants]")) {
+    toggleItemParticipantPicker(row);
+  }
+  syncExpenseItemsTotal();
 });
 
 elements.openExpenseModal.addEventListener("click", openExpenseModal);
@@ -3551,9 +4069,18 @@ elements.expenseForm.addEventListener("submit", async (event) => {
   const category = elements.expenseCategory.value.trim().slice(0, 20);
   const overseas = overseasSettings();
   const currency = overseas.enabled ? elements.expenseCurrency.value : "KRW";
-  const foreignAmount = currency === "KRW"
-    ? amountFromInput(elements.expenseAmount.value)
-    : parsePositiveNumber(elements.expenseAmount.value);
+  const itemDrafts = readExpenseItemsFromContainer(elements.expenseItemList, { currency, defaultCategory: category });
+  const items = itemDrafts.map((item, index) => ({
+    id: item.id || makeId("it_"),
+    title: item.title || `품목 ${index + 1}`,
+    quantity: item.quantity,
+    unitAmount: item.unitAmount,
+    amount: item.amount,
+    category: item.category,
+    participantIds: item.useDefaultParticipants ? [] : item.participantIds
+  }));
+  const itemTotal = expenseItemsTotal(items);
+  const foreignAmount = itemTotal;
   const exchangeRate = currency === "KRW"
     ? 1
     : parsePositiveNumber(elements.expenseRate.value) || defaultRateFor(currency);
@@ -3573,8 +4100,12 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     showToast("지출 내용을 입력해 주세요.");
     return;
   }
-  if (!foreignAmount) {
-    showToast("금액을 입력해 주세요.");
+  if (items.length === 0 || !itemTotal) {
+    showToast("품목과 금액을 한 개 이상 입력해 주세요.");
+    return;
+  }
+  if (itemDrafts.some((item) => !item.title || !item.quantity || !item.unitAmount || !item.amount)) {
+    showToast("모든 품목의 이름, 수량, 단가를 입력해 주세요.");
     return;
   }
   if (currency !== "KRW" && !exchangeRate) {
@@ -3589,6 +4120,10 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     showToast("n빵 참여자를 한 명 이상 선택해 주세요.");
     return;
   }
+  if (itemDrafts.some((item) => !item.useDefaultParticipants && item.participantIds.length === 0)) {
+    showToast("품목별 참여자를 쓰는 품목은 참여자를 한 명 이상 선택해 주세요.");
+    return;
+  }
 
   const nextExpense = {
     id: makeId("e_"),
@@ -3601,6 +4136,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     cardKrwAmount,
     payerId,
     participantIds,
+    items,
     memo: elements.expenseMemo.value.trim().slice(0, 140),
     spentAt: elements.expenseDate.value || localDateString(),
     createdAt: new Date().toISOString()
@@ -3613,6 +4149,16 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     elements.expenseCardKrw.value = "";
     elements.expenseMemo.value = "";
     elements.expenseDate.value = localDateString();
+    renderExpenseItemInputs({
+      container: elements.expenseItemList,
+      totalElement: elements.expenseItemsTotal,
+      amountInput: elements.expenseAmount,
+      currency: elements.expenseCurrency.value || "KRW",
+      defaultCategory: elements.expenseCategory.value,
+      defaultParticipantIds: Array.from(participantSelection),
+      editable: true,
+      items: [defaultExpenseItem({ category: elements.expenseCategory.value })]
+    });
     participantsTouched = false;
     participantSelection = new Set(state.people.map((person) => person.id));
     renderExpenseForm();
@@ -3624,6 +4170,38 @@ elements.expenseForm.addEventListener("submit", async (event) => {
 });
 
 elements.expenseList.addEventListener("click", async (event) => {
+  const addItemButton = event.target.closest("[data-add-edit-item]");
+  if (addItemButton && canEdit() && state) {
+    const form = addItemButton.closest("[data-edit-expense-form]");
+    const container = form.querySelector(".expense-item-list");
+    const currency = form.querySelector("[data-edit-currency]")?.value || "KRW";
+    const defaultCategory = form.querySelector("[data-edit-category]")?.value || "";
+    const items = readExpenseItemsFromContainer(container, { currency, defaultCategory });
+    items.push(defaultExpenseItem({ category: defaultCategory }));
+    renderExpenseItemInputs({
+      container,
+      totalElement: form.querySelector("[data-edit-items-total]"),
+      amountInput: form.querySelector("[data-edit-amount]"),
+      currency,
+      defaultCategory,
+      defaultParticipantIds: Array.from(form.querySelectorAll("[data-edit-participant]:checked")).map((input) => input.value),
+      editable: true,
+      items
+    });
+    return;
+  }
+
+  const removeItemButton = event.target.closest("[data-remove-expense-item]");
+  if (removeItemButton && canEdit() && state) {
+    const form = removeItemButton.closest("[data-edit-expense-form]");
+    const rows = Array.from(form.querySelectorAll("[data-expense-item-row]"));
+    if (rows.length > 1) {
+      removeItemButton.closest("[data-expense-item-row]")?.remove();
+      syncEditExpenseItemsTotal(form);
+    }
+    return;
+  }
+
   const editButton = event.target.closest("[data-edit-expense]");
   if (editButton && canEdit() && state) {
     editingExpenseId = editButton.dataset.editExpense;
@@ -3654,6 +4232,48 @@ elements.expenseList.addEventListener("click", async (event) => {
   }
 });
 
+elements.expenseList.addEventListener("input", (event) => {
+  const form = event.target.closest("[data-edit-expense-form]");
+  if (!form || !event.target.closest("[data-expense-item-row]")) return;
+  syncEditExpenseItemsTotal(form);
+});
+
+elements.expenseList.addEventListener("change", (event) => {
+  const form = event.target.closest("[data-edit-expense-form]");
+  if (!form) return;
+
+  const itemRow = event.target.closest("[data-expense-item-row]");
+  if (itemRow && event.target.matches("[data-expense-item-default-participants]")) {
+    toggleItemParticipantPicker(itemRow);
+  }
+
+  if (event.target.matches("[data-edit-category]")) {
+    applyBulkCategoryToItems(form.querySelector(".expense-item-list"), event.target.value);
+  }
+
+  if (event.target.matches("[data-edit-currency]")) {
+    const currency = event.target.value;
+    const defaultCategory = form.querySelector("[data-edit-category]")?.value || "";
+    const container = form.querySelector(".expense-item-list");
+    const items = readExpenseItemsFromContainer(container, { currency, defaultCategory });
+    renderExpenseItemInputs({
+      container,
+      totalElement: form.querySelector("[data-edit-items-total]"),
+      amountInput: form.querySelector("[data-edit-amount]"),
+      currency,
+      defaultCategory,
+      defaultParticipantIds: Array.from(form.querySelectorAll("[data-edit-participant]:checked")).map((input) => input.value),
+      editable: true,
+      items
+    });
+    return;
+  }
+
+  if (itemRow || event.target.matches("[data-edit-category]")) {
+    syncEditExpenseItemsTotal(form);
+  }
+});
+
 elements.expenseList.addEventListener("submit", async (event) => {
   const form = event.target.closest("[data-edit-expense-form]");
   if (!form || !canEdit() || !state) return;
@@ -3666,9 +4286,18 @@ elements.expenseList.addEventListener("submit", async (event) => {
   const title = form.querySelector("[data-edit-title]").value.trim().slice(0, 70);
   const category = form.querySelector("[data-edit-category]").value.trim().slice(0, 20);
   const currency = form.querySelector("[data-edit-currency]")?.value || "KRW";
-  const foreignAmount = currency === "KRW"
-    ? amountFromInput(form.querySelector("[data-edit-amount]").value)
-    : parsePositiveNumber(form.querySelector("[data-edit-amount]").value);
+  const itemDrafts = readExpenseItemsFromContainer(form.querySelector(".expense-item-list"), { currency, defaultCategory: category });
+  const items = itemDrafts.map((item, index) => ({
+    id: item.id || makeId("it_"),
+    title: item.title || `품목 ${index + 1}`,
+    quantity: item.quantity,
+    unitAmount: item.unitAmount,
+    amount: item.amount,
+    category: item.category,
+    participantIds: item.useDefaultParticipants ? [] : item.participantIds
+  }));
+  const itemTotal = expenseItemsTotal(items);
+  const foreignAmount = itemTotal;
   const exchangeRate = currency === "KRW"
     ? 1
     : parsePositiveNumber(form.querySelector("[data-edit-rate]")?.value) || defaultRateFor(currency);
@@ -3689,8 +4318,12 @@ elements.expenseList.addEventListener("submit", async (event) => {
     showToast("지출 내용을 입력해 주세요.");
     return;
   }
-  if (!foreignAmount) {
-    showToast("금액을 입력해 주세요.");
+  if (items.length === 0 || !itemTotal) {
+    showToast("품목과 금액을 한 개 이상 입력해 주세요.");
+    return;
+  }
+  if (itemDrafts.some((item) => !item.title || !item.quantity || !item.unitAmount || !item.amount)) {
+    showToast("모든 품목의 이름, 수량, 단가를 입력해 주세요.");
     return;
   }
   if (currency !== "KRW" && !exchangeRate) {
@@ -3703,6 +4336,10 @@ elements.expenseList.addEventListener("submit", async (event) => {
   }
   if (participantIds.length === 0) {
     showToast("n빵 참여자를 한 명 이상 선택해 주세요.");
+    return;
+  }
+  if (itemDrafts.some((item) => !item.useDefaultParticipants && item.participantIds.length === 0)) {
+    showToast("품목별 참여자를 쓰는 품목은 참여자를 한 명 이상 선택해 주세요.");
     return;
   }
 
@@ -3725,6 +4362,7 @@ elements.expenseList.addEventListener("submit", async (event) => {
               cardKrwAmount,
               payerId,
               participantIds,
+              items,
               memo: form.querySelector("[data-edit-memo]").value.trim().slice(0, 140),
               spentAt: form.querySelector("[data-edit-date]").value || localDateString(),
               updatedAt: new Date().toISOString()
