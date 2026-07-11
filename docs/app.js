@@ -607,6 +607,10 @@ function overseasCurrencies({ includeKrw = false } = {}) {
   return includeKrw ? ["KRW", ...currencies] : currencies;
 }
 
+function currentExpenseCurrency() {
+  return overseasSettings().enabled ? elements.expenseCurrency.value || "KRW" : "KRW";
+}
+
 function defaultRateFor(currency) {
   if (currency === "KRW") return 1;
   const settings = overseasSettings();
@@ -1548,13 +1552,14 @@ function renderExpenseForm() {
   renderCategoryControls({ disableExpenseCategory: !hasPeople });
 
   elements.expenseCurrencyField.hidden = !overseas.enabled;
-  const currentCurrency = elements.expenseCurrency.value || overseas.currencies[0];
-  elements.expenseCurrency.innerHTML = overseasCurrencies({ includeKrw: true }).map((currency) => (
+  const currentCurrency = overseas.enabled ? elements.expenseCurrency.value || overseas.currencies[0] : "KRW";
+  const availableCurrencies = overseasCurrencies({ includeKrw: true });
+  elements.expenseCurrency.innerHTML = availableCurrencies.map((currency) => (
     `<option value="${currency}">${currency}</option>`
   )).join("");
-  elements.expenseCurrency.value = overseasCurrencies({ includeKrw: true }).includes(currentCurrency)
+  elements.expenseCurrency.value = availableCurrencies.includes(currentCurrency)
     ? currentCurrency
-    : overseas.currencies[0];
+    : "KRW";
   syncExpenseCurrencyFields();
 
   if (!hasPeople) {
@@ -1579,7 +1584,7 @@ function renderExpenseForm() {
     container: elements.expenseItemList,
     totalElement: elements.expenseItemsTotal,
     amountInput: elements.expenseAmount,
-    currency: elements.expenseCurrency.value || "KRW",
+    currency: currentExpenseCurrency(),
     defaultCategory: elements.expenseCategory.value,
     defaultParticipantIds: Array.from(participantSelection),
     editable
@@ -1678,7 +1683,7 @@ function syncExpenseItemsTotal({
   container = elements.expenseItemList,
   totalElement = elements.expenseItemsTotal,
   amountInput = elements.expenseAmount,
-  currency = elements.expenseCurrency.value || "KRW",
+  currency = currentExpenseCurrency(),
   defaultCategory = elements.expenseCategory.value
 } = {}) {
   const items = readExpenseItemsFromContainer(container, { currency, defaultCategory });
@@ -1746,7 +1751,10 @@ function syncEditExpenseItemsTotal(form) {
 
 function syncExpenseCurrencyFields({ resetRate = false } = {}) {
   const overseas = overseasSettings();
-  const currency = overseas.enabled ? elements.expenseCurrency.value : "KRW";
+  if (!overseas.enabled) {
+    elements.expenseCurrency.value = "KRW";
+  }
+  const currency = currentExpenseCurrency();
   const isForeign = overseas.enabled && currency !== "KRW";
   elements.expenseAmountLabel.textContent = isForeign ? "외화 총액" : "총액";
   elements.expenseRateField.hidden = !isForeign;
@@ -3492,7 +3500,7 @@ elements.expenseCategory.addEventListener("change", () => {
 
 elements.addExpenseItem.addEventListener("click", () => {
   if (!canEdit() || !state) return;
-  const currency = elements.expenseCurrency.value || "KRW";
+  const currency = currentExpenseCurrency();
   const items = readExpenseItemsFromContainer(elements.expenseItemList, {
     currency,
     defaultCategory: elements.expenseCategory.value
@@ -4067,8 +4075,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
 
   const title = elements.expenseTitle.value.trim().slice(0, 70);
   const category = elements.expenseCategory.value.trim().slice(0, 20);
-  const overseas = overseasSettings();
-  const currency = overseas.enabled ? elements.expenseCurrency.value : "KRW";
+  const currency = currentExpenseCurrency();
   const itemDrafts = readExpenseItemsFromContainer(elements.expenseItemList, { currency, defaultCategory: category });
   const items = itemDrafts.map((item, index) => ({
     id: item.id || makeId("it_"),
@@ -4153,7 +4160,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
       container: elements.expenseItemList,
       totalElement: elements.expenseItemsTotal,
       amountInput: elements.expenseAmount,
-      currency: elements.expenseCurrency.value || "KRW",
+      currency: currentExpenseCurrency(),
       defaultCategory: elements.expenseCategory.value,
       defaultParticipantIds: Array.from(participantSelection),
       editable: true,
