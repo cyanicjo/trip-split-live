@@ -135,10 +135,8 @@ let csvImportState = {
   mappings: {}
 };
 
-const peopleCollapsedKey = "tripSplitPeopleCollapsed";
-let peopleCollapsed = localStorage.getItem(peopleCollapsedKey) === "true";
-const overseasCollapsedKey = "tripSplitOverseasCollapsed";
-let overseasCollapsed = localStorage.getItem(overseasCollapsedKey) === "true";
+let peopleCollapsed = true;
+let overseasCollapsed = true;
 const dashboardTripsKey = "tripSplitDashboardTrips";
 
 const exportSectionLabels = {
@@ -3387,7 +3385,6 @@ elements.overseasQuickEnabled.addEventListener("change", () => {
 
 elements.toggleOverseasPanel.addEventListener("click", () => {
   overseasCollapsed = !overseasCollapsed;
-  localStorage.setItem(overseasCollapsedKey, String(overseasCollapsed));
   renderOverseasPanel();
 });
 
@@ -3899,7 +3896,6 @@ elements.tripName.addEventListener("keydown", (event) => {
 
 elements.togglePeoplePanel.addEventListener("click", () => {
   peopleCollapsed = !peopleCollapsed;
-  localStorage.setItem(peopleCollapsedKey, String(peopleCollapsed));
   renderPeople();
 });
 

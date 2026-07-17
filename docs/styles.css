@@ -414,6 +414,12 @@ body.has-overseas .workspace {
   grid-area: history;
 }
 
+@media (min-width: 801px) {
+  .expense-list-panel {
+    margin-top: -14px;
+  }
+}
+
 .panel-heading {
   justify-content: space-between;
   gap: 12px;
