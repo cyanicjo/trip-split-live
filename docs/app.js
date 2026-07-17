@@ -127,6 +127,7 @@ let saving = false;
 let editingExpenseId = "";
 let editingAccountPersonId = "";
 let openCustomSelect = null;
+let completedSettlementsExpanded = false;
 let csvImportState = {
   fileName: "",
   headers: [],
@@ -1873,6 +1874,7 @@ function renderSettlements() {
 function renderCompletedSettlements() {
   const records = completedSettlements();
   if (records.length === 0) {
+    completedSettlementsExpanded = false;
     elements.completedSettlementList.hidden = true;
     elements.completedSettlementList.innerHTML = "";
     return;
@@ -1880,20 +1882,31 @@ function renderCompletedSettlements() {
 
   elements.completedSettlementList.hidden = false;
   elements.completedSettlementList.innerHTML = `
-    <div class="completed-title">완료된 송금</div>
-    ${records.map((record) => `
-      <div class="completed-settlement-item">
-        <div class="settlement-route">
-          <strong>${escapeHtml(getPersonName(record.fromId))}</strong>
-          <span> → </span>
-          ${settlementRecipientHtml(record.toId, getPersonName(record.toId))}
+    <button
+      class="completed-toggle"
+      type="button"
+      data-toggle-completed-settlements
+      aria-expanded="${completedSettlementsExpanded}"
+      aria-controls="completed-settlement-items"
+    >
+      <span>완료된 송금 ${records.length}개</span>
+      <span class="completed-toggle-icon">${completedSettlementsExpanded ? "접기" : "보기"}</span>
+    </button>
+    <div id="completed-settlement-items" class="completed-settlement-items" ${completedSettlementsExpanded ? "" : "hidden"}>
+      ${records.map((record) => `
+        <div class="completed-settlement-item">
+          <div class="settlement-route">
+            <strong>${escapeHtml(getPersonName(record.fromId))}</strong>
+            <span> → </span>
+            ${settlementRecipientHtml(record.toId, getPersonName(record.toId))}
+          </div>
+          <div class="settlement-side">
+            <div class="settlement-amount done">${formatMoney(record.amount)}</div>
+            ${canEdit() ? `<button class="text-button" type="button" data-undo-settlement="${escapeHtml(record.id)}">되돌리기</button>` : ""}
+          </div>
         </div>
-        <div class="settlement-side">
-          <div class="settlement-amount done">${formatMoney(record.amount)}</div>
-          ${canEdit() ? `<button class="text-button" type="button" data-undo-settlement="${escapeHtml(record.id)}">되돌리기</button>` : ""}
-        </div>
-      </div>
-    `).join("")}
+      `).join("")}
+    </div>
   `;
 }
 
@@ -3817,6 +3830,13 @@ elements.settlementList.addEventListener("click", async (event) => {
 });
 
 elements.completedSettlementList.addEventListener("click", async (event) => {
+  const toggleButton = event.target.closest("[data-toggle-completed-settlements]");
+  if (toggleButton) {
+    completedSettlementsExpanded = !completedSettlementsExpanded;
+    renderCompletedSettlements();
+    return;
+  }
+
   const accountCopyButton = event.target.closest("[data-copy-account]");
   if (accountCopyButton) {
     await copyAccountFromButton(accountCopyButton);

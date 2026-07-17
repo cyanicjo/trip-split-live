@@ -1245,10 +1245,42 @@ label span,
   display: none;
 }
 
-.completed-title {
+.completed-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(229, 232, 235, 0.88);
+  border-radius: 8px;
+  background: #f8fafc;
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 900;
+  text-align: left;
+}
+
+.completed-toggle:hover,
+.completed-toggle:focus-visible {
+  border-color: rgba(49, 130, 246, 0.32);
+  color: var(--ink);
+  outline: none;
+}
+
+.completed-toggle-icon {
+  flex: 0 0 auto;
+  color: var(--mint);
+}
+
+.completed-settlement-items {
+  display: grid;
+  gap: 8px;
+}
+
+.completed-settlement-items[hidden] {
+  display: none;
 }
 
 .completed-settlement-item {
