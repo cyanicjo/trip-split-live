@@ -1993,13 +1993,22 @@ function completedSettlementTime(record) {
   return timestampValue(record?.completedAt);
 }
 
+function hasExpensesInSettlementWindow(completedAt = "", startedAfter = "") {
+  return (state?.expenses || [])
+    .some((expense) => (
+      Math.round(Number(expense.amount) || 0) > 0 &&
+      expenseIsInSettlementWindow(expense, completedAt, startedAfter)
+    ));
+}
+
 function latestCompletedSettlementAtBefore(completedAt = "") {
   const cutoffTime = timestampValue(completedAt);
   if (!cutoffTime) return "";
 
   const previous = completedSettlements()
     .filter((record) => record.completedAt && completedSettlementTime(record) < cutoffTime)
-    .sort((a, b) => completedSettlementTime(b) - completedSettlementTime(a))[0];
+    .sort((a, b) => completedSettlementTime(b) - completedSettlementTime(a))
+    .find((record) => hasExpensesInSettlementWindow(completedAt, record.completedAt));
 
   return previous?.completedAt || "";
 }
@@ -2012,10 +2021,16 @@ function settledExpenseIdsBefore(record) {
   const cutoffTime = completedSettlementTime(record);
   if (!cutoffTime) return new Set();
 
+  const boundaryTime = timestampValue(completedSettlementWindowStart(record));
+  if (!boundaryTime) return new Set();
+
   const ids = new Set();
   let windowStart = "";
   const previousRecords = completedSettlements()
-    .filter((item) => item.id !== record.id && item.completedAt && completedSettlementTime(item) < cutoffTime)
+    .filter((item) => {
+      const completedTime = completedSettlementTime(item);
+      return item.id !== record.id && completedTime && completedTime <= boundaryTime;
+    })
     .sort((a, b) => completedSettlementTime(a) - completedSettlementTime(b));
 
   for (const previousRecord of previousRecords) {
