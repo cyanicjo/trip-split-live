@@ -544,7 +544,8 @@ function normalizeCompletedSettlements(settings = {}) {
             amount: Math.round(Number(expense.amount) || 0),
             payerName: String(expense.payerName || "").slice(0, 40),
             spentAt: expense.spentAt || "",
-            category: String(expense.category || "").slice(0, 20)
+            category: String(expense.category || "").slice(0, 20),
+            createdAt: expense.createdAt || ""
           })).filter((expense) => expense.amount > 0)
         : []
     }))
@@ -1934,25 +1935,59 @@ function renderCompletedSettlements() {
   `;
 }
 
-function settlementExpenseSnapshots() {
+function timestampValue(value) {
+  const time = new Date(value || "").getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function dateKeyFromTimestamp(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function expenseIsBeforeSettlement(expense, completedAt) {
+  if (!completedAt) return true;
+
+  const cutoffTime = timestampValue(completedAt);
+  const createdTime = timestampValue(expense.createdAt);
+  if (cutoffTime && createdTime && createdTime > cutoffTime) {
+    return false;
+  }
+
+  const cutoffDate = dateKeyFromTimestamp(completedAt);
+  const spentAt = expense.spentAt || "";
+  if (cutoffDate && spentAt && spentAt > cutoffDate) {
+    return false;
+  }
+
+  return true;
+}
+
+function settlementExpenseSnapshots(completedAt = "") {
   return (state?.expenses || [])
     .filter((expense) => Math.round(Number(expense.amount) || 0) > 0)
+    .filter((expense) => expenseIsBeforeSettlement(expense, completedAt))
     .map((expense) => ({
       id: expense.id,
       title: expense.title || "지출",
       amount: Math.round(Number(expense.amount) || 0),
       payerName: getPersonName(expense.payerId),
       spentAt: expense.spentAt || "",
-      category: expense.category || ""
+      category: expense.category || "",
+      createdAt: expense.createdAt || ""
     }));
 }
 
 function completedSettlementExpenses(record) {
   if (record.settledExpenses?.length) {
-    return record.settledExpenses;
+    return record.settledExpenses.filter((expense) => expenseIsBeforeSettlement(expense, record.completedAt));
   }
 
-  return settlementExpenseSnapshots();
+  return settlementExpenseSnapshots(record.completedAt);
 }
 
 function completedSettlementDetailsHtml(record) {
@@ -3886,6 +3921,7 @@ elements.settlementList.addEventListener("click", async (event) => {
   const settlement = state.summary.settlements[Number(button.dataset.completeSettlement)];
   if (!settlement) return;
 
+  const completedAt = new Date().toISOString();
   try {
     await saveCompletedSettlements([
       {
@@ -3893,8 +3929,8 @@ elements.settlementList.addEventListener("click", async (event) => {
         fromId: settlement.fromId,
         toId: settlement.toId,
         amount: settlement.amount,
-        completedAt: new Date().toISOString(),
-        settledExpenses: settlementExpenseSnapshots()
+        completedAt,
+        settledExpenses: settlementExpenseSnapshots(completedAt)
       },
       ...completedSettlements()
     ]);
