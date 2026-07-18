@@ -128,6 +128,7 @@ let editingExpenseId = "";
 let editingAccountPersonId = "";
 let openCustomSelect = null;
 let completedSettlementsExpanded = false;
+let expandedCompletedSettlementId = "";
 let csvImportState = {
   fileName: "",
   headers: [],
@@ -535,7 +536,17 @@ function normalizeCompletedSettlements(settings = {}) {
       fromId: record.fromId,
       toId: record.toId,
       amount: Math.round(Number(record.amount) || 0),
-      completedAt: record.completedAt || record.createdAt || new Date().toISOString()
+      completedAt: record.completedAt || record.createdAt || new Date().toISOString(),
+      settledExpenses: Array.isArray(record.settledExpenses)
+        ? record.settledExpenses.map((expense) => ({
+            id: expense.id || "",
+            title: String(expense.title || "지출").slice(0, 70),
+            amount: Math.round(Number(expense.amount) || 0),
+            payerName: String(expense.payerName || "").slice(0, 40),
+            spentAt: expense.spentAt || "",
+            category: String(expense.category || "").slice(0, 20)
+          })).filter((expense) => expense.amount > 0)
+        : []
     }))
     .filter((record) => record.amount > 0 && record.fromId !== record.toId);
 }
@@ -1873,9 +1884,14 @@ function renderCompletedSettlements() {
   const records = completedSettlements();
   if (records.length === 0) {
     completedSettlementsExpanded = false;
+    expandedCompletedSettlementId = "";
     elements.completedSettlementList.hidden = true;
     elements.completedSettlementList.innerHTML = "";
     return;
+  }
+
+  if (expandedCompletedSettlementId && !records.some((record) => record.id === expandedCompletedSettlementId)) {
+    expandedCompletedSettlementId = "";
   }
 
   elements.completedSettlementList.hidden = false;
@@ -1892,18 +1908,79 @@ function renderCompletedSettlements() {
     </button>
     <div id="completed-settlement-items" class="completed-settlement-items" ${completedSettlementsExpanded ? "" : "hidden"}>
       ${records.map((record) => `
-        <div class="completed-settlement-item">
-          <div class="settlement-route">
-            <strong>${escapeHtml(getPersonName(record.fromId))}</strong>
-            <span> → </span>
-            ${settlementRecipientHtml(record.toId, getPersonName(record.toId))}
+        <div class="completed-settlement-block">
+          <div
+            class="completed-settlement-item"
+            role="button"
+            tabindex="0"
+            data-toggle-completed-detail="${escapeHtml(record.id)}"
+            aria-expanded="${expandedCompletedSettlementId === record.id}"
+          >
+            <div class="settlement-route">
+              <strong>${escapeHtml(getPersonName(record.fromId))}</strong>
+              <span> → </span>
+              ${settlementRecipientHtml(record.toId, getPersonName(record.toId))}
+            </div>
+            <div class="settlement-side">
+              <div class="settlement-amount done">${formatMoney(record.amount)}</div>
+              <span class="completed-detail-hint">${expandedCompletedSettlementId === record.id ? "닫기" : "상세"}</span>
+              ${canEdit() ? `<button class="text-button" type="button" data-undo-settlement="${escapeHtml(record.id)}">되돌리기</button>` : ""}
+            </div>
           </div>
-          <div class="settlement-side">
-            <div class="settlement-amount done">${formatMoney(record.amount)}</div>
-            ${canEdit() ? `<button class="text-button" type="button" data-undo-settlement="${escapeHtml(record.id)}">되돌리기</button>` : ""}
-          </div>
+          ${expandedCompletedSettlementId === record.id ? completedSettlementDetailsHtml(record) : ""}
         </div>
       `).join("")}
+    </div>
+  `;
+}
+
+function settlementExpenseSnapshots() {
+  return (state?.expenses || [])
+    .filter((expense) => Math.round(Number(expense.amount) || 0) > 0)
+    .map((expense) => ({
+      id: expense.id,
+      title: expense.title || "지출",
+      amount: Math.round(Number(expense.amount) || 0),
+      payerName: getPersonName(expense.payerId),
+      spentAt: expense.spentAt || "",
+      category: expense.category || ""
+    }));
+}
+
+function completedSettlementExpenses(record) {
+  if (record.settledExpenses?.length) {
+    return record.settledExpenses;
+  }
+
+  return settlementExpenseSnapshots();
+}
+
+function completedSettlementDetailsHtml(record) {
+  const expenses = completedSettlementExpenses(record);
+  const completedAt = record.completedAt
+    ? new Date(record.completedAt).toLocaleString("ko-KR")
+    : "";
+
+  return `
+    <div class="completed-detail">
+      <div class="completed-detail-meta">
+        <span>완료 시간 ${escapeHtml(completedAt)}</span>
+        <span>기준 지출 ${expenses.length}개</span>
+      </div>
+      <div class="completed-detail-note">전체 차액을 기준으로 계산된 송금입니다.</div>
+      ${expenses.length > 0 ? `
+        <div class="completed-expense-list">
+          ${expenses.map((expense) => `
+            <div class="completed-expense-row">
+              <div>
+                <strong>${escapeHtml(expense.title)}</strong>
+                <span>${escapeHtml([expense.spentAt, expense.category, `결제 ${expense.payerName || "알 수 없음"}`].filter(Boolean).join(" · "))}</span>
+              </div>
+              <b>${formatMoney(expense.amount)}</b>
+            </div>
+          `).join("")}
+        </div>
+      ` : `<div class="empty-state">확인할 지출 기록이 없습니다.</div>`}
     </div>
   `;
 }
@@ -3816,7 +3893,8 @@ elements.settlementList.addEventListener("click", async (event) => {
         fromId: settlement.fromId,
         toId: settlement.toId,
         amount: settlement.amount,
-        completedAt: new Date().toISOString()
+        completedAt: new Date().toISOString(),
+        settledExpenses: settlementExpenseSnapshots()
       },
       ...completedSettlements()
     ]);
@@ -3841,16 +3919,44 @@ elements.completedSettlementList.addEventListener("click", async (event) => {
   }
 
   const button = event.target.closest("[data-undo-settlement]");
-  if (!button || !canEdit() || !state) return;
-
-  try {
-    await saveCompletedSettlements(
-      completedSettlements().filter((record) => record.id !== button.dataset.undoSettlement)
-    );
-    showToast("완료 표시를 되돌렸습니다.");
-  } catch (error) {
-    showToast(error.message);
+  if (button && canEdit() && state) {
+    try {
+      await saveCompletedSettlements(
+        completedSettlements().filter((record) => record.id !== button.dataset.undoSettlement)
+      );
+      showToast("완료 표시를 되돌렸습니다.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
   }
+
+  if (event.target.closest("button")) {
+    return;
+  }
+
+  const detailButton = event.target.closest("[data-toggle-completed-detail]");
+  if (detailButton) {
+    expandedCompletedSettlementId = expandedCompletedSettlementId === detailButton.dataset.toggleCompletedDetail
+      ? ""
+      : detailButton.dataset.toggleCompletedDetail;
+    renderCompletedSettlements();
+  }
+});
+
+elements.completedSettlementList.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+
+  const detailButton = event.target.closest("[data-toggle-completed-detail]");
+  if (!detailButton) return;
+
+  event.preventDefault();
+  expandedCompletedSettlementId = expandedCompletedSettlementId === detailButton.dataset.toggleCompletedDetail
+    ? ""
+    : detailButton.dataset.toggleCompletedDetail;
+  renderCompletedSettlements();
 });
 
 elements.newTripLink.addEventListener("click", () => {
