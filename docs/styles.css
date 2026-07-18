@@ -500,6 +500,72 @@ body.has-overseas .workspace {
   text-align: right;
 }
 
+.cumulative-chart {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.cumulative-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cumulative-chart-head span,
+.cumulative-chart-axis {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.cumulative-chart-head strong {
+  color: #191f28;
+  font-size: 0.98rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.cumulative-chart svg {
+  display: block;
+  width: 100%;
+  height: 92px;
+  overflow: visible;
+}
+
+.cumulative-chart line {
+  stroke: #d9e2ec;
+  stroke-width: 1;
+}
+
+.cumulative-chart polygon {
+  fill: rgba(16, 163, 127, 0.12);
+}
+
+.cumulative-chart polyline {
+  fill: none;
+  stroke: #10a37f;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.cumulative-chart circle {
+  fill: #ffffff;
+  stroke: #10a37f;
+  stroke-width: 3;
+}
+
+.cumulative-chart-axis {
+  display: flex;
+  justify-content: space-between;
+}
+
 .panel {
   min-width: 0;
   padding: 16px;

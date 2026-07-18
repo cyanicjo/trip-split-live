@@ -13,6 +13,7 @@ let tripId = params.get("trip") || "";
 let editToken = params.get("edit") || "";
 let supabase = null;
 let tripChannel = null;
+const INSIGHT_SPENDING_START_DATE = "2026-07-16";
 
 const elements = {
   setupPanel: document.querySelector("#setup-panel"),
@@ -1341,6 +1342,68 @@ function percentOf(value, total) {
   return Math.round((Number(value) / Number(total)) * 100);
 }
 
+function parseDateKey(dateKey) {
+  const match = String(dateKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function dateKeyFromDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateKey(dateKey, days) {
+  const date = parseDateKey(dateKey);
+  if (!date) return "";
+  date.setDate(date.getDate() + days);
+  return dateKeyFromDate(date);
+}
+
+function shortDateLabel(dateKey) {
+  const [, month = "", day = ""] = String(dateKey || "").match(/^\d{4}-(\d{2})-(\d{2})$/) || [];
+  if (!month || !day) return "";
+  return `${Number(month)}.${Number(day)}`;
+}
+
+function cumulativeSpendingTrend(expenses, startDate = INSIGHT_SPENDING_START_DATE) {
+  const dailyTotals = new Map();
+  let endDate = startDate;
+
+  for (const expense of expenses) {
+    const spentAt = expense.spentAt || "";
+    const amount = Math.round(Number(expense.amount) || 0);
+    if (!spentAt || spentAt < startDate || amount <= 0) continue;
+    dailyTotals.set(spentAt, (dailyTotals.get(spentAt) || 0) + amount);
+    if (spentAt > endDate) endDate = spentAt;
+  }
+
+  const today = localDateString();
+  if (today > endDate) endDate = today;
+
+  const points = [];
+  let dateKey = startDate;
+  let cumulative = 0;
+  while (dateKey && dateKey <= endDate) {
+    cumulative += dailyTotals.get(dateKey) || 0;
+    points.push({
+      date: dateKey,
+      amount: dailyTotals.get(dateKey) || 0,
+      cumulative
+    });
+    dateKey = addDaysToDateKey(dateKey, 1);
+  }
+
+  return {
+    startDate,
+    endDate,
+    total: cumulative,
+    points
+  };
+}
+
 function spendingInsights() {
   const categoryMap = new Map();
   const payerMap = new Map();
@@ -1391,7 +1454,8 @@ function spendingInsights() {
     topCategory: categories[0] || null,
     topPayer: topPayerEntry,
     recentCount,
-    recentAmount
+    recentAmount,
+    spendingTrend: cumulativeSpendingTrend(expenses)
   };
 }
 
@@ -1422,6 +1486,7 @@ function renderSpendingInsights(insights) {
   const topPayerText = insights.topPayer
     ? `${escapeHtml(insights.topPayer.name)} · ${escapeHtml(formatMoney(insights.topPayer.amount))}`
     : "아직 없음";
+  const trendHtml = cumulativeSpendingChartHtml(insights.spendingTrend);
 
   elements.spendingInsights.hidden = false;
   elements.spendingInsights.innerHTML = `
@@ -1462,6 +1527,55 @@ function renderSpendingInsights(insights) {
           <small>${category.percent}%</small>
         </div>
       `).join("")}
+    </div>
+    ${trendHtml}
+  `;
+}
+
+function cumulativeSpendingChartHtml(trend) {
+  if (!trend || trend.points.length === 0) return "";
+
+  const width = 320;
+  const height = 92;
+  const paddingX = 12;
+  const paddingY = 14;
+  const plotWidth = width - paddingX * 2;
+  const plotHeight = height - paddingY * 2;
+  const maxValue = Math.max(...trend.points.map((point) => point.cumulative), 1);
+  const lastIndex = Math.max(trend.points.length - 1, 1);
+  const coordinates = trend.points.map((point, index) => {
+    const x = paddingX + (plotWidth * index) / lastIndex;
+    const y = height - paddingY - (plotHeight * point.cumulative) / maxValue;
+    return {
+      x: Number(x.toFixed(2)),
+      y: Number(y.toFixed(2)),
+      point
+    };
+  });
+  const linePoints = coordinates.map(({ x, y }) => `${x},${y}`).join(" ");
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+  const areaPoints = `${paddingX},${height - paddingY} ${linePoints} ${last.x},${height - paddingY}`;
+  const startLabel = shortDateLabel(trend.startDate);
+  const endLabel = shortDateLabel(trend.endDate);
+
+  return `
+    <div class="cumulative-chart" aria-label="${escapeHtml(`${startLabel} 이후 누적 사용 그래프`)}">
+      <div class="cumulative-chart-head">
+        <span>${escapeHtml(`${startLabel} 이후 누적 사용`)}</span>
+        <strong>${escapeHtml(formatMoney(trend.total))}</strong>
+      </div>
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`${startLabel}부터 ${endLabel}까지 누적 ${formatMoney(trend.total)}`)}">
+        <line x1="${paddingX}" y1="${height - paddingY}" x2="${width - paddingX}" y2="${height - paddingY}" />
+        <polygon points="${areaPoints}" />
+        <polyline points="${linePoints}" />
+        <circle cx="${first.x}" cy="${first.y}" r="3" />
+        <circle cx="${last.x}" cy="${last.y}" r="4" />
+      </svg>
+      <div class="cumulative-chart-axis">
+        <span>${escapeHtml(startLabel)}</span>
+        <span>${escapeHtml(endLabel)}</span>
+      </div>
     </div>
   `;
 }
