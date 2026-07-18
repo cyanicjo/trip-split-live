@@ -28,6 +28,7 @@ const elements = {
   totalSpent: document.querySelector("#total-spent"),
   peopleCount: document.querySelector("#people-count"),
   expenseCount: document.querySelector("#expense-count"),
+  spendingInsights: document.querySelector("#spending-insights"),
   overseasPanel: document.querySelector("#overseas-panel"),
   overseasEnabled: document.querySelector("#overseas-enabled"),
   overseasQuickEnabled: document.querySelector("#overseas-quick-enabled"),
@@ -1306,31 +1307,163 @@ function renderSummary() {
   const peopleCount = state.people.length;
   const expenseCount = state.expenses.length;
   const settlementCount = state.summary.settlements.length;
+  const insights = spendingInsights();
 
   elements.totalSpent.textContent = formatMoney(state.summary.total);
   elements.peopleCount.textContent = `${peopleCount}명`;
   elements.expenseCount.textContent = `${expenseCount}개`;
+  renderSpendingInsights(insights);
 
   if (!canEdit()) {
     elements.summaryTitle.textContent = expenseCount === 0
-      ? "여행 정산을 볼 수 있습니다"
-      : settlementCount === 0
-        ? "현재 정산은 딱 맞습니다"
-        : `${settlementCount}번 송금하면 정산 끝`;
-    elements.summaryCaption.textContent = "보기 전용 링크입니다. 지출을 수정하려면 편집 링크가 필요합니다.";
+      ? "여행 지출을 볼 수 있습니다"
+      : insights.topCategory
+        ? `${insights.topCategory.name}에 가장 많이 썼습니다`
+        : "여행 지출을 확인하고 있습니다";
+    elements.summaryCaption.textContent = insightCaption(insights);
   } else if (peopleCount === 0) {
     elements.summaryTitle.textContent = "친구를 추가하면 정산이 시작됩니다";
     elements.summaryCaption.textContent = "친구에게는 보기 링크를, 입력할 사람에게는 편집 링크를 공유하세요.";
   } else if (expenseCount === 0) {
     elements.summaryTitle.textContent = `${peopleCount}명이 준비 중입니다`;
     elements.summaryCaption.textContent = "숙소, 교통, 식비처럼 먼저 낸 사람이 있는 항목을 입력해 주세요.";
-  } else if (settlementCount === 0) {
-    elements.summaryTitle.textContent = "현재 정산은 딱 맞습니다";
-    elements.summaryCaption.textContent = "모두가 각자 부담할 만큼 지출했거나 정산할 차액이 없습니다.";
+  } else if (insights.topCategory) {
+    elements.summaryTitle.textContent = `${insights.topCategory.name}에 가장 많이 썼습니다`;
+    elements.summaryCaption.textContent = insightCaption(insights);
   } else {
-    elements.summaryTitle.textContent = `${settlementCount}번 송금하면 정산 끝`;
-    elements.summaryCaption.textContent = "송금표대로 보내면 전체 여행 n빵이 정리됩니다.";
+    elements.summaryTitle.textContent = settlementCount === 0 ? "소비 구성이 안정적입니다" : "여행 지출을 분석하고 있습니다";
+    elements.summaryCaption.textContent = insightCaption(insights);
   }
+}
+
+function percentOf(value, total) {
+  if (!total) return 0;
+  return Math.round((Number(value) / Number(total)) * 100);
+}
+
+function spendingInsights() {
+  const categoryMap = new Map();
+  const payerMap = new Map();
+  const expenses = state?.expenses || [];
+  const total = state?.summary?.total || 0;
+  const latestCompletedAt = latestCompletedSettlementAtBefore(new Date().toISOString());
+  let recentAmount = 0;
+  let recentCount = 0;
+
+  for (const expense of expenses) {
+    const expenseAmount = Math.round(Number(expense.amount) || 0);
+    if (expenseAmount <= 0) continue;
+
+    const payerName = getPersonName(expense.payerId);
+    payerMap.set(payerName, (payerMap.get(payerName) || 0) + expenseAmount);
+
+    if (latestCompletedAt && expenseIsAfterSettlement(expense, latestCompletedAt)) {
+      recentAmount += expenseAmount;
+      recentCount += 1;
+    }
+
+    const items = normalizeExpenseItems(expense);
+    const itemAmounts = expenseItemKrwAmounts(expense, items);
+    if (items.length === 0) {
+      const category = expense.category || "기타";
+      categoryMap.set(category, (categoryMap.get(category) || 0) + expenseAmount);
+      continue;
+    }
+
+    items.forEach((item, index) => {
+      const category = item.category || expense.category || "기타";
+      categoryMap.set(category, (categoryMap.get(category) || 0) + (itemAmounts[index] || 0));
+    });
+  }
+
+  const categories = Array.from(categoryMap, ([name, amount]) => ({
+    name,
+    amount,
+    percent: percentOf(amount, total)
+  })).sort((a, b) => b.amount - a.amount);
+
+  const topPayerEntry = Array.from(payerMap, ([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount)[0] || null;
+
+  return {
+    total,
+    categories,
+    topCategory: categories[0] || null,
+    topPayer: topPayerEntry,
+    recentCount,
+    recentAmount
+  };
+}
+
+function insightCaption(insights) {
+  if (!insights.total) {
+    return "지출을 입력하면 분야별 소비 비중과 최근 지출 흐름이 표시됩니다.";
+  }
+
+  const topText = insights.topCategory
+    ? `${insights.topCategory.name}이 전체의 ${insights.topCategory.percent}%입니다.`
+    : "카테고리별 지출을 계산 중입니다.";
+  const recentText = insights.recentCount > 0
+    ? `최근 정산 이후 새 지출은 ${insights.recentCount}개, ${formatMoney(insights.recentAmount)}입니다.`
+    : "최근 정산 이후 새 지출은 없습니다.";
+  return `${topText} ${recentText}`;
+}
+
+function renderSpendingInsights(insights) {
+  if (!elements.spendingInsights) return;
+  if (!insights.total || insights.categories.length === 0) {
+    elements.spendingInsights.hidden = true;
+    elements.spendingInsights.innerHTML = "";
+    return;
+  }
+
+  const colors = ["#10a37f", "#3182f6", "#f97316", "#f04452", "#8b5cf6", "#64748b"];
+  const visibleCategories = insights.categories.slice(0, 6);
+  const topPayerText = insights.topPayer
+    ? `${escapeHtml(insights.topPayer.name)} · ${escapeHtml(formatMoney(insights.topPayer.amount))}`
+    : "아직 없음";
+
+  elements.spendingInsights.hidden = false;
+  elements.spendingInsights.innerHTML = `
+    <div class="insight-head">
+      <div>
+        <p class="eyebrow">Insight</p>
+        <h2>여행 지출 구성</h2>
+      </div>
+      <div class="insight-chip">최근 새 지출 ${escapeHtml(formatMoney(insights.recentAmount))}</div>
+    </div>
+    <div class="stacked-bar" aria-label="분야별 지출 비중">
+      ${visibleCategories.map((category, index) => `
+        <span
+          style="width: ${Math.max(category.percent, 3)}%; background: ${colors[index % colors.length]};"
+          title="${escapeHtml(category.name)} ${escapeHtml(formatMoney(category.amount))}"
+        ></span>
+      `).join("")}
+    </div>
+    <div class="insight-grid">
+      <div>
+        <span>가장 큰 분야</span>
+        <strong>${escapeHtml(insights.topCategory.name)} · ${insights.topCategory.percent}%</strong>
+      </div>
+      <div>
+        <span>가장 많이 결제</span>
+        <strong>${topPayerText}</strong>
+      </div>
+      <div>
+        <span>최근 정산 이후</span>
+        <strong>${escapeHtml(`${insights.recentCount}개 · ${formatMoney(insights.recentAmount)}`)}</strong>
+      </div>
+    </div>
+    <div class="category-breakdown">
+      ${visibleCategories.map((category, index) => `
+        <div class="category-breakdown-row">
+          <span style="--dot-color: ${colors[index % colors.length]}">${escapeHtml(category.name)}</span>
+          <strong>${escapeHtml(formatMoney(category.amount))}</strong>
+          <small>${category.percent}%</small>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 function renderAccountModal() {
