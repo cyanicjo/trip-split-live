@@ -1967,10 +1967,78 @@ function expenseIsBeforeSettlement(expense, completedAt) {
   return true;
 }
 
-function settlementExpenseSnapshots(completedAt = "") {
+function expenseIsAfterSettlement(expense, completedAt) {
+  if (!completedAt) return true;
+
+  const cutoffTime = timestampValue(completedAt);
+  const createdTime = timestampValue(expense.createdAt);
+  if (cutoffTime && createdTime) {
+    return createdTime > cutoffTime;
+  }
+
+  const cutoffDate = dateKeyFromTimestamp(completedAt);
+  const spentAt = expense.spentAt || "";
+  if (cutoffDate && spentAt) {
+    return spentAt > cutoffDate;
+  }
+
+  return true;
+}
+
+function expenseIsInSettlementWindow(expense, completedAt = "", startedAfter = "") {
+  return expenseIsBeforeSettlement(expense, completedAt) && expenseIsAfterSettlement(expense, startedAfter);
+}
+
+function completedSettlementTime(record) {
+  return timestampValue(record?.completedAt);
+}
+
+function latestCompletedSettlementAtBefore(completedAt = "") {
+  const cutoffTime = timestampValue(completedAt);
+  if (!cutoffTime) return "";
+
+  const previous = completedSettlements()
+    .filter((record) => record.completedAt && completedSettlementTime(record) < cutoffTime)
+    .sort((a, b) => completedSettlementTime(b) - completedSettlementTime(a))[0];
+
+  return previous?.completedAt || "";
+}
+
+function completedSettlementWindowStart(record) {
+  return latestCompletedSettlementAtBefore(record.completedAt);
+}
+
+function settledExpenseIdsBefore(record) {
+  const cutoffTime = completedSettlementTime(record);
+  if (!cutoffTime) return new Set();
+
+  const ids = new Set();
+  let windowStart = "";
+  const previousRecords = completedSettlements()
+    .filter((item) => item.id !== record.id && item.completedAt && completedSettlementTime(item) < cutoffTime)
+    .sort((a, b) => completedSettlementTime(a) - completedSettlementTime(b));
+
+  for (const previousRecord of previousRecords) {
+    const expenses = previousRecord.settledExpenses?.length
+      ? previousRecord.settledExpenses
+      : settlementExpenseSnapshots(previousRecord.completedAt, windowStart);
+
+    expenses
+      .filter((expense) => expenseIsInSettlementWindow(expense, previousRecord.completedAt, windowStart))
+      .forEach((expense) => {
+        if (expense.id) ids.add(expense.id);
+      });
+
+    windowStart = previousRecord.completedAt;
+  }
+
+  return ids;
+}
+
+function settlementExpenseSnapshots(completedAt = "", startedAfter = "") {
   return (state?.expenses || [])
     .filter((expense) => Math.round(Number(expense.amount) || 0) > 0)
-    .filter((expense) => expenseIsBeforeSettlement(expense, completedAt))
+    .filter((expense) => expenseIsInSettlementWindow(expense, completedAt, startedAfter))
     .map((expense) => ({
       id: expense.id,
       title: expense.title || "지출",
@@ -1983,11 +2051,15 @@ function settlementExpenseSnapshots(completedAt = "") {
 }
 
 function completedSettlementExpenses(record) {
-  if (record.settledExpenses?.length) {
-    return record.settledExpenses.filter((expense) => expenseIsBeforeSettlement(expense, record.completedAt));
-  }
+  const windowStart = completedSettlementWindowStart(record);
+  const alreadySettledIds = settledExpenseIdsBefore(record);
+  const expenses = record.settledExpenses?.length
+    ? record.settledExpenses
+    : settlementExpenseSnapshots(record.completedAt, windowStart);
 
-  return settlementExpenseSnapshots(record.completedAt);
+  return expenses
+    .filter((expense) => expenseIsInSettlementWindow(expense, record.completedAt, windowStart))
+    .filter((expense) => !expense.id || !alreadySettledIds.has(expense.id));
 }
 
 function completedSettlementDetailsHtml(record) {
@@ -2002,7 +2074,7 @@ function completedSettlementDetailsHtml(record) {
         <span>완료 시간 ${escapeHtml(completedAt)}</span>
         <span>기준 지출 ${expenses.length}개</span>
       </div>
-      <div class="completed-detail-note">전체 차액을 기준으로 계산된 송금입니다.</div>
+      <div class="completed-detail-note">이전 완료 이후부터 이 완료 시간까지의 지출만 기준으로 표시됩니다.</div>
       ${expenses.length > 0 ? `
         <div class="completed-expense-list">
           ${expenses.map((expense) => `
@@ -3922,6 +3994,7 @@ elements.settlementList.addEventListener("click", async (event) => {
   if (!settlement) return;
 
   const completedAt = new Date().toISOString();
+  const windowStart = latestCompletedSettlementAtBefore(completedAt);
   try {
     await saveCompletedSettlements([
       {
@@ -3930,7 +4003,7 @@ elements.settlementList.addEventListener("click", async (event) => {
         toId: settlement.toId,
         amount: settlement.amount,
         completedAt,
-        settledExpenses: settlementExpenseSnapshots(completedAt)
+        settledExpenses: settlementExpenseSnapshots(completedAt, windowStart)
       },
       ...completedSettlements()
     ]);
