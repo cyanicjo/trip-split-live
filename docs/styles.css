@@ -374,9 +374,9 @@ body.has-overseas .workspace {
 .spending-insights {
   display: grid;
   grid-column: 1 / -1;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
-  padding-top: 14px;
+  padding-top: 12px;
   border-top: 1px solid #edf1f5;
 }
 
@@ -386,7 +386,7 @@ body.has-overseas .workspace {
 
 .insight-head {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
@@ -401,6 +401,7 @@ body.has-overseas .workspace {
 .insight-chip {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
   min-height: 30px;
   padding: 0 10px;
   border-radius: 999px;
@@ -409,6 +410,101 @@ body.has-overseas .workspace {
   font-size: 0.78rem;
   font-weight: 900;
   white-space: nowrap;
+}
+
+.insight-toggle {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #d9e2ec;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4e5968;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.insight-toggle:hover {
+  border-color: #b9c6d2;
+  color: #191f28;
+}
+
+.compact-insight,
+.insight-detail {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.compact-insight {
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: center;
+}
+
+.compact-insight-main span,
+.compact-insight-legend {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.compact-insight-main strong {
+  display: block;
+  margin-top: 3px;
+  color: #191f28;
+  font-size: 1.02rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.compact-bar {
+  display: flex;
+  width: 100%;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f2f4f6;
+}
+
+.compact-bar span {
+  display: block;
+  min-width: 3px;
+  height: 100%;
+}
+
+.compact-bar.is-empty span {
+  width: 100%;
+  min-width: 100%;
+  background: #d9e2ec;
+}
+
+.compact-insight-legend {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.compact-insight-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.compact-insight-legend span::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dot-color);
+}
+
+.insight-detail[hidden] {
+  display: none;
 }
 
 .stacked-bar {
@@ -2380,6 +2476,14 @@ body.is-readonly .export-form .primary-button {
   .insight-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .compact-insight {
+    grid-template-columns: 1fr;
+  }
+
+  .compact-insight-legend {
+    grid-column: 1;
   }
 
   .insight-grid {

@@ -60,6 +60,7 @@ const elements = {
   expensePanel: document.querySelector(".expense-panel"),
   expenseLaunchLabel: document.querySelector("#expense-launch-label"),
   expenseBackdrop: document.querySelector("#expense-backdrop"),
+  expenseModalHeading: document.querySelector("#expense-modal-heading"),
   closeExpenseModal: document.querySelector("#close-expense-modal"),
   expenseForm: document.querySelector("#expense-form"),
   expenseTitle: document.querySelector("#expense-title"),
@@ -131,6 +132,7 @@ let editingAccountPersonId = "";
 let openCustomSelect = null;
 let completedSettlementsExpanded = false;
 let expandedCompletedSettlementId = "";
+let spendingInsightsExpanded = false;
 let csvImportState = {
   fileName: "",
   headers: [],
@@ -621,7 +623,7 @@ function overseasCurrencies({ includeKrw = false } = {}) {
 }
 
 function currentExpenseCurrency() {
-  return overseasSettings().enabled ? elements.expenseCurrency.value || "KRW" : "KRW";
+  return elements.expenseCurrencyField?.hidden ? "KRW" : elements.expenseCurrency.value || "KRW";
 }
 
 function defaultRateFor(currency) {
@@ -1404,8 +1406,35 @@ function cumulativeSpendingTrend(expenses, startDate = INSIGHT_SPENDING_START_DA
   };
 }
 
+function addExpenseCategories(categoryMap, expense) {
+  const expenseAmount = Math.round(Number(expense.amount) || 0);
+  if (expenseAmount <= 0) return;
+
+  const items = normalizeExpenseItems(expense);
+  const itemAmounts = expenseItemKrwAmounts(expense, items);
+  if (items.length === 0) {
+    const category = expense.category || "기타";
+    categoryMap.set(category, (categoryMap.get(category) || 0) + expenseAmount);
+    return;
+  }
+
+  items.forEach((item, index) => {
+    const category = item.category || expense.category || "기타";
+    categoryMap.set(category, (categoryMap.get(category) || 0) + (itemAmounts[index] || 0));
+  });
+}
+
+function categoryInsightsFromMap(categoryMap, total) {
+  return Array.from(categoryMap, ([name, amount]) => ({
+    name,
+    amount,
+    percent: percentOf(amount, total)
+  })).sort((a, b) => b.amount - a.amount);
+}
+
 function spendingInsights() {
   const categoryMap = new Map();
+  const sinceStartCategoryMap = new Map();
   const payerMap = new Map();
   const expenses = state?.expenses || [];
   const total = state?.summary?.total || 0;
@@ -1425,25 +1454,16 @@ function spendingInsights() {
       recentCount += 1;
     }
 
-    const items = normalizeExpenseItems(expense);
-    const itemAmounts = expenseItemKrwAmounts(expense, items);
-    if (items.length === 0) {
-      const category = expense.category || "기타";
-      categoryMap.set(category, (categoryMap.get(category) || 0) + expenseAmount);
-      continue;
+    addExpenseCategories(categoryMap, expense);
+    if ((expense.spentAt || "") >= INSIGHT_SPENDING_START_DATE) {
+      addExpenseCategories(sinceStartCategoryMap, expense);
     }
-
-    items.forEach((item, index) => {
-      const category = item.category || expense.category || "기타";
-      categoryMap.set(category, (categoryMap.get(category) || 0) + (itemAmounts[index] || 0));
-    });
   }
 
-  const categories = Array.from(categoryMap, ([name, amount]) => ({
-    name,
-    amount,
-    percent: percentOf(amount, total)
-  })).sort((a, b) => b.amount - a.amount);
+  const sinceStartTotal = Array.from(sinceStartCategoryMap.values())
+    .reduce((sum, amount) => sum + amount, 0);
+  const categories = categoryInsightsFromMap(categoryMap, total);
+  const sinceStartCategories = categoryInsightsFromMap(sinceStartCategoryMap, sinceStartTotal);
 
   const topPayerEntry = Array.from(payerMap, ([name, amount]) => ({ name, amount }))
     .sort((a, b) => b.amount - a.amount)[0] || null;
@@ -1455,6 +1475,8 @@ function spendingInsights() {
     topPayer: topPayerEntry,
     recentCount,
     recentAmount,
+    sinceStartTotal,
+    sinceStartCategories,
     spendingTrend: cumulativeSpendingTrend(expenses)
   };
 }
@@ -1483,52 +1505,99 @@ function renderSpendingInsights(insights) {
 
   const colors = ["#10a37f", "#3182f6", "#f97316", "#f04452", "#8b5cf6", "#64748b"];
   const visibleCategories = insights.categories.slice(0, 6);
+  const visibleSinceStartCategories = insights.sinceStartCategories.slice(0, 6);
   const topPayerText = insights.topPayer
     ? `${escapeHtml(insights.topPayer.name)} · ${escapeHtml(formatMoney(insights.topPayer.amount))}`
     : "아직 없음";
   const trendHtml = cumulativeSpendingChartHtml(insights.spendingTrend);
+  const startLabel = shortDateLabel(INSIGHT_SPENDING_START_DATE);
+  const compactChart = compactInsightBarHtml(visibleSinceStartCategories, insights.sinceStartTotal, colors);
 
   elements.spendingInsights.hidden = false;
   elements.spendingInsights.innerHTML = `
     <div class="insight-head">
       <div>
         <p class="eyebrow">Insight</p>
-        <h2>여행 지출 구성</h2>
+        <h2>${escapeHtml(`${startLabel} 이후 사용`)}</h2>
       </div>
-      <div class="insight-chip">최근 새 지출 ${escapeHtml(formatMoney(insights.recentAmount))}</div>
+      <button
+        class="insight-toggle"
+        type="button"
+        data-toggle-spending-insights
+        aria-expanded="${spendingInsightsExpanded}"
+      >${spendingInsightsExpanded ? "간단히" : "자세히"}</button>
     </div>
-    <div class="stacked-bar" aria-label="분야별 지출 비중">
-      ${visibleCategories.map((category, index) => `
+    <div class="compact-insight">
+      <div class="compact-insight-main">
+        <span>${escapeHtml(`${startLabel} 이후 누적`)}</span>
+        <strong>${escapeHtml(formatMoney(insights.sinceStartTotal))}</strong>
+      </div>
+      ${compactChart}
+    </div>
+    <div class="insight-detail" ${spendingInsightsExpanded ? "" : "hidden"}>
+      <div class="insight-chip">최근 새 지출 ${escapeHtml(formatMoney(insights.recentAmount))}</div>
+      <div class="stacked-bar" aria-label="전체 분야별 지출 비중">
+        ${visibleCategories.map((category, index) => `
+          <span
+            style="width: ${Math.max(category.percent, 3)}%; background: ${colors[index % colors.length]};"
+            title="${escapeHtml(category.name)} ${escapeHtml(formatMoney(category.amount))}"
+          ></span>
+        `).join("")}
+      </div>
+      <div class="insight-grid">
+        <div>
+          <span>가장 큰 분야</span>
+          <strong>${escapeHtml(insights.topCategory.name)} · ${insights.topCategory.percent}%</strong>
+        </div>
+        <div>
+          <span>가장 많이 결제</span>
+          <strong>${topPayerText}</strong>
+        </div>
+        <div>
+          <span>최근 정산 이후</span>
+          <strong>${escapeHtml(`${insights.recentCount}개 · ${formatMoney(insights.recentAmount)}`)}</strong>
+        </div>
+      </div>
+      <div class="category-breakdown">
+        ${visibleCategories.map((category, index) => `
+          <div class="category-breakdown-row">
+            <span style="--dot-color: ${colors[index % colors.length]}">${escapeHtml(category.name)}</span>
+            <strong>${escapeHtml(formatMoney(category.amount))}</strong>
+            <small>${category.percent}%</small>
+          </div>
+        `).join("")}
+      </div>
+      ${trendHtml}
+    </div>
+  `;
+}
+
+function compactInsightBarHtml(categories, total, colors) {
+  if (!total || categories.length === 0) {
+    return `
+      <div class="compact-bar is-empty" aria-label="7.16 이후 지출 없음">
+        <span></span>
+      </div>
+      <div class="compact-insight-legend">아직 기록된 지출이 없습니다.</div>
+    `;
+  }
+
+  return `
+    <div class="compact-bar" aria-label="7.16 이후 분야별 누적 사용액">
+      ${categories.map((category, index) => `
         <span
           style="width: ${Math.max(category.percent, 3)}%; background: ${colors[index % colors.length]};"
           title="${escapeHtml(category.name)} ${escapeHtml(formatMoney(category.amount))}"
         ></span>
       `).join("")}
     </div>
-    <div class="insight-grid">
-      <div>
-        <span>가장 큰 분야</span>
-        <strong>${escapeHtml(insights.topCategory.name)} · ${insights.topCategory.percent}%</strong>
-      </div>
-      <div>
-        <span>가장 많이 결제</span>
-        <strong>${topPayerText}</strong>
-      </div>
-      <div>
-        <span>최근 정산 이후</span>
-        <strong>${escapeHtml(`${insights.recentCount}개 · ${formatMoney(insights.recentAmount)}`)}</strong>
-      </div>
-    </div>
-    <div class="category-breakdown">
-      ${visibleCategories.map((category, index) => `
-        <div class="category-breakdown-row">
-          <span style="--dot-color: ${colors[index % colors.length]}">${escapeHtml(category.name)}</span>
-          <strong>${escapeHtml(formatMoney(category.amount))}</strong>
-          <small>${category.percent}%</small>
-        </div>
+    <div class="compact-insight-legend">
+      ${categories.slice(0, 3).map((category, index) => `
+        <span style="--dot-color: ${colors[index % colors.length]}">
+          ${escapeHtml(category.name)} ${category.percent}%
+        </span>
       `).join("")}
     </div>
-    ${trendHtml}
   `;
 }
 
@@ -1745,12 +1814,17 @@ function renderPeople() {
   }).join("");
 }
 
-function renderCategoryControls({ disableExpenseCategory = false } = {}) {
+function currentEditingExpense() {
+  return state?.expenses.find((expense) => expense.id === editingExpenseId) || null;
+}
+
+function renderCategoryControls({ disableExpenseCategory = false, extraCategories = [], selectedCategory = null } = {}) {
   const editable = canEdit();
   const categories = tripCategories();
-  const currentCategory = elements.expenseCategory.value;
-  elements.expenseCategory.innerHTML = categoryOptionsHtml(currentCategory);
-  elements.expenseCategory.value = categories.includes(currentCategory) ? currentCategory : "";
+  const currentCategory = selectedCategory === null ? elements.expenseCategory.value : selectedCategory;
+  const availableCategories = uniqueCategoryList(extraCategories);
+  elements.expenseCategory.innerHTML = categoryOptionsHtml(currentCategory, { extraCategories });
+  elements.expenseCategory.value = availableCategories.includes(currentCategory) ? currentCategory : "";
   elements.expenseCategory.disabled = !editable || disableExpenseCategory;
   elements.categoryName.disabled = !editable;
   elements.addCategory.disabled = !editable;
@@ -1774,12 +1848,19 @@ function renderExpenseForm() {
   const hasPeople = state.people.length > 0;
   const editable = canEdit();
   const overseas = overseasSettings();
+  const editingExpense = currentEditingExpense();
+  const editingCurrency = editingExpense?.currency || "KRW";
+  const showForeignFields = overseas.enabled || editingCurrency !== "KRW";
+  const editingItems = editingExpense ? normalizeExpenseItems(editingExpense) : null;
+  const editingParticipants = editingExpense ? new Set(editingExpense.participantIds || []) : null;
   elements.openExpenseModal.disabled = !editable || !hasPeople;
   elements.expenseLaunchLabel.textContent = !editable
     ? "보기 전용"
     : hasPeople
       ? "지출 추가"
       : "친구를 먼저 추가";
+  elements.expenseModalHeading.textContent = editingExpense ? "지출 수정" : "지출 입력";
+  elements.addExpense.textContent = editingExpense ? "수정 저장" : "지출 저장";
   elements.personName.disabled = !editable;
   elements.personBank.disabled = !editable;
   elements.personAccount.disabled = !editable;
@@ -1798,7 +1879,15 @@ function renderExpenseForm() {
   elements.selectAll.disabled = !editable || !hasPeople;
   elements.clearAll.disabled = !editable || !hasPeople;
 
-  const currentPayer = elements.expensePayer.value;
+  if (editingExpense) {
+    elements.expenseTitle.value = editingExpense.title || "";
+    elements.expenseMemo.value = editingExpense.memo || "";
+    elements.expenseDate.value = editingExpense.spentAt || localDateString();
+    elements.expenseRate.value = editingCurrency === "KRW" ? "" : editingExpense.exchangeRate || defaultRateFor(editingCurrency);
+    elements.expenseCardKrw.value = editingCurrency === "KRW" ? "" : editingExpense.cardKrwAmount || "";
+  }
+
+  const currentPayer = editingExpense ? editingExpense.payerId : elements.expensePayer.value;
   elements.expensePayer.innerHTML = state.people.map((person) => (
     `<option value="${person.id}">${escapeHtml(person.name)}</option>`
   )).join("");
@@ -1807,11 +1896,21 @@ function renderExpenseForm() {
     elements.expensePayer.value = currentPayer;
   }
 
-  renderCategoryControls({ disableExpenseCategory: !hasPeople });
+  const currentCategory = editingExpense ? editingExpense.category || "" : elements.expenseCategory.value;
+  elements.expenseCategory.value = currentCategory;
+  renderCategoryControls({
+    disableExpenseCategory: !hasPeople,
+    extraCategories: editingExpense?.category ? [editingExpense.category] : [],
+    selectedCategory: currentCategory
+  });
 
-  elements.expenseCurrencyField.hidden = !overseas.enabled;
-  const currentCurrency = overseas.enabled ? elements.expenseCurrency.value || overseas.currencies[0] : "KRW";
-  const availableCurrencies = overseasCurrencies({ includeKrw: true });
+  elements.expenseCurrencyField.hidden = !showForeignFields;
+  const currentCurrency = editingExpense
+    ? editingCurrency
+    : showForeignFields
+      ? elements.expenseCurrency.value || overseas.currencies[0]
+      : "KRW";
+  const availableCurrencies = Array.from(new Set([...overseasCurrencies({ includeKrw: true }), currentCurrency]));
   elements.expenseCurrency.innerHTML = availableCurrencies.map((currency) => (
     `<option value="${currency}">${currency}</option>`
   )).join("");
@@ -1828,7 +1927,7 @@ function renderExpenseForm() {
 
   elements.participantList.className = "participant-list";
   elements.participantList.innerHTML = state.people.map((person) => {
-    const checked = participantSelection.has(person.id) ? "checked" : "";
+    const checked = (editingParticipants || participantSelection).has(person.id) ? "checked" : "";
     const disabled = editable ? "" : "disabled";
     return `
       <label class="participant-option">
@@ -1844,8 +1943,9 @@ function renderExpenseForm() {
     amountInput: elements.expenseAmount,
     currency: currentExpenseCurrency(),
     defaultCategory: elements.expenseCategory.value,
-    defaultParticipantIds: Array.from(participantSelection),
-    editable
+    defaultParticipantIds: Array.from(editingParticipants || participantSelection),
+    editable,
+    items: editingItems
   });
 }
 
@@ -2009,11 +2109,13 @@ function syncEditExpenseItemsTotal(form) {
 
 function syncExpenseCurrencyFields({ resetRate = false } = {}) {
   const overseas = overseasSettings();
-  if (!overseas.enabled) {
+  const editingExpense = currentEditingExpense();
+  const allowForeign = overseas.enabled || (editingExpense?.currency && editingExpense.currency !== "KRW");
+  if (!allowForeign) {
     elements.expenseCurrency.value = "KRW";
   }
   const currency = currentExpenseCurrency();
-  const isForeign = overseas.enabled && currency !== "KRW";
+  const isForeign = allowForeign && currency !== "KRW";
   elements.expenseAmountLabel.textContent = isForeign ? "외화 총액" : "총액";
   elements.expenseRateField.hidden = !isForeign;
   elements.expenseCardKrwField.hidden = !isForeign;
@@ -2392,13 +2494,13 @@ function filteredExpenses() {
 }
 
 function renderExpenses() {
-  if (!canEdit()) {
+  if (!canEdit() || elements.expenseBackdrop.hidden) {
     editingExpenseId = "";
   }
   renderExpenseFilters();
   const expenses = filteredExpenses();
 
-  if (editingExpenseId && !expenses.some((expense) => expense.id === editingExpenseId)) {
+  if (editingExpenseId && !state.expenses.some((expense) => expense.id === editingExpenseId)) {
     editingExpenseId = "";
   }
 
@@ -2418,10 +2520,6 @@ function renderExpenses() {
 
   elements.expenseList.className = "expense-list";
   elements.expenseList.innerHTML = expenses.map((expense) => {
-    if (expense.id === editingExpenseId) {
-      return renderExpenseEditor(expense);
-    }
-
     const participants = (expense.participantIds || []).map(getPersonName).join(", ");
     const items = normalizeExpenseItems(expense);
     const originalAmount = expenseOriginalText(expense);
@@ -2562,7 +2660,19 @@ function closeExportModal() {
   elements.openExport.focus();
 }
 
-function openExpenseModal() {
+function resetExpenseFormForCreate() {
+  editingExpenseId = "";
+  participantsTouched = false;
+  participantSelection = new Set(state?.people.map((person) => person.id) || []);
+  elements.expenseTitle.value = "";
+  elements.expenseAmount.value = "";
+  elements.expenseRate.value = "";
+  elements.expenseCardKrw.value = "";
+  elements.expenseMemo.value = "";
+  elements.expenseDate.value = localDateString();
+}
+
+function openExpenseModal(expenseId = "") {
   if (!canEdit()) {
     showToast("보기 전용 링크에서는 수정할 수 없습니다.");
     return;
@@ -2572,6 +2682,21 @@ function openExpenseModal() {
     return;
   }
 
+  const expense = expenseId
+    ? state.expenses.find((item) => item.id === expenseId)
+    : null;
+  if (expenseId && !expense) {
+    showToast("수정할 지출을 찾지 못했습니다.");
+    return;
+  }
+
+  if (expense) {
+    editingExpenseId = expense.id;
+    participantsTouched = true;
+    participantSelection = new Set(expense.participantIds || []);
+  } else {
+    resetExpenseFormForCreate();
+  }
   renderExpenseForm();
   elements.expenseBackdrop.hidden = false;
   document.body.classList.add("expense-modal-open");
@@ -2581,6 +2706,12 @@ function openExpenseModal() {
 function closeExpenseModal() {
   elements.expenseBackdrop.hidden = true;
   document.body.classList.remove("expense-modal-open");
+  editingExpenseId = "";
+  if (state?.people) {
+    participantsTouched = false;
+    participantSelection = new Set(state.people.map((person) => person.id));
+    renderExpenseForm();
+  }
   elements.openExpenseModal.focus();
 }
 
@@ -4562,10 +4693,18 @@ elements.clearExpenseFilters.addEventListener("click", () => {
   renderExpenses();
 });
 
+elements.spendingInsights.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-toggle-spending-insights]");
+  if (!button) return;
+  spendingInsightsExpanded = !spendingInsightsExpanded;
+  renderSpendingInsights(spendingInsights());
+});
+
 elements.expenseForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!canEdit() || !state) return;
 
+  const editingExpense = currentEditingExpense();
   const title = elements.expenseTitle.value.trim().slice(0, 70);
   const category = elements.expenseCategory.value.trim().slice(0, 20);
   const currency = currentExpenseCurrency();
@@ -4626,7 +4765,8 @@ elements.expenseForm.addEventListener("submit", async (event) => {
   }
 
   const nextExpense = {
-    id: makeId("e_"),
+    ...(editingExpense || {}),
+    id: editingExpense?.id || makeId("e_"),
     title,
     category,
     amount,
@@ -4639,11 +4779,15 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     items,
     memo: elements.expenseMemo.value.trim().slice(0, 140),
     spentAt: elements.expenseDate.value || localDateString(),
-    createdAt: new Date().toISOString()
+    createdAt: editingExpense?.createdAt || new Date().toISOString(),
+    updatedAt: editingExpense ? new Date().toISOString() : undefined
   };
 
   try {
-    await saveTrip({ ...state, expenses: [nextExpense, ...state.expenses] });
+    const nextExpenses = editingExpense
+      ? state.expenses.map((expense) => (expense.id === editingExpense.id ? nextExpense : expense))
+      : [nextExpense, ...state.expenses];
+    await saveTrip({ ...state, expenses: nextExpenses });
     elements.expenseTitle.value = "";
     elements.expenseAmount.value = "";
     elements.expenseCardKrw.value = "";
@@ -4663,7 +4807,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     participantSelection = new Set(state.people.map((person) => person.id));
     renderExpenseForm();
     closeExpenseModal();
-    showToast("지출을 저장했습니다.");
+    showToast(editingExpense ? "지출을 수정했습니다." : "지출을 저장했습니다.");
   } catch (error) {
     showToast(error.message);
   }
@@ -4704,8 +4848,7 @@ elements.expenseList.addEventListener("click", async (event) => {
 
   const editButton = event.target.closest("[data-edit-expense]");
   if (editButton && canEdit() && state) {
-    editingExpenseId = editButton.dataset.editExpense;
-    renderExpenses();
+    openExpenseModal(editButton.dataset.editExpense);
     return;
   }
 
