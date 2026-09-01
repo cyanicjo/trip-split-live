@@ -300,7 +300,7 @@ body.has-overseas .workspace {
 .summary-band {
   grid-area: summary;
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) minmax(190px, 0.36fr) minmax(380px, 0.86fr);
+  grid-template-columns: minmax(420px, 1fr) minmax(190px, 0.36fr) minmax(170px, 0.34fr);
   align-items: center;
   gap: 18px;
   min-height: 156px;
@@ -342,9 +342,9 @@ body.has-overseas .workspace {
 
 .summary-metrics {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: 10px;
-  align-self: end;
+  align-self: center;
 }
 
 .metric {
@@ -396,6 +396,99 @@ body.has-overseas .workspace {
   color: #191f28;
   font-size: 1.08rem;
   font-weight: 950;
+}
+
+.insight-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.insight-total span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.insight-total strong {
+  color: #191f28;
+  font-size: 1.08rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.insight-composition {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.insight-amounts,
+.insight-bar {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+}
+
+.insight-amount-slot,
+.insight-segment {
+  flex-basis: 0;
+  min-width: 0;
+}
+
+.insight-amount-slot {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+  color: var(--muted);
+  font-size: 0.69rem;
+  font-weight: 850;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.insight-bar {
+  height: 24px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f2f4f6;
+}
+
+.insight-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2px;
+  padding: 0 4px;
+  border: 0;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  overflow: hidden;
+  cursor: pointer;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.insight-segment:focus-visible {
+  outline: 2px solid #191f28;
+  outline-offset: -3px;
+}
+
+.insight-selected {
+  min-height: 18px;
+  margin: 3px 0 0;
+  color: #4e5968;
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.insight-selected[hidden] {
+  display: none;
 }
 
 .insight-chip {
@@ -2408,6 +2501,12 @@ body.is-readonly .export-form .primary-button {
 
   .summary-metrics {
     grid-column: 1 / -1;
+    width: min(100%, 220px);
+    justify-self: end;
+  }
+
+  .insight-amount-slot.is-narrow-amount {
+    visibility: hidden;
   }
 }
 
@@ -2471,11 +2570,27 @@ body.is-readonly .export-form .primary-button {
 
   .summary-metrics {
     grid-template-columns: 1fr;
+    grid-column: auto;
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
   }
 
   .insight-head {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
+  }
+
+  .insight-amount-slot.is-mobile-hidden {
+    visibility: hidden;
+  }
+
+  .insight-amount-slot {
+    font-size: 0.65rem;
+  }
+
+  .insight-segment {
+    padding: 0 3px;
+    font-size: 0.68rem;
   }
 
   .compact-insight {

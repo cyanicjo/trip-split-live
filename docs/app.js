@@ -13,7 +13,6 @@ let tripId = params.get("trip") || "";
 let editToken = params.get("edit") || "";
 let supabase = null;
 let tripChannel = null;
-const INSIGHT_SPENDING_START_DATE = "2026-07-16";
 
 const elements = {
   setupPanel: document.querySelector("#setup-panel"),
@@ -27,8 +26,6 @@ const elements = {
   summaryTitle: document.querySelector("#summary-title"),
   summaryCaption: document.querySelector("#summary-caption"),
   totalSpent: document.querySelector("#total-spent"),
-  peopleCount: document.querySelector("#people-count"),
-  expenseCount: document.querySelector("#expense-count"),
   spendingInsights: document.querySelector("#spending-insights"),
   overseasPanel: document.querySelector("#overseas-panel"),
   overseasEnabled: document.querySelector("#overseas-enabled"),
@@ -1309,101 +1306,33 @@ function renderHeader() {
 function renderSummary() {
   const peopleCount = state.people.length;
   const expenseCount = state.expenses.length;
-  const settlementCount = state.summary.settlements.length;
   const insights = spendingInsights();
 
   elements.totalSpent.textContent = formatMoney(state.summary.total);
-  elements.peopleCount.textContent = `${peopleCount}명`;
-  elements.expenseCount.textContent = `${expenseCount}개`;
   renderSpendingInsights(insights);
 
   if (!canEdit()) {
     elements.summaryTitle.textContent = expenseCount === 0
       ? "여행 지출을 볼 수 있습니다"
-      : insights.topCategory
-        ? `${insights.topCategory.name}에 가장 많이 썼습니다`
-        : "여행 지출을 확인하고 있습니다";
-    elements.summaryCaption.textContent = insightCaption(insights);
+      : "여행 정산 현황";
+    elements.summaryCaption.textContent = expenseCount === 0
+      ? "입력된 지출이 아직 없습니다."
+      : "입력된 지출을 기준으로 부담액과 송금표를 계산합니다.";
   } else if (peopleCount === 0) {
     elements.summaryTitle.textContent = "친구를 추가하면 정산이 시작됩니다";
     elements.summaryCaption.textContent = "친구에게는 보기 링크를, 입력할 사람에게는 편집 링크를 공유하세요.";
   } else if (expenseCount === 0) {
     elements.summaryTitle.textContent = `${peopleCount}명이 준비 중입니다`;
     elements.summaryCaption.textContent = "숙소, 교통, 식비처럼 먼저 낸 사람이 있는 항목을 입력해 주세요.";
-  } else if (insights.topCategory) {
-    elements.summaryTitle.textContent = `${insights.topCategory.name}에 가장 많이 썼습니다`;
-    elements.summaryCaption.textContent = insightCaption(insights);
   } else {
-    elements.summaryTitle.textContent = settlementCount === 0 ? "소비 구성이 안정적입니다" : "여행 지출을 분석하고 있습니다";
-    elements.summaryCaption.textContent = insightCaption(insights);
+    elements.summaryTitle.textContent = "여행 정산 현황";
+    elements.summaryCaption.textContent = "입력된 지출을 기준으로 부담액과 송금표를 계산합니다.";
   }
 }
 
 function percentOf(value, total) {
   if (!total) return 0;
   return Math.round((Number(value) / Number(total)) * 100);
-}
-
-function parseDateKey(dateKey) {
-  const match = String(dateKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return null;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-}
-
-function dateKeyFromDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function addDaysToDateKey(dateKey, days) {
-  const date = parseDateKey(dateKey);
-  if (!date) return "";
-  date.setDate(date.getDate() + days);
-  return dateKeyFromDate(date);
-}
-
-function shortDateLabel(dateKey) {
-  const [, month = "", day = ""] = String(dateKey || "").match(/^\d{4}-(\d{2})-(\d{2})$/) || [];
-  if (!month || !day) return "";
-  return `${Number(month)}.${Number(day)}`;
-}
-
-function cumulativeSpendingTrend(expenses, startDate = INSIGHT_SPENDING_START_DATE) {
-  const dailyTotals = new Map();
-  let endDate = startDate;
-
-  for (const expense of expenses) {
-    const spentAt = expense.spentAt || "";
-    const amount = Math.round(Number(expense.amount) || 0);
-    if (!spentAt || spentAt < startDate || amount <= 0) continue;
-    dailyTotals.set(spentAt, (dailyTotals.get(spentAt) || 0) + amount);
-    if (spentAt > endDate) endDate = spentAt;
-  }
-
-  const today = localDateString();
-  if (today > endDate) endDate = today;
-
-  const points = [];
-  let dateKey = startDate;
-  let cumulative = 0;
-  while (dateKey && dateKey <= endDate) {
-    cumulative += dailyTotals.get(dateKey) || 0;
-    points.push({
-      date: dateKey,
-      amount: dailyTotals.get(dateKey) || 0,
-      cumulative
-    });
-    dateKey = addDaysToDateKey(dateKey, 1);
-  }
-
-  return {
-    startDate,
-    endDate,
-    total: cumulative,
-    points
-  };
 }
 
 function addExpenseCategories(categoryMap, expense) {
@@ -1428,71 +1357,44 @@ function categoryInsightsFromMap(categoryMap, total) {
   return Array.from(categoryMap, ([name, amount]) => ({
     name,
     amount,
-    percent: percentOf(amount, total)
+    percent: percentOf(amount, total),
+    ratio: total ? (Number(amount) / Number(total)) * 100 : 0
   })).sort((a, b) => b.amount - a.amount);
 }
 
 function spendingInsights() {
   const categoryMap = new Map();
-  const sinceStartCategoryMap = new Map();
-  const payerMap = new Map();
   const expenses = state?.expenses || [];
   const total = state?.summary?.total || 0;
-  const latestCompletedAt = latestCompletedSettlementAtBefore(new Date().toISOString());
-  let recentAmount = 0;
-  let recentCount = 0;
 
   for (const expense of expenses) {
     const expenseAmount = Math.round(Number(expense.amount) || 0);
     if (expenseAmount <= 0) continue;
-
-    const payerName = getPersonName(expense.payerId);
-    payerMap.set(payerName, (payerMap.get(payerName) || 0) + expenseAmount);
-
-    if (latestCompletedAt && expenseIsAfterSettlement(expense, latestCompletedAt)) {
-      recentAmount += expenseAmount;
-      recentCount += 1;
-    }
-
     addExpenseCategories(categoryMap, expense);
-    if ((expense.spentAt || "") >= INSIGHT_SPENDING_START_DATE) {
-      addExpenseCategories(sinceStartCategoryMap, expense);
-    }
   }
 
-  const sinceStartTotal = Array.from(sinceStartCategoryMap.values())
-    .reduce((sum, amount) => sum + amount, 0);
   const categories = categoryInsightsFromMap(categoryMap, total);
-  const sinceStartCategories = categoryInsightsFromMap(sinceStartCategoryMap, sinceStartTotal);
-
-  const topPayerEntry = Array.from(payerMap, ([name, amount]) => ({ name, amount }))
-    .sort((a, b) => b.amount - a.amount)[0] || null;
 
   return {
     total,
-    categories,
-    topCategory: categories[0] || null,
-    topPayer: topPayerEntry,
-    recentCount,
-    recentAmount,
-    sinceStartTotal,
-    sinceStartCategories,
-    spendingTrend: cumulativeSpendingTrend(expenses)
+    categories
   };
 }
 
-function insightCaption(insights) {
-  if (!insights.total) {
-    return "지출을 입력하면 분야별 소비 비중과 최근 지출 흐름이 표시됩니다.";
-  }
+function insightDisplayCategories(categories, total) {
+  if (categories.length <= 5) return categories;
 
-  const topText = insights.topCategory
-    ? `${insights.topCategory.name}이 전체의 ${insights.topCategory.percent}%입니다.`
-    : "카테고리별 지출을 계산 중입니다.";
-  const recentText = insights.recentCount > 0
-    ? `최근 정산 이후 새 지출은 ${insights.recentCount}개, ${formatMoney(insights.recentAmount)}입니다.`
-    : "최근 정산 이후 새 지출은 없습니다.";
-  return `${topText} ${recentText}`;
+  const visible = categories.slice(0, 4);
+  const remainderAmount = categories.slice(4).reduce((sum, category) => sum + category.amount, 0);
+  return [
+    ...visible,
+    {
+      name: "기타",
+      amount: remainderAmount,
+      percent: percentOf(remainderAmount, total),
+      ratio: total ? (remainderAmount / total) * 100 : 0
+    }
+  ];
 }
 
 function renderSpendingInsights(insights) {
@@ -1504,21 +1406,46 @@ function renderSpendingInsights(insights) {
   }
 
   const colors = ["#10a37f", "#3182f6", "#f97316", "#f04452", "#8b5cf6", "#64748b"];
-  const visibleCategories = insights.categories.slice(0, 6);
-  const visibleSinceStartCategories = insights.sinceStartCategories.slice(0, 6);
-  const topPayerText = insights.topPayer
-    ? `${escapeHtml(insights.topPayer.name)} · ${escapeHtml(formatMoney(insights.topPayer.amount))}`
-    : "아직 없음";
-  const trendHtml = cumulativeSpendingChartHtml(insights.spendingTrend);
-  const startLabel = shortDateLabel(INSIGHT_SPENDING_START_DATE);
-  const compactChart = compactInsightBarHtml(visibleSinceStartCategories, insights.sinceStartTotal, colors);
+  const displayCategories = insightDisplayCategories(insights.categories, insights.total);
+  const amountLabels = displayCategories.map((category) => `
+    <span
+      class="insight-amount-slot ${category.ratio < 8 ? "is-narrow-amount" : ""} ${category.ratio < 15 ? "is-mobile-hidden" : ""}"
+      style="flex-grow: ${category.ratio};"
+      title="${escapeHtml(`${category.name} ${formatMoney(category.amount)}`)}"
+    >${escapeHtml(formatMoney(category.amount))}</span>
+  `).join("");
+  const segments = displayCategories.map((category, index) => {
+    const labelClass = category.ratio >= 19
+      ? "is-wide"
+      : category.ratio >= 9
+        ? "is-medium"
+        : "is-narrow";
+    const visibleLabel = category.ratio >= 19
+      ? `${category.name} ${category.percent}%`
+      : category.ratio >= 9
+        ? `${category.percent}%`
+        : "";
+    return `
+      <button
+        class="insight-segment ${labelClass}"
+        type="button"
+        data-insight-segment
+        data-name="${escapeHtml(category.name)}"
+        data-amount="${category.amount}"
+        data-percent="${category.percent}"
+        style="flex-grow: ${category.ratio}; background: ${colors[index % colors.length]};"
+        title="${escapeHtml(`${category.name} ${formatMoney(category.amount)} ${category.percent}%`)}"
+        aria-label="${escapeHtml(`${category.name}, ${formatMoney(category.amount)}, ${category.percent}%`)}"
+      >${escapeHtml(visibleLabel)}</button>
+    `;
+  }).join("");
 
   elements.spendingInsights.hidden = false;
   elements.spendingInsights.innerHTML = `
     <div class="insight-head">
       <div>
         <p class="eyebrow">Insight</p>
-        <h2>${escapeHtml(`${startLabel} 이후 사용`)}</h2>
+        <h2>지출 구성</h2>
       </div>
       <button
         class="insight-toggle"
@@ -1527,123 +1454,28 @@ function renderSpendingInsights(insights) {
         aria-expanded="${spendingInsightsExpanded}"
       >${spendingInsightsExpanded ? "간단히" : "자세히"}</button>
     </div>
-    <div class="compact-insight">
-      <div class="compact-insight-main">
-        <span>${escapeHtml(`${startLabel} 이후 누적`)}</span>
-        <strong>${escapeHtml(formatMoney(insights.sinceStartTotal))}</strong>
+    <div class="insight-total">
+      <span>전체 지출</span>
+      <strong>${escapeHtml(formatMoney(insights.total))}</strong>
+    </div>
+    <div class="insight-composition" role="group" aria-label="카테고리별 지출 구성">
+      <div class="insight-amounts" aria-hidden="true">
+        ${amountLabels}
       </div>
-      ${compactChart}
+      <div class="insight-bar">
+        ${segments}
+      </div>
+      <p class="insight-selected" data-insight-selected hidden></p>
     </div>
     <div class="insight-detail" ${spendingInsightsExpanded ? "" : "hidden"}>
-      <div class="insight-chip">최근 새 지출 ${escapeHtml(formatMoney(insights.recentAmount))}</div>
-      <div class="stacked-bar" aria-label="전체 분야별 지출 비중">
-        ${visibleCategories.map((category, index) => `
-          <span
-            style="width: ${Math.max(category.percent, 3)}%; background: ${colors[index % colors.length]};"
-            title="${escapeHtml(category.name)} ${escapeHtml(formatMoney(category.amount))}"
-          ></span>
-        `).join("")}
-      </div>
-      <div class="insight-grid">
-        <div>
-          <span>가장 큰 분야</span>
-          <strong>${escapeHtml(insights.topCategory.name)} · ${insights.topCategory.percent}%</strong>
-        </div>
-        <div>
-          <span>가장 많이 결제</span>
-          <strong>${topPayerText}</strong>
-        </div>
-        <div>
-          <span>최근 정산 이후</span>
-          <strong>${escapeHtml(`${insights.recentCount}개 · ${formatMoney(insights.recentAmount)}`)}</strong>
-        </div>
-      </div>
       <div class="category-breakdown">
-        ${visibleCategories.map((category, index) => `
+        ${insights.categories.map((category, index) => `
           <div class="category-breakdown-row">
             <span style="--dot-color: ${colors[index % colors.length]}">${escapeHtml(category.name)}</span>
             <strong>${escapeHtml(formatMoney(category.amount))}</strong>
             <small>${category.percent}%</small>
           </div>
         `).join("")}
-      </div>
-      ${trendHtml}
-    </div>
-  `;
-}
-
-function compactInsightBarHtml(categories, total, colors) {
-  if (!total || categories.length === 0) {
-    return `
-      <div class="compact-bar is-empty" aria-label="7.16 이후 지출 없음">
-        <span></span>
-      </div>
-      <div class="compact-insight-legend">아직 기록된 지출이 없습니다.</div>
-    `;
-  }
-
-  return `
-    <div class="compact-bar" aria-label="7.16 이후 분야별 누적 사용액">
-      ${categories.map((category, index) => `
-        <span
-          style="width: ${Math.max(category.percent, 3)}%; background: ${colors[index % colors.length]};"
-          title="${escapeHtml(category.name)} ${escapeHtml(formatMoney(category.amount))}"
-        ></span>
-      `).join("")}
-    </div>
-    <div class="compact-insight-legend">
-      ${categories.slice(0, 3).map((category, index) => `
-        <span style="--dot-color: ${colors[index % colors.length]}">
-          ${escapeHtml(category.name)} ${category.percent}%
-        </span>
-      `).join("")}
-    </div>
-  `;
-}
-
-function cumulativeSpendingChartHtml(trend) {
-  if (!trend || trend.points.length === 0) return "";
-
-  const width = 320;
-  const height = 92;
-  const paddingX = 12;
-  const paddingY = 14;
-  const plotWidth = width - paddingX * 2;
-  const plotHeight = height - paddingY * 2;
-  const maxValue = Math.max(...trend.points.map((point) => point.cumulative), 1);
-  const lastIndex = Math.max(trend.points.length - 1, 1);
-  const coordinates = trend.points.map((point, index) => {
-    const x = paddingX + (plotWidth * index) / lastIndex;
-    const y = height - paddingY - (plotHeight * point.cumulative) / maxValue;
-    return {
-      x: Number(x.toFixed(2)),
-      y: Number(y.toFixed(2)),
-      point
-    };
-  });
-  const linePoints = coordinates.map(({ x, y }) => `${x},${y}`).join(" ");
-  const first = coordinates[0];
-  const last = coordinates[coordinates.length - 1];
-  const areaPoints = `${paddingX},${height - paddingY} ${linePoints} ${last.x},${height - paddingY}`;
-  const startLabel = shortDateLabel(trend.startDate);
-  const endLabel = shortDateLabel(trend.endDate);
-
-  return `
-    <div class="cumulative-chart" aria-label="${escapeHtml(`${startLabel} 이후 누적 사용 그래프`)}">
-      <div class="cumulative-chart-head">
-        <span>${escapeHtml(`${startLabel} 이후 누적 사용`)}</span>
-        <strong>${escapeHtml(formatMoney(trend.total))}</strong>
-      </div>
-      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`${startLabel}부터 ${endLabel}까지 누적 ${formatMoney(trend.total)}`)}">
-        <line x1="${paddingX}" y1="${height - paddingY}" x2="${width - paddingX}" y2="${height - paddingY}" />
-        <polygon points="${areaPoints}" />
-        <polyline points="${linePoints}" />
-        <circle cx="${first.x}" cy="${first.y}" r="3" />
-        <circle cx="${last.x}" cy="${last.y}" r="4" />
-      </svg>
-      <div class="cumulative-chart-axis">
-        <span>${escapeHtml(startLabel)}</span>
-        <span>${escapeHtml(endLabel)}</span>
       </div>
     </div>
   `;
@@ -4126,7 +3958,7 @@ elements.expenseItemList.addEventListener("change", (event) => {
   syncExpenseItemsTotal();
 });
 
-elements.openExpenseModal.addEventListener("click", openExpenseModal);
+elements.openExpenseModal.addEventListener("click", () => openExpenseModal());
 
 elements.expensePanel.addEventListener("click", (event) => {
   if (event.target.closest(".quick-switch-field")) {
@@ -4694,10 +4526,19 @@ elements.clearExpenseFilters.addEventListener("click", () => {
 });
 
 elements.spendingInsights.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-toggle-spending-insights]");
-  if (!button) return;
-  spendingInsightsExpanded = !spendingInsightsExpanded;
-  renderSpendingInsights(spendingInsights());
+  const toggleButton = event.target.closest("[data-toggle-spending-insights]");
+  if (toggleButton) {
+    spendingInsightsExpanded = !spendingInsightsExpanded;
+    renderSpendingInsights(spendingInsights());
+    return;
+  }
+
+  const segment = event.target.closest("[data-insight-segment]");
+  if (!segment) return;
+  const selectedDetail = elements.spendingInsights.querySelector("[data-insight-selected]");
+  if (!selectedDetail) return;
+  selectedDetail.textContent = `${segment.dataset.name} · ${formatMoney(segment.dataset.amount)} · ${segment.dataset.percent}%`;
+  selectedDetail.hidden = false;
 });
 
 elements.expenseForm.addEventListener("submit", async (event) => {
