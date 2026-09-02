@@ -83,6 +83,8 @@ const elements = {
   expenseCategory: document.querySelector("#expense-category"),
   expenseMealSlotField: document.querySelector("#expense-meal-slot-field"),
   expenseMealSlot: document.querySelector("#expense-meal-slot"),
+  expenseMultiDayField: document.querySelector("#expense-multi-day-field"),
+  expenseMultiDay: document.querySelector("#expense-multi-day"),
   expenseLodgingStartField: document.querySelector("#expense-lodging-start-field"),
   expenseLodgingStart: document.querySelector("#expense-lodging-start"),
   expenseLodgingEndField: document.querySelector("#expense-lodging-end-field"),
@@ -1166,12 +1168,24 @@ function normalizeExpenses(expenses = []) {
       const mealSlot = majorCategory === "food"
         ? (Object.hasOwn(mealSlots, expense.mealSlot) ? expense.mealSlot : inferMealSlot(expense.title))
         : "";
-      const lodgingStartDate = majorCategory === "lodging"
-        ? (isDateKey(expense.lodgingStartDate) ? expense.lodgingStartDate : scheduleDate)
-        : "";
-      const lodgingEndDate = majorCategory === "lodging"
-        ? (isDateKey(expense.lodgingEndDate) ? expense.lodgingEndDate : lodgingStartDate)
-        : "";
+      const spreadAcrossDays = typeof expense.spreadAcrossDays === "boolean"
+        ? expense.spreadAcrossDays
+        : majorCategory === "lodging";
+      const rangeStartDate = isDateKey(expense.allocationStartDate)
+        ? expense.allocationStartDate
+        : majorCategory === "lodging" && isDateKey(expense.lodgingStartDate)
+          ? expense.lodgingStartDate
+          : scheduleDate;
+      const rawRangeEndDate = isDateKey(expense.allocationEndDate)
+        ? expense.allocationEndDate
+        : majorCategory === "lodging" && isDateKey(expense.lodgingEndDate)
+          ? expense.lodgingEndDate
+          : rangeStartDate;
+      const rangeEndDate = rawRangeEndDate >= rangeStartDate ? rawRangeEndDate : rangeStartDate;
+      const allocationStartDate = spreadAcrossDays ? rangeStartDate : "";
+      const allocationEndDate = spreadAcrossDays ? rangeEndDate : "";
+      const lodgingStartDate = majorCategory === "lodging" ? rangeStartDate : "";
+      const lodgingEndDate = majorCategory === "lodging" ? rangeEndDate : "";
 
       return {
         ...expense,
@@ -1179,8 +1193,11 @@ function normalizeExpenses(expenses = []) {
         majorCategory,
         scheduleDate,
         mealSlot,
+        spreadAcrossDays,
+        allocationStartDate,
+        allocationEndDate,
         lodgingStartDate,
-        lodgingEndDate: lodgingEndDate >= lodgingStartDate ? lodgingEndDate : lodgingStartDate,
+        lodgingEndDate,
         currency,
         amount,
         foreignAmount,
@@ -1543,15 +1560,48 @@ function renderSummary() {
   }
 }
 
-function expenseDatesForItinerary(expense) {
-  const dates = itineraryDates();
-  if (dates.length === 0) return [];
-  if (expense.majorCategory !== "lodging") {
-    return dates.includes(expense.scheduleDate) ? [expense.scheduleDate] : [];
+function expenseAllocationDates(expense) {
+  if (!expense.spreadAcrossDays) {
+    return isDateKey(expense.scheduleDate) ? [expense.scheduleDate] : [];
   }
-  const startDate = expense.lodgingStartDate || expense.scheduleDate;
-  const endDate = expense.lodgingEndDate || startDate;
-  return dateRangeKeys(startDate, endDate).filter((date) => dates.includes(date));
+  const startDate = expense.allocationStartDate || expense.lodgingStartDate || expense.scheduleDate;
+  const endDate = expense.allocationEndDate || expense.lodgingEndDate || startDate;
+  return dateRangeKeys(startDate, endDate);
+}
+
+function expenseAllocationBreakdown(expense) {
+  const dates = expenseAllocationDates(expense);
+  if (dates.length === 0) return [];
+  const total = Math.max(0, Math.round(Number(expense.amount) || 0));
+  const baseAmount = Math.floor(total / dates.length);
+  const remainder = total - baseAmount * dates.length;
+  return dates.map((date, index) => ({
+    date,
+    amount: baseAmount + (index < remainder ? 1 : 0)
+  }));
+}
+
+function expenseAmountForDate(expense, date) {
+  return expenseAllocationBreakdown(expense).find((item) => item.date === date)?.amount || 0;
+}
+
+function expenseAllocationRangeLabel(expense) {
+  if (!expense.spreadAcrossDays) return "";
+  const startDate = expense.allocationStartDate || expense.scheduleDate;
+  const endDate = expense.allocationEndDate || startDate;
+  const startDay = itineraryDayNumber(startDate);
+  const endDay = itineraryDayNumber(endDate);
+  if (startDay && endDay) {
+    return startDay === endDay ? `${startDay}일차` : `${startDay}~${endDay}일차`;
+  }
+  return startDate === endDate
+    ? shortDateLabel(startDate)
+    : `${shortDateLabel(startDate)}~${shortDateLabel(endDate)}`;
+}
+
+function expenseDatesForItinerary(expense) {
+  const dates = new Set(itineraryDates());
+  return expenseAllocationDates(expense).filter((date) => dates.has(date));
 }
 
 function scheduleExpensesForDate(date) {
@@ -1563,9 +1613,7 @@ function expensePrimaryItineraryDate(expense) {
 }
 
 function scheduleDayTotal(date) {
-  return state.expenses
-    .filter((expense) => expensePrimaryItineraryDate(expense) === date)
-    .reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+  return state.expenses.reduce((sum, expense) => sum + expenseAmountForDate(expense, date), 0);
 }
 
 function timelineEntryToken(entry) {
@@ -1629,7 +1677,7 @@ function timelineEntriesForDate(date) {
 }
 
 function scheduleMoveOptionsHtml(expense) {
-  if (expense.majorCategory === "lodging") return "";
+  if (expense.spreadAcrossDays) return "";
   return `
     <label class="schedule-move-field">
       <span>다른 일차로 이동</span>
@@ -1649,7 +1697,7 @@ function timelineCardMenuHtml(token, date, expense = null) {
         <button type="button" data-move-timeline="up" data-entry-token="${escapeHtml(token)}" data-entry-date="${date}">위로 이동</button>
         <button type="button" data-move-timeline="down" data-entry-token="${escapeHtml(token)}" data-entry-date="${date}">아래로 이동</button>
         ${expense ? scheduleMoveOptionsHtml(expense) : ""}
-        ${expense ? `<button type="button" data-edit-expense="${escapeHtml(expense.id)}">${expense.majorCategory === "lodging" ? "숙박 기간 수정" : "지출 수정"}</button>` : ""}
+        ${expense ? `<button type="button" data-edit-expense="${escapeHtml(expense.id)}">${expense.spreadAcrossDays ? "적용 기간 수정" : "지출 수정"}</button>` : ""}
         ${expense ? `<button class="is-danger" type="button" data-remove-expense="${escapeHtml(expense.id)}">지출 삭제</button>` : ""}
       </div>
     </details>
@@ -1659,14 +1707,14 @@ function timelineCardMenuHtml(token, date, expense = null) {
 function timelineExpenseCardHtml(expense, date) {
   const token = `expense:${expense.id}`;
   const major = majorCategories[expense.majorCategory] || majorCategories.other;
-  const isLodgingContinuation = expense.majorCategory === "lodging" && date !== expensePrimaryItineraryDate(expense);
-  const lodgingStartDay = itineraryDayNumber(expense.lodgingStartDate);
-  const lodgingEndDay = itineraryDayNumber(expense.lodgingEndDate);
-  const lodgingRange = expense.majorCategory === "lodging"
-    ? lodgingStartDay && lodgingEndDay
-      ? `${lodgingStartDay}~${lodgingEndDay}일차`
-      : `${shortDateLabel(expense.lodgingStartDate)}~${shortDateLabel(expense.lodgingEndDate)}`
+  const allocationDates = expenseAllocationDates(expense);
+  const allocationIndex = allocationDates.indexOf(date);
+  const showsDailySplit = expense.spreadAcrossDays && allocationDates.length > 1;
+  const allocationRange = expenseAllocationRangeLabel(expense);
+  const continuationLabel = showsDailySplit && allocationIndex > 0
+    ? expense.majorCategory === "lodging" ? "이어 머무름" : "이어 사용"
     : "";
+  const dailyAmount = expenseAmountForDate(expense, date);
   const items = normalizeExpenseItems(expense);
   return `
     <article class="timeline-card major-${expense.majorCategory}" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
@@ -1683,11 +1731,15 @@ function timelineExpenseCardHtml(expense, date) {
             <small>${escapeHtml([
               expense.category,
               `결제 ${getPersonName(expense.payerId)}`,
-              lodgingRange,
-              isLodgingContinuation ? "이어 머무름" : `${items.length}개 품목`
+              showsDailySplit ? allocationRange : "",
+              showsDailySplit ? `${allocationIndex + 1}/${allocationDates.length}일 배분` : `${items.length}개 품목`,
+              continuationLabel
             ].filter(Boolean).join(" · "))}</small>
           </span>
-          <b>${isLodgingContinuation ? "" : formatMoney(expense.amount)}</b>
+          <span class="timeline-amount-stack">
+            <b>${formatMoney(dailyAmount)}</b>
+            ${showsDailySplit ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
+          </span>
         </button>
       </div>
     </article>
@@ -1697,7 +1749,7 @@ function timelineExpenseCardHtml(expense, date) {
 function mealSlotCardHtml(entry, date) {
   const token = `meal:${entry.slot}`;
   const slotLabel = mealSlots[entry.slot] || "식비";
-  const total = entry.expenses.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+  const total = entry.expenses.reduce((sum, expense) => sum + expenseAmountForDate(expense, date), 0);
   return `
     <article class="timeline-card timeline-meal-card major-food" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}">
       <span class="timeline-node" style="--category-color:${majorCategories.food.color}" aria-hidden="true">${majorCategories.food.icon}</span>
@@ -1710,18 +1762,29 @@ function mealSlotCardHtml(entry, date) {
         ${entry.expenses.length > 0 ? `
           <div class="meal-expense-list">
             ${entry.expenses.map((expense) => `
-              <div class="meal-expense-row">
+              <div class="meal-expense-row ${expense.spreadAcrossDays ? "is-fixed-range" : ""}">
                 <button type="button" data-edit-expense="${escapeHtml(expense.id)}" ${canEdit() ? "" : "disabled"}>
-                  <span><strong>${escapeHtml(expense.title)}</strong><small>결제 ${escapeHtml(getPersonName(expense.payerId))}</small></span>
-                  <b>${formatMoney(expense.amount)}</b>
+                  <span>
+                    <strong>${escapeHtml(expense.title)}</strong>
+                    <small>${escapeHtml([
+                      `결제 ${getPersonName(expense.payerId)}`,
+                      expenseAllocationDates(expense).length > 1 ? `${expenseAllocationRangeLabel(expense)} 배분` : ""
+                    ].filter(Boolean).join(" · "))}</small>
+                  </span>
+                  <span class="timeline-amount-stack">
+                    <b>${formatMoney(expenseAmountForDate(expense, date))}</b>
+                    ${expenseAllocationDates(expense).length > 1 ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
+                  </span>
                 </button>
                 ${canEdit() ? `
-                  <label class="meal-move-field" title="다른 일차로 이동">
-                    <span aria-hidden="true">↗</span>
-                    <select data-move-expense-day="${escapeHtml(expense.id)}" aria-label="${escapeHtml(expense.title)} 다른 일차로 이동">
-                      ${itineraryDayOptionsHtml(expense.scheduleDate)}
-                    </select>
-                  </label>
+                  ${expense.spreadAcrossDays ? "" : `
+                    <label class="meal-move-field" title="다른 일차로 이동">
+                      <span aria-hidden="true">↗</span>
+                      <select data-move-expense-day="${escapeHtml(expense.id)}" aria-label="${escapeHtml(expense.title)} 다른 일차로 이동">
+                        ${itineraryDayOptionsHtml(expense.scheduleDate)}
+                      </select>
+                    </label>
+                  `}
                   <button class="meal-delete" type="button" data-remove-expense="${escapeHtml(expense.id)}" title="지출 삭제" aria-label="${escapeHtml(expense.title)} 삭제">×</button>
                 ` : ""}
               </div>
@@ -2198,13 +2261,17 @@ function syncScheduleExpenseFields({ resetDetailCategory = false } = {}) {
   const majorCategory = majorCategories[elements.expenseMajorCategory.value]
     ? elements.expenseMajorCategory.value
     : "other";
-  const scheduleDate = elements.expenseScheduleDay.value || selectedItineraryDate || itinerary?.startDate || localDateString();
+  const spreadAcrossDays = Boolean(itinerary && elements.expenseMultiDay.checked);
+  const scheduleDate = spreadAcrossDays
+    ? elements.expenseLodgingStart.value || elements.expenseScheduleDay.value || selectedItineraryDate || itinerary?.startDate || localDateString()
+    : elements.expenseScheduleDay.value || selectedItineraryDate || itinerary?.startDate || localDateString();
 
-  elements.expenseScheduleDayField.hidden = !itinerary || majorCategory === "lodging";
+  elements.expenseMultiDayField.hidden = !itinerary;
+  elements.expenseScheduleDayField.hidden = !itinerary || spreadAcrossDays;
   elements.expenseDateField.hidden = Boolean(itinerary);
   elements.expenseMealSlotField.hidden = majorCategory !== "food";
-  elements.expenseLodgingStartField.hidden = majorCategory !== "lodging" || !itinerary;
-  elements.expenseLodgingEndField.hidden = majorCategory !== "lodging" || !itinerary;
+  elements.expenseLodgingStartField.hidden = !spreadAcrossDays;
+  elements.expenseLodgingEndField.hidden = !spreadAcrossDays;
   elements.expenseDate.value = scheduleDate;
 
   if (resetDetailCategory) {
@@ -2269,6 +2336,7 @@ function renderExpenseForm() {
   elements.expenseMajorCategory.disabled = !editable || !hasPeople;
   elements.expenseScheduleDay.disabled = !editable || !hasPeople;
   elements.expenseMealSlot.disabled = !editable || !hasPeople;
+  elements.expenseMultiDay.disabled = !editable || !hasPeople;
   elements.expenseLodgingStart.disabled = !editable || !hasPeople;
   elements.expenseLodgingEnd.disabled = !editable || !hasPeople;
   elements.expenseCategory.disabled = !editable || !hasPeople;
@@ -2285,6 +2353,8 @@ function renderExpenseForm() {
 
   if (editingExpense) {
     elements.expenseMajorCategory.value = editingExpense.majorCategory || inferMajorCategory(editingExpense.category, editingExpense.title);
+    elements.expenseMajorCategory.dataset.previousValue = elements.expenseMajorCategory.value;
+    elements.expenseMultiDay.checked = Boolean(editingExpense.spreadAcrossDays);
     elements.expenseTitle.value = editingExpense.title || "";
     elements.expenseMemo.value = editingExpense.memo || "";
     elements.expenseDate.value = editingExpense.spentAt || localDateString();
@@ -2302,16 +2372,18 @@ function renderExpenseForm() {
     const currentIsOutside = !itineraryDates().includes(currentScheduleDate);
     elements.expenseScheduleDay.innerHTML = `${currentIsOutside ? `<option value="${escapeHtml(currentScheduleDate)}">일정 밖 · ${escapeHtml(currentScheduleDate)}</option>` : ""}${itineraryDayOptionsHtml(currentScheduleDate)}`;
     elements.expenseScheduleDay.value = currentScheduleDate;
-    const lodgingStartDate = editingExpense?.lodgingStartDate
+    const allocationStartDate = editingExpense?.allocationStartDate
+      || editingExpense?.lodgingStartDate
       || elements.expenseLodgingStart.value
       || currentScheduleDate;
-    const lodgingEndDate = editingExpense?.lodgingEndDate
+    const allocationEndDate = editingExpense?.allocationEndDate
+      || editingExpense?.lodgingEndDate
       || elements.expenseLodgingEnd.value
-      || lodgingStartDate;
-    elements.expenseLodgingStart.innerHTML = itineraryDayOptionsHtml(lodgingStartDate, { includeOutside: true });
-    elements.expenseLodgingEnd.innerHTML = itineraryDayOptionsHtml(lodgingEndDate, { includeOutside: true });
-    elements.expenseLodgingStart.value = lodgingStartDate;
-    elements.expenseLodgingEnd.value = lodgingEndDate;
+      || allocationStartDate;
+    elements.expenseLodgingStart.innerHTML = itineraryDayOptionsHtml(allocationStartDate, { includeOutside: true });
+    elements.expenseLodgingEnd.innerHTML = itineraryDayOptionsHtml(allocationEndDate, { includeOutside: true });
+    elements.expenseLodgingStart.value = allocationStartDate;
+    elements.expenseLodgingEnd.value = allocationEndDate;
   }
   elements.expenseMealSlot.value = Object.hasOwn(mealSlots, editingExpense?.mealSlot)
     ? editingExpense.mealSlot
@@ -2938,9 +3010,11 @@ function filteredExpenses() {
   const rangeStart = startDate && endDate && startDate > endDate ? endDate : startDate;
   const rangeEnd = startDate && endDate && startDate > endDate ? startDate : endDate;
   return state.expenses.filter((expense) => {
-    const spentAt = expense.spentAt || "";
-    const matchesStart = !rangeStart || spentAt >= rangeStart;
-    const matchesEnd = !rangeEnd || spentAt <= rangeEnd;
+    const allocationDates = expenseAllocationDates(expense);
+    const expenseStart = allocationDates[0] || expense.spentAt || "";
+    const expenseEnd = allocationDates.at(-1) || expenseStart;
+    const matchesStart = !rangeStart || expenseEnd >= rangeStart;
+    const matchesEnd = !rangeEnd || expenseStart <= rangeEnd;
     const matchesCategory = !category || expense.category === category;
     return matchesStart && matchesEnd && matchesCategory;
   });
@@ -2981,6 +3055,7 @@ function renderExpenses() {
     const scheduleLabel = itinerarySettings()
       ? primaryDate ? itineraryDayLabel(primaryDate) : "일정 밖"
       : "";
+    const allocationDates = expenseAllocationDates(expense);
     return `
       <article class="expense-item">
         <div class="expense-main">
@@ -2994,6 +3069,7 @@ function renderExpenses() {
           ${scheduleLabel ? `<span>${escapeHtml(scheduleLabel)}</span>` : ""}
           <span>${escapeHtml(majorCategories[expense.majorCategory]?.label || "그 외")}</span>
           ${expense.mealSlot ? `<span>${escapeHtml(mealSlots[expense.mealSlot] || expense.mealSlot)}</span>` : ""}
+          ${allocationDates.length > 1 ? `<span>${escapeHtml(`${expenseAllocationRangeLabel(expense)} · ${allocationDates.length}일 균등 배분`)}</span>` : ""}
           ${expense.category ? `<span>${escapeHtml(expense.category)}</span>` : ""}
           <span>결제 ${escapeHtml(getPersonName(expense.payerId))}</span>
           <span>${escapeHtml(expense.spentAt)}</span>
@@ -3283,7 +3359,7 @@ async function showMealSlot(date, slot) {
 
 async function moveExpenseToDate(expenseId, date) {
   const expense = state.expenses.find((item) => item.id === expenseId);
-  if (!expense || expense.majorCategory === "lodging" || !itineraryDates().includes(date)) return;
+  if (!expense || expense.spreadAcrossDays || !itineraryDates().includes(date)) return;
   const previousDate = expense.scheduleDate;
   if (previousDate === date) return;
   const itinerary = itinerarySettings();
@@ -3293,7 +3369,14 @@ async function moveExpenseToDate(expenseId, date) {
   dayOrders[date] = Array.from(new Set([...(dayOrders[date] || []), token]));
   const expenses = state.expenses.map((item) => (
     item.id === expenseId
-      ? { ...item, scheduleDate: date, spentAt: date, updatedAt: new Date().toISOString() }
+      ? {
+          ...item,
+          scheduleDate: date,
+          lodgingStartDate: item.majorCategory === "lodging" ? date : item.lodgingStartDate,
+          lodgingEndDate: item.majorCategory === "lodging" ? date : item.lodgingEndDate,
+          spentAt: date,
+          updatedAt: new Date().toISOString()
+        }
       : item
   ));
   selectedItineraryDate = date;
@@ -3333,12 +3416,17 @@ function resetExpenseFormForCreate(context = {}) {
   participantsTouched = false;
   participantSelection = new Set(defaultParticipantIds);
   elements.expenseMajorCategory.value = majorCategory;
+  elements.expenseMajorCategory.dataset.previousValue = majorCategory;
+  elements.expenseMultiDay.checked = Boolean(itinerarySettings() && majorCategory === "lodging");
   elements.expenseTitle.value = context.title || (majorCategory === "food" ? mealSlots[mealSlot] : "");
   elements.expenseCategory.value = defaultCategory;
   elements.expenseScheduleDay.value = scheduleDate;
   elements.expenseMealSlot.value = mealSlot;
   elements.expenseLodgingStart.value = scheduleDate;
-  elements.expenseLodgingEnd.value = context.lodgingEndDate || itinerarySettings()?.endDate || scheduleDate;
+  elements.expenseLodgingEnd.value = context.allocationEndDate
+    || context.lodgingEndDate
+    || (majorCategory === "lodging" ? itinerarySettings()?.endDate : "")
+    || scheduleDate;
   elements.expenseCurrency.value = "KRW";
   elements.expenseAmount.value = "";
   elements.expenseRate.value = "";
@@ -3387,6 +3475,7 @@ function openExpenseModal(expenseId = "", context = {}) {
       majorCategory: expense.majorCategory,
       scheduleDate: expense.scheduleDate,
       mealSlot: expense.mealSlot,
+      allocationEndDate: expense.allocationEndDate,
       lodgingEndDate: expense.lodgingEndDate
     };
     editingExpenseId = expense.id;
@@ -4181,6 +4270,14 @@ function buildExportData(sections) {
           ? primaryDate ? itineraryDayLabel(primaryDate) : "일정 밖"
           : "일정 없음",
         mealSlot: expense.mealSlot ? mealSlots[expense.mealSlot] || expense.mealSlot : "",
+        spreadAcrossDays: Boolean(expense.spreadAcrossDays),
+        allocationStartDate: expense.allocationStartDate || "",
+        allocationEndDate: expense.allocationEndDate || "",
+        dailyAllocations: expenseAllocationBreakdown(expense).map((item) => ({
+          date: item.date,
+          dayLabel: itineraryDayNumber(item.date) ? itineraryDayLabel(item.date) : "일정 밖",
+          amount: item.amount
+        })),
         lodgingStartDate: expense.lodgingStartDate || "",
         lodgingEndDate: expense.lodgingEndDate || "",
         spentAt: expense.spentAt || "",
@@ -4286,7 +4383,7 @@ function buildCsv(data) {
     appendCsvSection(
       rows,
       "지출 목록",
-      ["일차", "일정 날짜", "대분류", "식사", "숙소 시작일", "숙소 종료일", "날짜", "내용", "품목", "수량", "금액", "품목 금액", "세부분류", "품목 카테고리", "결제자", "원화 총액", "결제 통화", "외화 총액", "원화 계산 환율", "카드 청구액", "참여자", "품목 참여자", "메모"],
+      ["일차", "일정 날짜", "대분류", "식사", "여러 일차 배분", "적용 시작일", "적용 종료일", "일차별 배분", "숙소 시작일", "숙소 종료일", "날짜", "내용", "품목", "수량", "금액", "품목 금액", "세부분류", "품목 카테고리", "결제자", "원화 총액", "결제 통화", "외화 총액", "원화 계산 환율", "카드 청구액", "참여자", "품목 참여자", "메모"],
       data.expenses.flatMap((expense) => (
         (expense.items?.length ? expense.items : [{
           title: expense.title,
@@ -4302,6 +4399,10 @@ function buildCsv(data) {
         expense.scheduleDate,
         expense.majorCategory,
         expense.mealSlot,
+        expense.spreadAcrossDays ? "사용" : "미사용",
+        expense.allocationStartDate,
+        expense.allocationEndDate,
+        expense.dailyAllocations.map((item) => `${item.dayLabel} ${item.amount}원`).join(" / "),
         expense.lodgingStartDate,
         expense.lodgingEndDate,
         expense.spentAt,
@@ -4422,7 +4523,10 @@ function buildPdfLines(data) {
         const category = expense.category ? `[${expense.category}] ` : "";
         const schedule = [expense.dayLabel, expense.majorCategory, expense.mealSlot].filter(Boolean).join(" · ");
         addLine(`${index + 1}. ${schedule} ${category}${expense.title} - ${formatMoney(expense.amountKrw)}${foreign}`);
-        if (expense.lodgingStartDate) {
+        if (expense.spreadAcrossDays) {
+          addLine(`   적용 기간: ${expense.allocationStartDate} ~ ${expense.allocationEndDate} / ${expense.dailyAllocations.length}일 균등 배분`);
+          addLine(`   일차별 금액: ${expense.dailyAllocations.map((item) => `${item.dayLabel} ${formatMoney(item.amount)}`).join(" / ")}`);
+        } else if (expense.lodgingStartDate) {
           addLine(`   숙박 기간: ${expense.lodgingStartDate} ~ ${expense.lodgingEndDate}`);
         }
         addLine(`   결제자: ${expense.payer} / 참여자: ${expense.participants || "-"}`);
@@ -4840,6 +4944,21 @@ elements.expenseCurrency.addEventListener("change", () => {
 });
 
 elements.expenseMajorCategory.addEventListener("change", () => {
+  const previousMajorCategory = elements.expenseMajorCategory.dataset.previousValue || "";
+  const nextMajorCategory = elements.expenseMajorCategory.value;
+  if (!editingExpenseId) {
+    if (nextMajorCategory === "lodging") {
+      elements.expenseMultiDay.checked = true;
+      elements.expenseLodgingStart.value = elements.expenseScheduleDay.value || selectedItineraryDate || itinerarySettings()?.startDate || "";
+      elements.expenseLodgingEnd.value = itinerarySettings()?.endDate || elements.expenseLodgingStart.value;
+    } else if (previousMajorCategory === "lodging") {
+      elements.expenseMultiDay.checked = false;
+      elements.expenseLodgingEnd.value = elements.expenseLodgingStart.value || elements.expenseScheduleDay.value;
+    }
+  } else if (nextMajorCategory === "lodging" && previousMajorCategory !== "lodging" && !elements.expenseMultiDay.checked) {
+    elements.expenseMultiDay.checked = true;
+  }
+  elements.expenseMajorCategory.dataset.previousValue = nextMajorCategory;
   const category = defaultDetailCategoryForMajor(elements.expenseMajorCategory.value);
   if (category) {
     elements.expenseCategory.value = category;
@@ -4855,12 +4974,21 @@ elements.expenseMajorCategory.addEventListener("change", () => {
 elements.expenseScheduleDay.addEventListener("change", () => {
   const date = elements.expenseScheduleDay.value;
   elements.expenseDate.value = date;
-  if (elements.expenseMajorCategory.value === "lodging" && itineraryDates().includes(date)) {
-    elements.expenseLodgingStart.value = date;
-    if (elements.expenseLodgingEnd.value < date) elements.expenseLodgingEnd.value = date;
-    syncCustomSelect(elements.expenseLodgingStart);
-    syncCustomSelect(elements.expenseLodgingEnd);
+});
+
+elements.expenseMultiDay.addEventListener("change", () => {
+  const date = elements.expenseScheduleDay.value || selectedItineraryDate || itinerarySettings()?.startDate || localDateString();
+  if (elements.expenseMultiDay.checked) {
+    elements.expenseLodgingStart.value = elements.expenseLodgingStart.value || date;
+    elements.expenseLodgingEnd.value = elements.expenseLodgingEnd.value || date;
+    if (elements.expenseLodgingEnd.value < elements.expenseLodgingStart.value) {
+      elements.expenseLodgingEnd.value = elements.expenseLodgingStart.value;
+    }
   }
+  syncScheduleExpenseFields();
+  syncCustomSelect(elements.expenseScheduleDay);
+  syncCustomSelect(elements.expenseLodgingStart);
+  syncCustomSelect(elements.expenseLodgingEnd);
 });
 
 elements.expenseMealSlot.addEventListener("change", () => {
@@ -4876,6 +5004,16 @@ elements.expenseLodgingStart.addEventListener("change", () => {
   if (elements.expenseLodgingEnd.value < date) elements.expenseLodgingEnd.value = date;
   syncCustomSelect(elements.expenseScheduleDay);
   syncCustomSelect(elements.expenseLodgingEnd);
+});
+
+elements.expenseLodgingEnd.addEventListener("change", () => {
+  if (elements.expenseLodgingEnd.value < elements.expenseLodgingStart.value) {
+    elements.expenseLodgingStart.value = elements.expenseLodgingEnd.value;
+    elements.expenseScheduleDay.value = elements.expenseLodgingEnd.value;
+    elements.expenseDate.value = elements.expenseLodgingEnd.value;
+    syncCustomSelect(elements.expenseLodgingStart);
+    syncCustomSelect(elements.expenseScheduleDay);
+  }
 });
 
 elements.expenseCategory.addEventListener("change", () => {
@@ -5746,19 +5884,31 @@ elements.expenseForm.addEventListener("submit", async (event) => {
   const majorCategory = majorCategories[elements.expenseMajorCategory.value]
     ? elements.expenseMajorCategory.value
     : inferMajorCategory(category, title);
-  let scheduleDate = itinerarySettings()
-    ? elements.expenseScheduleDay.value
+  const itinerary = itinerarySettings();
+  const spreadAcrossDays = itinerary
+    ? elements.expenseMultiDay.checked
+    : Boolean(editingExpense?.spreadAcrossDays);
+  let scheduleDate = itinerary
+    ? spreadAcrossDays
+      ? elements.expenseLodgingStart.value
+      : elements.expenseScheduleDay.value
     : elements.expenseDate.value || localDateString();
-  let lodgingStartDate = majorCategory === "lodging"
-    ? elements.expenseLodgingStart.value || scheduleDate
+  let allocationStartDate = spreadAcrossDays
+    ? elements.expenseLodgingStart.value || editingExpense?.allocationStartDate || scheduleDate
     : "";
-  let lodgingEndDate = majorCategory === "lodging"
-    ? elements.expenseLodgingEnd.value || lodgingStartDate
+  let allocationEndDate = spreadAcrossDays
+    ? elements.expenseLodgingEnd.value || editingExpense?.allocationEndDate || allocationStartDate
     : "";
-  if (lodgingStartDate && lodgingEndDate && lodgingStartDate > lodgingEndDate) {
-    [lodgingStartDate, lodgingEndDate] = [lodgingEndDate, lodgingStartDate];
+  if (allocationStartDate && allocationEndDate && allocationStartDate > allocationEndDate) {
+    [allocationStartDate, allocationEndDate] = [allocationEndDate, allocationStartDate];
   }
-  if (majorCategory === "lodging") scheduleDate = lodgingStartDate;
+  if (spreadAcrossDays) scheduleDate = allocationStartDate;
+  const lodgingStartDate = majorCategory === "lodging"
+    ? spreadAcrossDays ? allocationStartDate : scheduleDate
+    : "";
+  const lodgingEndDate = majorCategory === "lodging"
+    ? spreadAcrossDays ? allocationEndDate : scheduleDate
+    : "";
   const mealSlot = majorCategory === "food"
     ? (Object.hasOwn(mealSlots, elements.expenseMealSlot.value) ? elements.expenseMealSlot.value : "food-other")
     : "";
@@ -5827,6 +5977,9 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     majorCategory,
     scheduleDate,
     mealSlot,
+    spreadAcrossDays,
+    allocationStartDate,
+    allocationEndDate,
     lodgingStartDate,
     lodgingEndDate,
     amount,

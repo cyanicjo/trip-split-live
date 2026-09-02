@@ -267,6 +267,17 @@ assert.deepStrictEqual(
   ]
 );
 
+const multiDayDisplaySummary = calculateSummary({
+  ...trip,
+  expenses: trip.expenses.map((expense, index) => index === 0 ? {
+    ...expense,
+    spreadAcrossDays: true,
+    allocationStartDate: "2026-07-16",
+    allocationEndDate: "2026-07-18"
+  } : expense)
+});
+assert.deepStrictEqual(multiDayDisplaySummary, summary);
+
 const completedSummary = calculateSummary({
   ...trip,
   completedSettlements: [
