@@ -15,6 +15,9 @@ let supabase = null;
 let tripChannel = null;
 
 const elements = {
+  appShell: document.querySelector(".app-shell"),
+  actionMenu: document.querySelector("#action-menu"),
+  actionMenuTrigger: document.querySelector("#action-menu-trigger"),
   setupPanel: document.querySelector("#setup-panel"),
   tripName: document.querySelector("#trip-name"),
   openDashboard: document.querySelector("#open-dashboard"),
@@ -126,7 +129,9 @@ let toastTimer = null;
 let tripNameTimer = null;
 let saving = false;
 let editingExpenseId = "";
+let expenseFormInitialSignature = "";
 let editingAccountPersonId = "";
+let modalReturnFocus = null;
 let openCustomSelect = null;
 let completedSettlementsExpanded = false;
 let expandedCompletedSettlementId = "";
@@ -1282,6 +1287,7 @@ function render() {
   if (!state) return;
 
   document.body.classList.toggle("is-readonly", !canEdit());
+  document.body.classList.toggle("has-no-people", state.people.length === 0);
   syncParticipantSelection();
   renderHeader();
   renderSummary();
@@ -1315,7 +1321,7 @@ function renderSummary() {
   if (!canEdit()) {
     elements.summaryTitle.textContent = expenseCount === 0
       ? "여행 지출을 볼 수 있습니다"
-      : "여행 정산 현황";
+      : `${state.name} 정산`;
     elements.summaryCaption.textContent = expenseCount === 0
       ? "입력된 지출이 아직 없습니다."
       : "입력된 지출을 기준으로 부담액과 송금표를 계산합니다.";
@@ -1326,7 +1332,7 @@ function renderSummary() {
     elements.summaryTitle.textContent = `${peopleCount}명이 준비 중입니다`;
     elements.summaryCaption.textContent = "숙소, 교통, 식비처럼 먼저 낸 사람이 있는 항목을 입력해 주세요.";
   } else {
-    elements.summaryTitle.textContent = "여행 정산 현황";
+    elements.summaryTitle.textContent = `${state.name} 정산`;
     elements.summaryCaption.textContent = "입력된 지출을 기준으로 부담액과 송금표를 계산합니다.";
   }
 }
@@ -1427,17 +1433,11 @@ function renderSpendingInsights(insights) {
         ? `${category.percent}%`
         : "";
     return `
-      <button
+      <div
         class="insight-segment ${labelClass}"
-        type="button"
-        data-insight-segment
-        data-name="${escapeHtml(category.name)}"
-        data-amount="${category.amount}"
-        data-percent="${category.percent}"
         style="flex-grow: ${category.ratio}; background: ${colors[index % colors.length]};"
         title="${escapeHtml(`${category.name} ${formatMoney(category.amount)} ${category.percent}%`)}"
-        aria-label="${escapeHtml(`${category.name}, ${formatMoney(category.amount)}, ${category.percent}%`)}"
-      >${escapeHtml(visibleLabel)}</button>
+      >${escapeHtml(visibleLabel)}</div>
     `;
   }).join("");
 
@@ -1503,12 +1503,14 @@ function openAccountModal(personId) {
   const person = state.people.find((item) => item.id === personId);
   if (!person) return;
 
+  modalReturnFocus = document.activeElement;
   editingAccountPersonId = personId;
   elements.accountPersonName.textContent = person.name;
   elements.accountBank.value = personBankName(person);
   elements.accountNumber.value = personAccountNumber(person);
   elements.accountBackdrop.hidden = false;
   document.body.classList.add("account-modal-open");
+  syncModalInert();
   requestAnimationFrame(() => elements.accountBank.focus());
 }
 
@@ -1516,6 +1518,8 @@ function closeAccountModal() {
   elements.accountBackdrop.hidden = true;
   document.body.classList.remove("account-modal-open");
   editingAccountPersonId = "";
+  syncModalInert();
+  restoreModalFocus();
 }
 
 function renderOverseasPanel() {
@@ -2486,16 +2490,61 @@ function renderDashboard() {
   }).join("");
 }
 
+function modalBackdrops() {
+  return [
+    elements.dashboardBackdrop,
+    elements.accountBackdrop,
+    elements.exportBackdrop,
+    elements.importBackdrop,
+    elements.expenseBackdrop
+  ];
+}
+
+function activeModalDialog() {
+  const backdrop = modalBackdrops().find((item) => item && !item.hidden);
+  return backdrop?.querySelector("[role='dialog']") || null;
+}
+
+function syncModalInert() {
+  if (elements.appShell) {
+    const modalOpen = Boolean(activeModalDialog());
+    elements.appShell.toggleAttribute("inert", modalOpen);
+    if ("inert" in elements.appShell) {
+      elements.appShell.inert = modalOpen;
+    }
+  }
+}
+
+function rememberModalFocus() {
+  modalReturnFocus = document.activeElement;
+}
+
+function restoreModalFocus(fallback = elements.actionMenuTrigger) {
+  const preferred = modalReturnFocus;
+  modalReturnFocus = null;
+  const target = preferred?.isConnected &&
+    preferred.getClientRects().length > 0 &&
+    !preferred.disabled &&
+    !preferred.closest("details:not([open])")
+    ? preferred
+    : fallback;
+  target?.focus();
+}
+
 function openDashboard() {
+  rememberModalFocus();
   renderDashboard();
   elements.dashboardBackdrop.hidden = false;
   document.body.classList.add("dashboard-open");
+  syncModalInert();
   elements.closeDashboard.focus();
 }
 
 function closeDashboard() {
   elements.dashboardBackdrop.hidden = true;
   document.body.classList.remove("dashboard-open");
+  syncModalInert();
+  restoreModalFocus();
 }
 
 function openExportModal() {
@@ -2504,15 +2553,26 @@ function openExportModal() {
     return;
   }
 
+  rememberModalFocus();
   elements.exportBackdrop.hidden = false;
   document.body.classList.add("export-open");
+  syncModalInert();
   elements.closeExport.focus();
 }
 
 function closeExportModal() {
   elements.exportBackdrop.hidden = true;
   document.body.classList.remove("export-open");
-  elements.openExport.focus();
+  syncModalInert();
+  restoreModalFocus();
+}
+
+function expenseFormSignature() {
+  return JSON.stringify(Array.from(elements.expenseForm.querySelectorAll("input, select, textarea")).map((field) => ({
+    key: field.name || field.id || field.dataset.expenseItemInput || field.dataset.expenseItemParticipant || field.type,
+    value: field.value,
+    checked: field.matches("[type='checkbox'], [type='radio']") ? field.checked : undefined
+  })));
 }
 
 function resetExpenseFormForCreate() {
@@ -2562,6 +2622,7 @@ function openExpenseModal(expenseId = "") {
     return;
   }
 
+  rememberModalFocus();
   if (expense) {
     editingExpenseId = expense.id;
     participantsTouched = true;
@@ -2572,17 +2633,28 @@ function openExpenseModal(expenseId = "") {
   renderExpenseForm();
   elements.expenseBackdrop.hidden = false;
   document.body.classList.add("expense-modal-open");
-  requestAnimationFrame(() => elements.expenseTitle.focus());
+  syncModalInert();
+  requestAnimationFrame(() => {
+    expenseFormInitialSignature = expenseFormSignature();
+    elements.expenseTitle.focus();
+  });
 }
 
-function closeExpenseModal() {
+function closeExpenseModal({ force = false } = {}) {
+  if (!force && expenseFormInitialSignature && expenseFormSignature() !== expenseFormInitialSignature) {
+    if (!window.confirm("입력 중인 내용을 닫을까요? 저장하지 않은 변경사항은 사라집니다.")) {
+      return;
+    }
+  }
   elements.expenseBackdrop.hidden = true;
   document.body.classList.remove("expense-modal-open");
+  expenseFormInitialSignature = "";
   if (state?.people) {
     resetExpenseFormForCreate();
     renderExpenseForm();
   }
-  elements.openExpenseModal.focus();
+  syncModalInert();
+  restoreModalFocus(elements.openExpenseModal);
 }
 
 function renderExpenseEditor(expense) {
@@ -3214,15 +3286,18 @@ function openImportModal() {
     return;
   }
 
+  rememberModalFocus();
   elements.importBackdrop.hidden = false;
   document.body.classList.add("import-open");
+  syncModalInert();
   requestAnimationFrame(() => elements.importFile.focus());
 }
 
 function closeImportModal() {
   elements.importBackdrop.hidden = true;
   document.body.classList.remove("import-open");
-  elements.openImport.focus();
+  syncModalInert();
+  restoreModalFocus();
 }
 
 async function copyText(text, message) {
@@ -4170,7 +4245,31 @@ elements.importForm.addEventListener("submit", async (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  const dialog = activeModalDialog();
+  if (event.key === "Tab" && dialog) {
+    const focusable = Array.from(dialog.querySelectorAll(
+      "button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])"
+    )).filter((item) => !item.hidden && item.getClientRects().length > 0);
+    if (focusable.length > 0) {
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    return;
+  }
+
   if (event.key !== "Escape") return;
+  if (openCustomSelect) return;
+  if (elements.actionMenu?.open) {
+    elements.actionMenu.open = false;
+    return;
+  }
   if (!elements.accountBackdrop.hidden) {
     closeAccountModal();
     return;
@@ -4355,6 +4454,16 @@ elements.newTripLink.addEventListener("click", () => {
 elements.copyViewLink.addEventListener("click", () => {
   if (!tripId) return;
   copyText(viewLink(), "보기 링크를 복사했습니다.");
+});
+
+elements.actionMenu?.addEventListener("click", (event) => {
+  if (event.target.closest("button")) {
+    elements.actionMenu.open = false;
+  }
+});
+
+elements.actionMenu?.addEventListener("toggle", () => {
+  elements.actionMenuTrigger?.setAttribute("aria-expanded", String(elements.actionMenu.open));
 });
 
 elements.tripName.addEventListener("input", () => {
@@ -4673,7 +4782,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
       ? state.expenses.map((expense) => (expense.id === editingExpense.id ? nextExpense : expense))
       : [nextExpense, ...state.expenses];
     await saveTrip({ ...state, expenses: nextExpenses });
-    closeExpenseModal();
+    closeExpenseModal({ force: true });
     showToast(editingExpense ? "지출을 수정했습니다." : "지출을 저장했습니다.");
   } catch (error) {
     showToast(error.message);
@@ -4889,6 +4998,9 @@ elements.expenseList.addEventListener("submit", async (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (elements.actionMenu?.open && !event.target.closest("#action-menu")) {
+    elements.actionMenu.open = false;
+  }
   if (!event.target.closest(".custom-select")) {
     closeCustomSelect();
   }

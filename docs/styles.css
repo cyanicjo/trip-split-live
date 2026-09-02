@@ -2538,6 +2538,7 @@ body.is-readonly .export-form .primary-button {
   }
 
   .workspace {
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "summary"
       "people"
@@ -2746,5 +2747,652 @@ body.is-readonly .export-form .primary-button {
   .settlement-amount,
   .expense-amount {
     white-space: normal;
+  }
+}
+
+/* HIG-inspired refinement: clearer hierarchy, adaptive controls, and quieter surfaces. */
+:root {
+  --paper: #f5f5f7;
+  --line: #e2e5e9;
+  --shadow: 0 1px 2px rgba(25, 31, 40, 0.035), 0 6px 20px rgba(25, 31, 40, 0.035);
+}
+
+.app-shell {
+  width: min(1420px, 100%);
+  padding: 14px 20px 30px;
+}
+
+.topbar {
+  min-height: 64px;
+  padding: 8px 0;
+  gap: 16px;
+  background: rgba(245, 245, 247, 0.92);
+}
+
+.brand-block {
+  gap: 10px;
+}
+
+.route-mark {
+  width: 46px;
+  height: 36px;
+  grid-template-columns: repeat(3, 10px);
+}
+
+.route-mark::before {
+  left: 6px;
+  right: 6px;
+  top: 17px;
+}
+
+.route-mark span {
+  width: 11px;
+  height: 11px;
+}
+
+.trip-name {
+  width: min(420px, 42vw);
+  font-size: 1.48rem;
+  line-height: 1.2;
+}
+
+.topbar-actions {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.live-status {
+  min-height: 36px;
+  padding: 0 10px;
+  background: transparent;
+  font-size: 0.82rem;
+}
+
+.icon-button,
+.action-menu-trigger {
+  width: 44px;
+  height: 44px;
+}
+
+.icon-button.labeled {
+  min-width: 116px;
+  height: 44px;
+  padding: 0 14px;
+}
+
+.action-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.action-menu summary {
+  list-style: none;
+}
+
+.action-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.action-menu-trigger {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: #fff;
+  color: #333d4b;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 950;
+}
+
+.action-menu[open] .action-menu-trigger {
+  border-color: rgba(49, 130, 246, 0.38);
+  background: var(--mint-soft);
+  color: var(--mint);
+}
+
+.action-menu-popover {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: 210px;
+  padding: 6px;
+  border: 1px solid rgba(226, 229, 233, 0.96);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 48px rgba(25, 31, 40, 0.14);
+}
+
+.action-menu:not([open]) .action-menu-popover {
+  display: none;
+}
+
+.menu-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-weight: 800;
+}
+
+.menu-action > span:first-child {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  color: var(--muted);
+}
+
+.menu-action:hover,
+.menu-action:focus-visible {
+  background: var(--blue-soft);
+  outline: none;
+}
+
+.menu-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.workspace {
+  grid-template-columns: minmax(235px, 0.75fr) minmax(520px, 1.55fr) minmax(300px, 0.9fr);
+  grid-template-areas:
+    "summary summary summary"
+    "people expense settlement"
+    "balance expense settlement"
+    "balance history settlement";
+  gap: 12px;
+}
+
+body.has-overseas .workspace {
+  grid-template-areas:
+    "summary summary summary"
+    "people expense settlement"
+    "balance expense settlement"
+    "balance history settlement"
+    "overseas overseas overseas";
+}
+
+.summary-band {
+  grid-template-columns: minmax(0, 1fr) minmax(190px, auto);
+  min-height: 0;
+  gap: 16px 22px;
+  padding: 20px 22px;
+  border-color: rgba(226, 229, 233, 0.84);
+  box-shadow: var(--shadow);
+}
+
+.summary-copy h1 {
+  max-width: none;
+  font-size: 2.18rem;
+  line-height: 1.12;
+}
+
+.summary-copy p:last-child {
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.summary-metrics {
+  width: min(230px, 100%);
+}
+
+.metric {
+  padding: 12px 14px;
+  background: var(--blue-soft);
+}
+
+.metric strong {
+  margin-top: 3px;
+  font-size: 1.58rem;
+}
+
+.spending-insights {
+  gap: 8px;
+  padding-top: 14px;
+}
+
+.insight-total {
+  display: none;
+}
+
+.insight-toggle {
+  min-height: 40px;
+}
+
+.insight-segment {
+  cursor: default;
+}
+
+.insight-selected {
+  display: none;
+}
+
+.summary-band,
+.panel {
+  border-color: rgba(226, 229, 233, 0.88);
+  box-shadow: var(--shadow);
+}
+
+.panel {
+  padding: 15px;
+}
+
+.panel-heading {
+  margin-bottom: 10px;
+}
+
+.panel h2 {
+  font-size: 1.04rem;
+}
+
+.panel-toggle {
+  width: 40px;
+  height: 40px;
+}
+
+.text-button {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.primary-button.compact {
+  min-height: 44px;
+}
+
+.quick-switch-field {
+  min-height: 40px;
+}
+
+.account-copy {
+  min-height: 32px;
+  padding: 5px 9px;
+}
+
+.person-chip button,
+.expense-delete,
+.person-chip .account-copy,
+.person-actions .text-button {
+  min-height: 40px;
+}
+
+.expense-launch {
+  min-height: 78px;
+  border-color: rgba(49, 130, 246, 0.24);
+  background: #f7fbff;
+  box-shadow: none;
+}
+
+.expense-launch strong {
+  font-size: 1.22rem;
+}
+
+.balance-card {
+  border-color: transparent;
+  background: #f8fafc;
+}
+
+.settlement-item {
+  border-color: rgba(49, 130, 246, 0.18);
+  background: #f7fbff;
+}
+
+.completed-toggle {
+  min-height: 44px;
+}
+
+.expense-list {
+  max-height: 680px;
+  gap: 0;
+}
+
+.expense-item {
+  gap: 8px;
+  padding: 15px 4px;
+  border: 0;
+  border-bottom: 1px solid #edf0f3;
+  border-radius: 0;
+}
+
+.expense-item:first-child {
+  padding-top: 4px;
+}
+
+.expense-item:last-child {
+  border-bottom: 0;
+}
+
+.expense-meta {
+  gap: 4px 9px;
+  font-size: 0.82rem;
+}
+
+.expense-meta span {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.expense-meta span + span::before {
+  content: "·";
+  margin-right: 9px;
+  color: #c1c7cd;
+}
+
+.expense-meta .exchange-rate-chip {
+  padding: 0;
+}
+
+.expense-item-snippets span {
+  background: #f8fafc;
+}
+
+.dashboard-backdrop,
+.export-backdrop,
+.import-backdrop,
+.account-backdrop,
+.expense-backdrop {
+  background: rgba(25, 31, 40, 0.32);
+  backdrop-filter: blur(6px);
+}
+
+.dashboard-panel,
+.export-panel,
+.import-panel,
+.account-modal,
+.expense-modal {
+  box-shadow: 0 24px 80px rgba(25, 31, 40, 0.22);
+}
+
+.dashboard-header,
+.modal-header {
+  position: sticky;
+  z-index: 5;
+  top: -20px;
+  margin: -20px -20px 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(226, 229, 233, 0.8);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+button,
+summary,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active:not(:disabled),
+.action-menu-trigger:active {
+  transform: scale(0.98);
+}
+
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(49, 130, 246, 0.3);
+  outline-offset: 2px;
+}
+
+@media (min-width: 801px) {
+  .expense-panel {
+    border-bottom-color: transparent;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .expense-list-panel {
+    margin-top: -12px;
+    border-radius: 0 0 8px 8px;
+  }
+}
+
+@media (max-width: 1120px) {
+  .workspace {
+    grid-template-columns: minmax(230px, 0.8fr) minmax(440px, 1.2fr);
+    grid-template-areas:
+      "summary summary"
+      "people expense"
+      "balance expense"
+      "settlement history";
+  }
+
+  body.has-overseas .workspace {
+    grid-template-areas:
+      "summary summary"
+      "people expense"
+      "balance expense"
+      "settlement history"
+      "overseas overseas";
+  }
+}
+
+@media (max-width: 800px) {
+  .app-shell {
+    padding: 12px 14px 24px;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 2px 0 10px;
+    gap: 8px;
+  }
+
+  .brand-block {
+    width: 100%;
+  }
+
+  .trip-name {
+    width: 100%;
+    font-size: 1.38rem;
+  }
+
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .topbar-actions .live-status {
+    min-width: 0;
+    padding-left: 4px;
+  }
+
+  .topbar-actions .icon-button.labeled {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .action-menu-popover {
+    position: fixed;
+    top: auto;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    width: auto;
+    padding: 8px;
+  }
+
+  .workspace {
+    grid-template-areas:
+      "summary"
+      "expense"
+      "settlement"
+      "balance"
+      "history"
+      "people";
+  }
+
+  body.has-overseas .workspace {
+    grid-template-areas:
+      "summary"
+      "expense"
+      "settlement"
+      "balance"
+      "history"
+      "people"
+      "overseas";
+  }
+
+  body.has-no-people .workspace {
+    grid-template-areas:
+      "summary"
+      "people"
+      "expense"
+      "settlement"
+      "balance"
+      "history";
+  }
+
+  body.has-no-people.has-overseas .workspace {
+    grid-template-areas:
+      "summary"
+      "people"
+      "expense"
+      "settlement"
+      "balance"
+      "history"
+      "overseas";
+  }
+
+  .summary-band {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .summary-copy h1 {
+    font-size: 1.72rem;
+  }
+
+  .summary-metrics {
+    width: 100%;
+  }
+
+  .metric {
+    padding: 10px 12px;
+  }
+
+  .metric strong {
+    font-size: 1.42rem;
+  }
+
+  .insight-amount-slot {
+    font-size: 0.72rem;
+  }
+
+  .insight-segment {
+    font-size: 0.74rem;
+  }
+
+  .insight-toggle,
+  .panel-toggle,
+  .text-button,
+  .quick-switch-field,
+  .completed-toggle,
+  .menu-action {
+    min-height: 44px;
+  }
+
+  .panel-toggle {
+    width: 44px;
+    height: 44px;
+  }
+
+  .person-chip button,
+  .expense-delete,
+  .person-chip .account-copy,
+  .person-actions .text-button,
+  .account-copy {
+    min-height: 44px;
+  }
+
+  .expense-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .expense-filters label:nth-child(3),
+  .expense-filters .text-button {
+    grid-column: 1 / -1;
+  }
+
+  .expense-list {
+    max-height: min(920px, 112vh);
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .dashboard-backdrop,
+  .export-backdrop,
+  .import-backdrop,
+  .account-backdrop,
+  .expense-backdrop {
+    padding: 8px;
+  }
+
+  .dashboard-panel,
+  .export-panel,
+  .import-panel,
+  .account-modal,
+  .expense-modal {
+    max-height: 88vh;
+    padding: 18px;
+  }
+
+  .dashboard-header,
+  .modal-header {
+    top: -18px;
+    margin: -18px -18px 0;
+    padding: 16px 18px 12px;
+  }
+
+  .expense-meta,
+  .expense-memo,
+  .field-help,
+  .completed-detail-note {
+    font-size: 0.82rem;
+  }
+}
+
+@media (max-width: 440px) {
+  .route-mark {
+    width: 38px;
+  }
+
+  .expense-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settlement-side {
+    align-items: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
