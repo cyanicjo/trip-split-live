@@ -4,7 +4,7 @@
   "private": true,
   "description": "GitHub Pages and Supabase realtime trip expense splitter.",
   "scripts": {
-    "test": "node test/settlement.test.js"
+    "test": "node test/settlement.test.js && node test/itinerary.test.js"
   },
   "engines": {
     "node": ">=18"
