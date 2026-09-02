@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>실시간 여행 n빵</title>
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=20260902-6">
   </head>
   <body>
     <div class="app-shell">
@@ -85,6 +85,38 @@
             </div>
           </div>
           <div id="spending-insights" class="spending-insights" hidden></div>
+        </section>
+
+        <section id="itinerary-panel" class="panel itinerary-panel" aria-labelledby="itinerary-heading">
+          <div class="itinerary-heading-row">
+            <div>
+              <p class="eyebrow">Trip plan</p>
+              <h2 id="itinerary-heading">일차별 지출 일정</h2>
+              <p id="itinerary-range-label" class="itinerary-range-label">여행 기간을 설정해 주세요.</p>
+            </div>
+            <div class="itinerary-heading-actions">
+              <button id="open-schedule-modal" class="text-button" type="button">일정 설정</button>
+              <button id="open-day-expense" class="primary-button compact" type="button">지출 추가</button>
+            </div>
+          </div>
+
+          <div id="itinerary-empty" class="itinerary-empty">
+            <strong>여행 일정을 먼저 정해 주세요</strong>
+            <p>출발일과 종료일을 한 번만 선택하면 지출할 때 달력을 다시 열지 않아도 됩니다.</p>
+            <button id="start-schedule-setup" class="primary-button compact" type="button">여행 기간 설정</button>
+          </div>
+
+          <div id="itinerary-content" class="itinerary-content" hidden>
+            <div id="itinerary-day-tabs" class="itinerary-day-tabs" role="tablist" aria-label="여행 일차"></div>
+            <div id="itinerary-board" class="itinerary-board"></div>
+            <section id="outside-schedule" class="outside-schedule" hidden>
+              <button id="toggle-outside-schedule" class="outside-toggle" type="button" aria-expanded="false">
+                <span>일정 밖 지출</span>
+                <strong id="outside-schedule-count">0개</strong>
+              </button>
+              <div id="outside-schedule-list" class="outside-schedule-list" hidden></div>
+            </section>
+          </div>
         </section>
 
         <section id="overseas-panel" class="panel overseas-panel" aria-labelledby="overseas-heading" hidden>
@@ -237,25 +269,30 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">History</p>
-              <h2 id="expense-list-heading">지출 목록</h2>
+              <h2 id="expense-list-heading">전체 지출</h2>
             </div>
+            <button id="toggle-expense-history" class="panel-toggle" type="button" aria-expanded="false" aria-controls="expense-history-body" title="전체 지출 펼치기">
+              <span aria-hidden="true">▾</span>
+            </button>
           </div>
-          <div class="expense-filters" aria-label="지출 목록 필터">
-            <label>
-              <span>시작일</span>
-              <input id="expense-filter-start-date" type="date">
-            </label>
-            <label>
-              <span>종료일</span>
-              <input id="expense-filter-end-date" type="date">
-            </label>
-            <label>
-              <span>카테고리</span>
-              <select id="expense-filter-category"></select>
-            </label>
-            <button id="clear-expense-filters" class="text-button" type="button">초기화</button>
+          <div id="expense-history-body" class="expense-history-body" hidden>
+            <div class="expense-filters" aria-label="지출 목록 필터">
+              <label>
+                <span>시작일</span>
+                <input id="expense-filter-start-date" type="date">
+              </label>
+              <label>
+                <span>종료일</span>
+                <input id="expense-filter-end-date" type="date">
+              </label>
+              <label>
+                <span>카테고리</span>
+                <select id="expense-filter-category"></select>
+              </label>
+              <button id="clear-expense-filters" class="text-button" type="button">초기화</button>
+            </div>
+            <div id="expense-list" class="expense-list empty-state">저장된 지출이 없습니다.</div>
           </div>
-          <div id="expense-list" class="expense-list empty-state">저장된 지출이 없습니다.</div>
         </section>
       </main>
     </div>
@@ -397,13 +434,45 @@
 
         <form id="expense-form" class="expense-form">
           <div class="form-grid">
+            <label id="expense-schedule-day-field" hidden>
+              <span>일차</span>
+              <select id="expense-schedule-day"></select>
+            </label>
+            <label>
+              <span>대분류</span>
+              <select id="expense-major-category">
+                <option value="transport">이동</option>
+                <option value="lodging">숙소</option>
+                <option value="food">식비</option>
+                <option value="other">그 외</option>
+              </select>
+            </label>
             <label>
               <span>내용</span>
               <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
             </label>
             <label>
-              <span>카테고리</span>
+              <span>세부분류</span>
               <select id="expense-category"></select>
+            </label>
+            <label id="expense-meal-slot-field" hidden>
+              <span>식사</span>
+              <select id="expense-meal-slot">
+                <option value="lunch">점심</option>
+                <option value="dinner">저녁</option>
+                <option value="breakfast">아침</option>
+                <option value="snack">간식</option>
+                <option value="late-night">야식</option>
+                <option value="food-other">식비 기타</option>
+              </select>
+            </label>
+            <label id="expense-lodging-start-field" hidden>
+              <span>머무는 시작 일차</span>
+              <select id="expense-lodging-start"></select>
+            </label>
+            <label id="expense-lodging-end-field" hidden>
+              <span>머무는 종료 일차</span>
+              <select id="expense-lodging-end"></select>
             </label>
             <label id="expense-currency-field" hidden>
               <span>결제 통화</span>
@@ -426,7 +495,7 @@
               <span>결제자</span>
               <select id="expense-payer"></select>
             </label>
-            <label>
+            <label id="expense-date-field">
               <span>날짜</span>
               <input id="expense-date" type="date">
             </label>
@@ -473,8 +542,36 @@
       </section>
     </div>
 
+    <div id="schedule-backdrop" class="schedule-backdrop" hidden>
+      <section class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-heading">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Trip plan</p>
+            <h2 id="schedule-modal-heading">여행 기간 설정</h2>
+          </div>
+          <button id="close-schedule-modal" class="panel-toggle" type="button" title="여행 기간 설정 닫기" aria-label="여행 기간 설정 닫기">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <form id="schedule-form" class="schedule-form">
+          <div class="schedule-date-grid">
+            <label>
+              <span>출발일</span>
+              <input id="schedule-start-date" type="date" required>
+            </label>
+            <label>
+              <span>종료일</span>
+              <input id="schedule-end-date" type="date" required>
+            </label>
+          </div>
+          <p class="field-help">기간을 줄여도 기존 지출은 삭제되지 않고 일정 밖 지출로 보관됩니다.</p>
+          <button class="primary-button" type="submit">여행 일정 저장</button>
+        </form>
+      </section>
+    </div>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./config.js"></script>
-    <script type="module" src="./app.js?v=20260902-5"></script>
+    <script type="module" src="./app.js?v=20260902-6"></script>
   </body>
 </html>

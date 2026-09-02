@@ -3396,3 +3396,851 @@ select:focus-visible,
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Itinerary board */
+body.schedule-modal-open {
+  overflow: hidden;
+}
+
+.workspace {
+  grid-template-areas:
+    "summary summary summary"
+    "itinerary itinerary itinerary"
+    "people expense settlement"
+    "balance expense settlement"
+    "balance history settlement";
+}
+
+body.has-overseas .workspace {
+  grid-template-areas:
+    "summary summary summary"
+    "itinerary itinerary itinerary"
+    "people expense settlement"
+    "balance expense settlement"
+    "balance history settlement"
+    "overseas overseas overseas";
+}
+
+body.has-itinerary .workspace {
+  grid-template-areas:
+    "summary summary summary"
+    "itinerary itinerary itinerary"
+    "people balance settlement"
+    "history history settlement";
+}
+
+body.has-itinerary.has-overseas .workspace {
+  grid-template-areas:
+    "summary summary summary"
+    "itinerary itinerary itinerary"
+    "people balance settlement"
+    "history history settlement"
+    "overseas overseas overseas";
+}
+
+.itinerary-panel {
+  grid-area: itinerary;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+body.has-itinerary .expense-panel {
+  display: none;
+}
+
+.itinerary-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.itinerary-heading-row h2 {
+  margin: 0;
+  font-size: 1.28rem;
+}
+
+.itinerary-range-label {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.itinerary-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.itinerary-empty {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+  min-height: 180px;
+  align-content: center;
+  padding: 24px 20px;
+  background: #fbfcfe;
+}
+
+.itinerary-empty[hidden],
+.itinerary-content[hidden] {
+  display: none;
+}
+
+.itinerary-empty strong {
+  font-size: 1.12rem;
+}
+
+.itinerary-empty p {
+  max-width: 580px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  word-break: keep-all;
+}
+
+.itinerary-content {
+  min-width: 0;
+}
+
+.itinerary-day-tabs {
+  display: none;
+}
+
+.itinerary-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(310px, 1fr);
+  gap: 0;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  background: #f8fafc;
+}
+
+.itinerary-day-column {
+  min-width: 310px;
+  max-width: 410px;
+  min-height: 410px;
+  border-right: 1px solid var(--line);
+  background: #fff;
+  scroll-snap-align: start;
+}
+
+.itinerary-day-column:last-child {
+  border-right: 0;
+}
+
+.itinerary-day-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 76px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.itinerary-day-header span {
+  color: var(--mint);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.itinerary-day-header h3 {
+  margin: 2px 0 0;
+  font-size: 1.1rem;
+}
+
+.itinerary-day-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.itinerary-day-summary > strong {
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+.day-add-menu,
+.timeline-card-menu {
+  position: relative;
+}
+
+.day-add-menu summary,
+.timeline-card-menu summary {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: #f2f4f6;
+  color: #4e5968;
+  cursor: pointer;
+  font-weight: 900;
+  list-style: none;
+}
+
+.day-add-menu summary::-webkit-details-marker,
+.timeline-card-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.day-add-popover,
+.timeline-card-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(25, 31, 40, 0.16);
+}
+
+.day-add-popover button,
+.timeline-card-menu-popover > button {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 800;
+  text-align: left;
+}
+
+.day-add-popover button:hover,
+.timeline-card-menu-popover > button:hover {
+  background: #f2f4f6;
+}
+
+.timeline-card-menu-popover > button.is-danger {
+  color: var(--coral);
+}
+
+.schedule-move-field {
+  display: grid;
+  gap: 4px;
+  padding: 7px 9px 9px;
+  border-top: 1px solid #f2f4f6;
+  border-bottom: 1px solid #f2f4f6;
+}
+
+.schedule-move-field > span {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.schedule-move-field .custom-select-button {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.day-timeline {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 330px;
+  padding: 16px 14px 22px 42px;
+}
+
+.day-timeline::before {
+  content: "";
+  position: absolute;
+  top: 22px;
+  bottom: 24px;
+  left: 25px;
+  width: 2px;
+  border-radius: 2px;
+  background: #dfe5eb;
+}
+
+.timeline-card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(25, 31, 40, 0.04);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.timeline-card.is-dragging {
+  opacity: 0.42;
+}
+
+.timeline-card.is-drop-target {
+  border-color: var(--mint);
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.12);
+}
+
+.timeline-node {
+  position: absolute;
+  top: 17px;
+  left: -30px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--category-color);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 950;
+  box-shadow: 0 0 0 1px rgba(25, 31, 40, 0.08);
+}
+
+.timeline-card-body {
+  min-width: 0;
+  padding: 12px;
+}
+
+.timeline-card-topline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+}
+
+.timeline-major {
+  min-height: 25px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f2f4f6;
+  color: #4e5968;
+  font-size: 0.73rem;
+  font-weight: 900;
+}
+
+.major-transport .timeline-major { background: #e8f3ff; color: #1b64da; }
+.major-lodging .timeline-major { background: #f1ecff; color: #7252c7; }
+.major-food .timeline-major { background: #fff4d6; color: #9b6b00; }
+
+.timeline-drag {
+  margin-left: auto;
+  color: #b0b8c1;
+  font-size: 1.15rem;
+  font-weight: 900;
+  cursor: grab;
+}
+
+.timeline-card-topline .timeline-card-menu {
+  margin-left: auto;
+}
+
+.timeline-drag + .timeline-card-menu {
+  margin-left: 0;
+}
+
+.timeline-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 54px;
+  padding: 9px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.timeline-card-main:disabled,
+.meal-expense-row button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.timeline-card-main span,
+.meal-expense-row button span,
+.outside-expense-row > span {
+  min-width: 0;
+}
+
+.timeline-card-main strong,
+.meal-expense-row strong,
+.outside-expense-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.timeline-card-main small,
+.meal-expense-row small,
+.outside-expense-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.timeline-card-main b,
+.meal-expense-row b {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.timeline-empty-copy {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+
+.timeline-placeholder {
+  border-style: dashed;
+  background: #fbfcfe;
+}
+
+.timeline-slot-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-top: 1px solid #f2f4f6;
+  padding-top: 9px;
+}
+
+.timeline-add-button,
+.timeline-hide-button {
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.timeline-add-button { color: var(--mint); }
+.timeline-hide-button { color: var(--muted); }
+
+.meal-expense-list {
+  display: grid;
+  gap: 3px;
+  margin: 6px -4px 8px;
+}
+
+.meal-expense-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px 32px;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid #f2f4f6;
+}
+
+.meal-expense-row > button:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.meal-move-field {
+  display: block;
+  width: 104px;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+}
+
+.meal-move-field > span {
+  display: none;
+}
+
+.meal-move-field > select,
+.meal-move-field > .custom-select {
+  position: static;
+  width: 100%;
+  opacity: 1;
+}
+
+.meal-move-field .custom-select-button {
+  min-height: 36px;
+  padding: 7px 8px;
+  font-size: 0.72rem;
+}
+
+.meal-delete {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--coral);
+  font-weight: 900;
+}
+
+.outside-schedule {
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--line);
+  background: #fbfcfe;
+}
+
+.outside-schedule[hidden] {
+  display: none;
+}
+
+.outside-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.outside-toggle strong {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.outside-schedule-list {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.outside-schedule-list[hidden] {
+  display: none;
+}
+
+.outside-expense-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.expense-history-body {
+  display: grid;
+  gap: 12px;
+}
+
+.expense-history-body[hidden] {
+  display: none;
+}
+
+.schedule-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 48;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(25, 31, 40, 0.42);
+  backdrop-filter: blur(7px);
+}
+
+.schedule-backdrop[hidden] {
+  display: none;
+}
+
+.schedule-modal {
+  width: min(520px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid rgba(229, 232, 235, 0.95);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(25, 31, 40, 0.2);
+}
+
+.schedule-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.schedule-date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 1120px) {
+  .workspace,
+  body.has-overseas .workspace {
+    grid-template-areas:
+      "summary summary"
+      "itinerary itinerary"
+      "people expense"
+      "balance expense"
+      "settlement history";
+  }
+
+  body.has-overseas .workspace {
+    grid-template-areas:
+      "summary summary"
+      "itinerary itinerary"
+      "people expense"
+      "balance expense"
+      "settlement history"
+      "overseas overseas";
+  }
+
+  body.has-itinerary .workspace {
+    grid-template-areas:
+      "summary summary"
+      "itinerary itinerary"
+      "people settlement"
+      "balance settlement"
+      "history history";
+  }
+
+  body.has-itinerary.has-overseas .workspace {
+    grid-template-areas:
+      "summary summary"
+      "itinerary itinerary"
+      "people settlement"
+      "balance settlement"
+      "history history"
+      "overseas overseas";
+  }
+
+  .itinerary-board {
+    grid-auto-columns: minmax(300px, 0.72fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .workspace,
+  body.has-overseas .workspace {
+    grid-template-areas:
+      "summary"
+      "itinerary"
+      "expense"
+      "settlement"
+      "balance"
+      "history"
+      "people";
+  }
+
+  body.has-overseas .workspace {
+    grid-template-areas:
+      "summary"
+      "itinerary"
+      "expense"
+      "settlement"
+      "balance"
+      "history"
+      "people"
+      "overseas";
+  }
+
+  body.has-itinerary .workspace {
+    grid-template-areas:
+      "summary"
+      "itinerary"
+      "settlement"
+      "balance"
+      "history"
+      "people";
+  }
+
+  body.has-itinerary.has-overseas .workspace {
+    grid-template-areas:
+      "summary"
+      "itinerary"
+      "settlement"
+      "balance"
+      "history"
+      "people"
+      "overseas";
+  }
+
+  .itinerary-heading-row {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .itinerary-heading-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .itinerary-heading-actions .text-button,
+  .itinerary-heading-actions .primary-button {
+    min-height: 44px;
+  }
+
+  .itinerary-day-tabs {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    background: #fff;
+    scrollbar-width: none;
+  }
+
+  .itinerary-day-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .itinerary-day-tabs button {
+    display: grid;
+    flex: 0 0 auto;
+    min-width: 76px;
+    min-height: 48px;
+    place-items: center;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--muted);
+  }
+
+  .itinerary-day-tabs button strong,
+  .itinerary-day-tabs button span {
+    font-size: 0.78rem;
+  }
+
+  .itinerary-day-tabs button.is-selected {
+    border-color: rgba(49, 130, 246, 0.3);
+    background: var(--mint-soft);
+    color: var(--mint);
+  }
+
+  .itinerary-board {
+    display: block;
+    overflow: visible;
+  }
+
+  .itinerary-day-column {
+    display: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    min-height: 0;
+    border-right: 0;
+  }
+
+  .itinerary-day-column.is-selected {
+    display: block;
+  }
+
+  .itinerary-day-header {
+    position: static;
+  }
+
+  .day-timeline {
+    min-height: 280px;
+  }
+
+  .day-add-popover,
+  .timeline-card-menu-popover {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    min-width: 0;
+    max-height: 70vh;
+    overflow: auto;
+  }
+
+  .day-add-popover button,
+  .timeline-card-menu-popover > button {
+    min-height: 46px;
+  }
+
+  .day-add-menu summary,
+  .timeline-card-menu summary,
+  .timeline-add-button,
+  .timeline-hide-button,
+  .meal-delete,
+  .meal-move-field .custom-select-button {
+    min-height: 44px;
+  }
+
+  .day-add-menu summary,
+  .timeline-card-menu summary,
+  .meal-delete {
+    width: 44px;
+    height: 44px;
+  }
+
+  .schedule-backdrop {
+    padding: 8px;
+  }
+
+  .schedule-modal {
+    padding: 18px;
+  }
+
+  .schedule-date-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 440px) {
+  .itinerary-heading-row {
+    display: grid;
+  }
+
+  .itinerary-heading-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .day-timeline {
+    padding-right: 10px;
+    padding-left: 40px;
+  }
+
+  .outside-expense-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .outside-expense-row .text-button {
+    grid-column: 1 / -1;
+  }
+}

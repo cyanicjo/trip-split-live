@@ -30,6 +30,19 @@ const elements = {
   summaryCaption: document.querySelector("#summary-caption"),
   totalSpent: document.querySelector("#total-spent"),
   spendingInsights: document.querySelector("#spending-insights"),
+  itineraryPanel: document.querySelector("#itinerary-panel"),
+  itineraryRangeLabel: document.querySelector("#itinerary-range-label"),
+  openScheduleModal: document.querySelector("#open-schedule-modal"),
+  startScheduleSetup: document.querySelector("#start-schedule-setup"),
+  openDayExpense: document.querySelector("#open-day-expense"),
+  itineraryEmpty: document.querySelector("#itinerary-empty"),
+  itineraryContent: document.querySelector("#itinerary-content"),
+  itineraryDayTabs: document.querySelector("#itinerary-day-tabs"),
+  itineraryBoard: document.querySelector("#itinerary-board"),
+  outsideSchedule: document.querySelector("#outside-schedule"),
+  toggleOutsideSchedule: document.querySelector("#toggle-outside-schedule"),
+  outsideScheduleCount: document.querySelector("#outside-schedule-count"),
+  outsideScheduleList: document.querySelector("#outside-schedule-list"),
   overseasPanel: document.querySelector("#overseas-panel"),
   overseasEnabled: document.querySelector("#overseas-enabled"),
   overseasQuickEnabled: document.querySelector("#overseas-quick-enabled"),
@@ -63,8 +76,17 @@ const elements = {
   expenseModalHeading: document.querySelector("#expense-modal-heading"),
   closeExpenseModal: document.querySelector("#close-expense-modal"),
   expenseForm: document.querySelector("#expense-form"),
+  expenseScheduleDayField: document.querySelector("#expense-schedule-day-field"),
+  expenseScheduleDay: document.querySelector("#expense-schedule-day"),
+  expenseMajorCategory: document.querySelector("#expense-major-category"),
   expenseTitle: document.querySelector("#expense-title"),
   expenseCategory: document.querySelector("#expense-category"),
+  expenseMealSlotField: document.querySelector("#expense-meal-slot-field"),
+  expenseMealSlot: document.querySelector("#expense-meal-slot"),
+  expenseLodgingStartField: document.querySelector("#expense-lodging-start-field"),
+  expenseLodgingStart: document.querySelector("#expense-lodging-start"),
+  expenseLodgingEndField: document.querySelector("#expense-lodging-end-field"),
+  expenseLodgingEnd: document.querySelector("#expense-lodging-end"),
   categoryName: document.querySelector("#category-name"),
   addCategory: document.querySelector("#add-category"),
   categoryList: document.querySelector("#category-list"),
@@ -80,6 +102,7 @@ const elements = {
   expenseCardKrwField: document.querySelector("#expense-card-krw-field"),
   expenseCardKrw: document.querySelector("#expense-card-krw"),
   expensePayer: document.querySelector("#expense-payer"),
+  expenseDateField: document.querySelector("#expense-date-field"),
   expenseDate: document.querySelector("#expense-date"),
   expenseMemo: document.querySelector("#expense-memo"),
   participantList: document.querySelector("#participant-list"),
@@ -94,6 +117,8 @@ const elements = {
   expenseFilterEndDate: document.querySelector("#expense-filter-end-date"),
   expenseFilterCategory: document.querySelector("#expense-filter-category"),
   clearExpenseFilters: document.querySelector("#clear-expense-filters"),
+  toggleExpenseHistory: document.querySelector("#toggle-expense-history"),
+  expenseHistoryBody: document.querySelector("#expense-history-body"),
   expenseList: document.querySelector("#expense-list"),
   dashboardBackdrop: document.querySelector("#dashboard-backdrop"),
   closeDashboard: document.querySelector("#close-dashboard"),
@@ -118,6 +143,11 @@ const elements = {
   importPreview: document.querySelector("#import-preview"),
   resetImport: document.querySelector("#reset-import"),
   saveImport: document.querySelector("#save-import"),
+  scheduleBackdrop: document.querySelector("#schedule-backdrop"),
+  closeScheduleModal: document.querySelector("#close-schedule-modal"),
+  scheduleForm: document.querySelector("#schedule-form"),
+  scheduleStartDate: document.querySelector("#schedule-start-date"),
+  scheduleEndDate: document.querySelector("#schedule-end-date"),
   toast: document.querySelector("#toast")
 };
 
@@ -136,6 +166,11 @@ let openCustomSelect = null;
 let completedSettlementsExpanded = false;
 let expandedCompletedSettlementId = "";
 let spendingInsightsExpanded = false;
+let selectedItineraryDate = "";
+let expenseDraftContext = null;
+let expenseHistoryCollapsed = true;
+let outsideScheduleExpanded = false;
+let draggedTimelineEntry = null;
 let csvImportState = {
   fileName: "",
   headers: [],
@@ -184,6 +219,25 @@ const csvImportAliases = {
 };
 
 const defaultCategories = ["숙소", "교통", "식비", "관광", "쇼핑", "기타"];
+
+const majorCategories = {
+  transport: { label: "이동", icon: "↗", color: "#3182f6" },
+  lodging: { label: "숙소", icon: "⌂", color: "#8b5cf6" },
+  food: { label: "식비", icon: "●", color: "#f59f00" },
+  other: { label: "그 외", icon: "＋", color: "#6b7684" }
+};
+
+const mealSlots = {
+  breakfast: "아침",
+  lunch: "점심",
+  dinner: "저녁",
+  snack: "간식",
+  "late-night": "야식",
+  "food-other": "식비 기타"
+};
+
+const defaultMealSlots = ["lunch", "dinner"];
+const optionalMealSlots = ["breakfast", "snack", "late-night", "food-other"];
 
 const currencyOptions = [
   "USD",
@@ -383,6 +437,132 @@ function localDateString() {
   return date.toISOString().slice(0, 10);
 }
 
+function isDateKey(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))
+    && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+}
+
+function addDateDays(value, days) {
+  if (!isDateKey(value)) return "";
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function dateRangeKeys(startDate, endDate) {
+  if (!isDateKey(startDate) || !isDateKey(endDate) || startDate > endDate) return [];
+  const dates = [];
+  let current = startDate;
+  while (current <= endDate && dates.length < 366) {
+    dates.push(current);
+    current = addDateDays(current, 1);
+  }
+  return dates;
+}
+
+function shortDateLabel(value) {
+  if (!isDateKey(value)) return value || "";
+  const [, month, day] = value.split("-");
+  return `${Number(month)}/${Number(day)}`;
+}
+
+function weekdayLabel(value) {
+  if (!isDateKey(value)) return "";
+  return new Intl.DateTimeFormat("ko-KR", { weekday: "short", timeZone: "UTC" })
+    .format(new Date(`${value}T00:00:00Z`));
+}
+
+function inferMajorCategory(category = "", title = "") {
+  const titleText = String(title || "").toLowerCase();
+  const categoryText = String(category || "").toLowerCase();
+  if (/(교통|이동|택시|버스|기차|항공|비행|지하철|렌트|주차|transport|taxi|train|flight)/.test(titleText)) return "transport";
+  if (/(교통|이동|transport)/.test(categoryText)) return "transport";
+  if (/(숙소|숙박|lodg|hotel)/.test(categoryText)) return "lodging";
+  if (/(식비|음식|식사|food|meal)/.test(categoryText)) return "food";
+  if (/(숙소|숙박|호텔|리조트|게스트하우스|호스텔|에어비앤비|lodg|hotel)/.test(titleText)) return "lodging";
+  if (/(식비|음식|식사|점심|저녁|아침|간식|야식|카페|밥|food|meal|restaurant)/.test(titleText)) return "food";
+  return "other";
+}
+
+function inferMealSlot(title = "") {
+  const text = String(title || "").toLowerCase();
+  if (/(아침|조식|breakfast)/.test(text)) return "breakfast";
+  if (/(점심|중식|lunch)/.test(text)) return "lunch";
+  if (/(저녁|석식|dinner)/.test(text)) return "dinner";
+  if (/(간식|카페|디저트|snack|dessert|cafe)/.test(text)) return "snack";
+  if (/(야식|late.?night)/.test(text)) return "late-night";
+  return "food-other";
+}
+
+function normalizeItinerary(settings = {}) {
+  const source = settings.itinerary;
+  if (!source || !isDateKey(source.startDate) || !isDateKey(source.endDate) || source.startDate > source.endDate) {
+    return null;
+  }
+
+  const dates = new Set(dateRangeKeys(source.startDate, source.endDate));
+  const hiddenSlots = {};
+  for (const [date, slots] of Object.entries(source.hiddenSlots || {})) {
+    if (!dates.has(date) || !Array.isArray(slots)) continue;
+    hiddenSlots[date] = Array.from(new Set(slots.filter((slot) => slot === "lodging" || slot in mealSlots)));
+  }
+
+  const extraMealSlots = {};
+  for (const [date, slots] of Object.entries(source.extraMealSlots || {})) {
+    if (!dates.has(date) || !Array.isArray(slots)) continue;
+    extraMealSlots[date] = Array.from(new Set(slots.filter((slot) => optionalMealSlots.includes(slot))));
+  }
+
+  const dayOrders = {};
+  for (const [date, tokens] of Object.entries(source.dayOrders || {})) {
+    if (!dates.has(date) || !Array.isArray(tokens)) continue;
+    dayOrders[date] = Array.from(new Set(tokens.map(String).filter(Boolean))).slice(0, 500);
+  }
+
+  return {
+    startDate: source.startDate,
+    endDate: source.endDate,
+    hiddenSlots,
+    extraMealSlots,
+    dayOrders
+  };
+}
+
+function itinerarySettings() {
+  return state?.settings?.itinerary || null;
+}
+
+function itineraryDates() {
+  const itinerary = itinerarySettings();
+  return itinerary ? dateRangeKeys(itinerary.startDate, itinerary.endDate) : [];
+}
+
+function itineraryDayNumber(date) {
+  const index = itineraryDates().indexOf(date);
+  return index >= 0 ? index + 1 : 0;
+}
+
+function itineraryDayLabel(date, { includeWeekday = false } = {}) {
+  const dayNumber = itineraryDayNumber(date);
+  const base = dayNumber > 0 ? `${dayNumber}일차 · ${shortDateLabel(date)}` : "일정 밖";
+  return includeWeekday && dayNumber > 0 ? `${base} · ${weekdayLabel(date)}` : base;
+}
+
+function itineraryDayOptionsHtml(selectedDate = "", { includeOutside = false, emptyLabel = "" } = {}) {
+  const dates = itineraryDates();
+  const options = [];
+  if (emptyLabel) {
+    options.push(`<option value="" ${selectedDate ? "" : "selected"}>${escapeHtml(emptyLabel)}</option>`);
+  }
+  if (includeOutside && selectedDate && !dates.includes(selectedDate)) {
+    options.push(`<option value="${escapeHtml(selectedDate)}" selected>일정 밖 · ${escapeHtml(selectedDate)}</option>`);
+  }
+  options.push(...dates.map((date) => (
+    `<option value="${date}" ${date === selectedDate ? "selected" : ""}>${escapeHtml(itineraryDayLabel(date, { includeWeekday: true }))}</option>`
+  )));
+  return options.join("");
+}
+
 function pageUrl(searchParams) {
   const url = new URL(window.location.href);
   url.search = searchParams.toString();
@@ -580,7 +760,8 @@ function normalizeSettings(settings = {}) {
     ...settings,
     overseas: normalizeOverseasSettings(settings),
     completedSettlements: normalizeCompletedSettlements(settings),
-    categories: normalizeCategories(settings)
+    categories: normalizeCategories(settings),
+    itinerary: normalizeItinerary(settings)
   };
 }
 
@@ -974,10 +1155,32 @@ function normalizeExpenses(expenses = []) {
         exchangeRate: expense.exchangeRate || 1,
         cardKrwAmount: expense.cardKrwAmount || null
       }));
+      const majorCategory = majorCategories[expense.majorCategory]
+        ? expense.majorCategory
+        : inferMajorCategory(category, expense.title);
+      const scheduleDate = isDateKey(expense.scheduleDate)
+        ? expense.scheduleDate
+        : isDateKey(expense.spentAt)
+          ? expense.spentAt
+          : "";
+      const mealSlot = majorCategory === "food"
+        ? (Object.hasOwn(mealSlots, expense.mealSlot) ? expense.mealSlot : inferMealSlot(expense.title))
+        : "";
+      const lodgingStartDate = majorCategory === "lodging"
+        ? (isDateKey(expense.lodgingStartDate) ? expense.lodgingStartDate : scheduleDate)
+        : "";
+      const lodgingEndDate = majorCategory === "lodging"
+        ? (isDateKey(expense.lodgingEndDate) ? expense.lodgingEndDate : lodgingStartDate)
+        : "";
 
       return {
         ...expense,
         category,
+        majorCategory,
+        scheduleDate,
+        mealSlot,
+        lodgingStartDate,
+        lodgingEndDate: lodgingEndDate >= lodgingStartDate ? lodgingEndDate : lodgingStartDate,
         currency,
         amount,
         foreignAmount,
@@ -1288,15 +1491,18 @@ function render() {
 
   document.body.classList.toggle("is-readonly", !canEdit());
   document.body.classList.toggle("has-no-people", state.people.length === 0);
+  document.body.classList.toggle("has-itinerary", Boolean(itinerarySettings()));
   syncParticipantSelection();
   renderHeader();
   renderSummary();
+  renderItinerary();
   renderOverseasPanel();
   renderPeople();
   renderExpenseForm();
   renderBalances();
   renderSettlements();
   renderExpenses();
+  renderExpenseHistoryState();
   renderDashboard();
   renderAccountModal();
   refreshCustomSelects();
@@ -1335,6 +1541,338 @@ function renderSummary() {
     elements.summaryTitle.textContent = `${state.name} 정산`;
     elements.summaryCaption.textContent = "입력된 지출을 기준으로 부담액과 송금표를 계산합니다.";
   }
+}
+
+function expenseDatesForItinerary(expense) {
+  const dates = itineraryDates();
+  if (dates.length === 0) return [];
+  if (expense.majorCategory !== "lodging") {
+    return dates.includes(expense.scheduleDate) ? [expense.scheduleDate] : [];
+  }
+  const startDate = expense.lodgingStartDate || expense.scheduleDate;
+  const endDate = expense.lodgingEndDate || startDate;
+  return dateRangeKeys(startDate, endDate).filter((date) => dates.includes(date));
+}
+
+function scheduleExpensesForDate(date) {
+  return state.expenses.filter((expense) => expenseDatesForItinerary(expense).includes(date));
+}
+
+function expensePrimaryItineraryDate(expense) {
+  return expenseDatesForItinerary(expense)[0] || "";
+}
+
+function scheduleDayTotal(date) {
+  return state.expenses
+    .filter((expense) => expensePrimaryItineraryDate(expense) === date)
+    .reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+}
+
+function timelineEntryToken(entry) {
+  if (entry.type === "meal") return `meal:${entry.slot}`;
+  if (entry.type === "lodging-slot") return "slot:lodging";
+  return `expense:${entry.expense.id}`;
+}
+
+function timelineEntryPriority(entry) {
+  if (entry.type === "expense" && entry.expense.majorCategory === "transport") return 10;
+  if (entry.type === "lodging-slot" || (entry.type === "expense" && entry.expense.majorCategory === "lodging")) return 20;
+  if (entry.type === "meal") {
+    return 30 + ["breakfast", "lunch", "dinner", "snack", "late-night", "food-other"].indexOf(entry.slot);
+  }
+  return 50;
+}
+
+function timelineEntriesForDate(date) {
+  const itinerary = itinerarySettings();
+  const expenses = scheduleExpensesForDate(date);
+  const entries = [];
+  const hasAnyLodgingExpense = state.expenses.some((expense) => (
+    expense.majorCategory === "lodging" && expenseDatesForItinerary(expense).length > 0
+  ));
+  const hidden = new Set(itinerary.hiddenSlots?.[date] || []);
+
+  for (const expense of expenses.filter((item) => item.majorCategory !== "food")) {
+    entries.push({ type: "expense", expense });
+  }
+
+  if (!hasAnyLodgingExpense && date === itinerary.startDate && !hidden.has("lodging")) {
+    entries.push({ type: "lodging-slot" });
+  }
+
+  const foodBySlot = new Map();
+  for (const expense of expenses.filter((item) => item.majorCategory === "food")) {
+    const slot = Object.hasOwn(mealSlots, expense.mealSlot) ? expense.mealSlot : "food-other";
+    if (!foodBySlot.has(slot)) foodBySlot.set(slot, []);
+    foodBySlot.get(slot).push(expense);
+  }
+
+  const visibleMealSlots = Array.from(new Set([
+    ...defaultMealSlots.filter((slot) => !hidden.has(slot)),
+    ...(itinerary.extraMealSlots?.[date] || []).filter((slot) => !hidden.has(slot)),
+    ...foodBySlot.keys()
+  ]));
+  for (const slot of visibleMealSlots) {
+    entries.push({ type: "meal", slot, expenses: foodBySlot.get(slot) || [] });
+  }
+
+  const order = itinerary.dayOrders?.[date] || [];
+  const orderIndex = new Map(order.map((token, index) => [token, index]));
+  return entries.sort((a, b) => {
+    const tokenA = timelineEntryToken(a);
+    const tokenB = timelineEntryToken(b);
+    const indexA = orderIndex.has(tokenA) ? orderIndex.get(tokenA) : Number.MAX_SAFE_INTEGER;
+    const indexB = orderIndex.has(tokenB) ? orderIndex.get(tokenB) : Number.MAX_SAFE_INTEGER;
+    if (indexA !== indexB) return indexA - indexB;
+    return timelineEntryPriority(a) - timelineEntryPriority(b);
+  });
+}
+
+function scheduleMoveOptionsHtml(expense) {
+  if (expense.majorCategory === "lodging") return "";
+  return `
+    <label class="schedule-move-field">
+      <span>다른 일차로 이동</span>
+      <select data-move-expense-day="${escapeHtml(expense.id)}">
+        ${itineraryDayOptionsHtml(expense.scheduleDate)}
+      </select>
+    </label>
+  `;
+}
+
+function timelineCardMenuHtml(token, date, expense = null) {
+  if (!canEdit()) return "";
+  return `
+    <details class="timeline-card-menu">
+      <summary title="카드 메뉴" aria-label="카드 메뉴">•••</summary>
+      <div class="timeline-card-menu-popover">
+        <button type="button" data-move-timeline="up" data-entry-token="${escapeHtml(token)}" data-entry-date="${date}">위로 이동</button>
+        <button type="button" data-move-timeline="down" data-entry-token="${escapeHtml(token)}" data-entry-date="${date}">아래로 이동</button>
+        ${expense ? scheduleMoveOptionsHtml(expense) : ""}
+        ${expense ? `<button type="button" data-edit-expense="${escapeHtml(expense.id)}">${expense.majorCategory === "lodging" ? "숙박 기간 수정" : "지출 수정"}</button>` : ""}
+        ${expense ? `<button class="is-danger" type="button" data-remove-expense="${escapeHtml(expense.id)}">지출 삭제</button>` : ""}
+      </div>
+    </details>
+  `;
+}
+
+function timelineExpenseCardHtml(expense, date) {
+  const token = `expense:${expense.id}`;
+  const major = majorCategories[expense.majorCategory] || majorCategories.other;
+  const isLodgingContinuation = expense.majorCategory === "lodging" && date !== expensePrimaryItineraryDate(expense);
+  const lodgingStartDay = itineraryDayNumber(expense.lodgingStartDate);
+  const lodgingEndDay = itineraryDayNumber(expense.lodgingEndDate);
+  const lodgingRange = expense.majorCategory === "lodging"
+    ? lodgingStartDay && lodgingEndDay
+      ? `${lodgingStartDay}~${lodgingEndDay}일차`
+      : `${shortDateLabel(expense.lodgingStartDate)}~${shortDateLabel(expense.lodgingEndDate)}`
+    : "";
+  const items = normalizeExpenseItems(expense);
+  return `
+    <article class="timeline-card major-${expense.majorCategory}" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
+      <span class="timeline-node" style="--category-color:${major.color}" aria-hidden="true">${major.icon}</span>
+      <div class="timeline-card-body">
+        <div class="timeline-card-topline">
+          <span class="timeline-major">${escapeHtml(major.label)}</span>
+          ${canEdit() ? `<span class="timeline-drag" title="끌어서 순서 변경" aria-hidden="true">≡</span>` : ""}
+          ${timelineCardMenuHtml(token, date, expense)}
+        </div>
+        <button class="timeline-card-main" type="button" data-edit-expense="${escapeHtml(expense.id)}" ${canEdit() ? "" : "disabled"}>
+          <span>
+            <strong>${escapeHtml(expense.title)}</strong>
+            <small>${escapeHtml([
+              expense.category,
+              `결제 ${getPersonName(expense.payerId)}`,
+              lodgingRange,
+              isLodgingContinuation ? "이어 머무름" : `${items.length}개 품목`
+            ].filter(Boolean).join(" · "))}</small>
+          </span>
+          <b>${isLodgingContinuation ? "" : formatMoney(expense.amount)}</b>
+        </button>
+      </div>
+    </article>
+  `;
+}
+
+function mealSlotCardHtml(entry, date) {
+  const token = `meal:${entry.slot}`;
+  const slotLabel = mealSlots[entry.slot] || "식비";
+  const total = entry.expenses.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+  return `
+    <article class="timeline-card timeline-meal-card major-food" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}">
+      <span class="timeline-node" style="--category-color:${majorCategories.food.color}" aria-hidden="true">${majorCategories.food.icon}</span>
+      <div class="timeline-card-body">
+        <div class="timeline-card-topline">
+          <span class="timeline-major">${escapeHtml(slotLabel)}</span>
+          ${canEdit() ? `<span class="timeline-drag" title="끌어서 순서 변경" aria-hidden="true">≡</span>` : ""}
+          ${timelineCardMenuHtml(token, date)}
+        </div>
+        ${entry.expenses.length > 0 ? `
+          <div class="meal-expense-list">
+            ${entry.expenses.map((expense) => `
+              <div class="meal-expense-row">
+                <button type="button" data-edit-expense="${escapeHtml(expense.id)}" ${canEdit() ? "" : "disabled"}>
+                  <span><strong>${escapeHtml(expense.title)}</strong><small>결제 ${escapeHtml(getPersonName(expense.payerId))}</small></span>
+                  <b>${formatMoney(expense.amount)}</b>
+                </button>
+                ${canEdit() ? `
+                  <label class="meal-move-field" title="다른 일차로 이동">
+                    <span aria-hidden="true">↗</span>
+                    <select data-move-expense-day="${escapeHtml(expense.id)}" aria-label="${escapeHtml(expense.title)} 다른 일차로 이동">
+                      ${itineraryDayOptionsHtml(expense.scheduleDate)}
+                    </select>
+                  </label>
+                  <button class="meal-delete" type="button" data-remove-expense="${escapeHtml(expense.id)}" title="지출 삭제" aria-label="${escapeHtml(expense.title)} 삭제">×</button>
+                ` : ""}
+              </div>
+            `).join("")}
+          </div>
+        ` : `<p class="timeline-empty-copy">아직 입력한 지출이 없습니다.</p>`}
+        ${canEdit() ? `
+          <div class="timeline-slot-actions">
+            <button type="button" class="timeline-add-button" data-add-schedule-expense="food" data-schedule-date="${date}" data-meal-slot="${escapeHtml(entry.slot)}">+ ${escapeHtml(slotLabel)} 지출 추가</button>
+            ${entry.expenses.length === 0 ? `<button type="button" class="timeline-hide-button" data-hide-schedule-slot="${escapeHtml(entry.slot)}" data-schedule-date="${date}">칸 숨기기</button>` : ""}
+          </div>
+        ` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function lodgingSlotCardHtml(date) {
+  const token = "slot:lodging";
+  return `
+    <article class="timeline-card timeline-placeholder major-lodging" draggable="${canEdit()}" data-timeline-token="${token}" data-timeline-date="${date}">
+      <span class="timeline-node" style="--category-color:${majorCategories.lodging.color}" aria-hidden="true">${majorCategories.lodging.icon}</span>
+      <div class="timeline-card-body">
+        <div class="timeline-card-topline">
+          <span class="timeline-major">숙소</span>
+          ${canEdit() ? `<span class="timeline-drag" title="끌어서 순서 변경" aria-hidden="true">≡</span>` : ""}
+          ${timelineCardMenuHtml(token, date)}
+        </div>
+        <p class="timeline-empty-copy">머무를 숙소를 입력해 주세요.</p>
+        ${canEdit() ? `
+          <div class="timeline-slot-actions">
+            <button type="button" class="timeline-add-button" data-add-schedule-expense="lodging" data-schedule-date="${date}">+ 숙소 입력</button>
+            <button type="button" class="timeline-hide-button" data-hide-schedule-slot="lodging" data-schedule-date="${date}">칸 숨기기</button>
+          </div>
+        ` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function itineraryDayAddMenuHtml(date) {
+  if (!canEdit()) return "";
+  return `
+    <details class="day-add-menu">
+      <summary aria-label="${escapeHtml(itineraryDayLabel(date))} 항목 추가">＋</summary>
+      <div class="day-add-popover">
+        <button type="button" data-add-schedule-expense="transport" data-schedule-date="${date}">이동</button>
+        <button type="button" data-add-schedule-expense="lodging" data-schedule-date="${date}">숙소</button>
+        ${Object.entries(mealSlots).map(([slot, label]) => (
+          `<button type="button" data-show-meal-slot="${slot}" data-schedule-date="${date}">${escapeHtml(label)}</button>`
+        )).join("")}
+        <button type="button" data-add-schedule-expense="other" data-schedule-date="${date}">그 외</button>
+      </div>
+    </details>
+  `;
+}
+
+function renderItineraryDayColumn(date) {
+  const entries = timelineEntriesForDate(date);
+  return `
+    <section class="itinerary-day-column ${date === selectedItineraryDate ? "is-selected" : ""}" data-itinerary-day="${date}" aria-labelledby="day-heading-${date}">
+      <header class="itinerary-day-header">
+        <div>
+          <span>${escapeHtml(`${itineraryDayNumber(date)}일차`)}</span>
+          <h3 id="day-heading-${date}">${escapeHtml(`${shortDateLabel(date)} · ${weekdayLabel(date)}`)}</h3>
+        </div>
+        <div class="itinerary-day-summary">
+          <strong>${formatMoney(scheduleDayTotal(date))}</strong>
+          ${itineraryDayAddMenuHtml(date)}
+        </div>
+      </header>
+      <div class="day-timeline" data-day-timeline="${date}">
+        ${entries.map((entry) => {
+          if (entry.type === "meal") return mealSlotCardHtml(entry, date);
+          if (entry.type === "lodging-slot") return lodgingSlotCardHtml(date);
+          return timelineExpenseCardHtml(entry.expense, date);
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function outsideScheduleExpenses() {
+  return state.expenses.filter((expense) => expenseDatesForItinerary(expense).length === 0);
+}
+
+function renderOutsideSchedule() {
+  const expenses = outsideScheduleExpenses();
+  elements.outsideSchedule.hidden = expenses.length === 0;
+  elements.outsideScheduleCount.textContent = `${expenses.length}개`;
+  elements.toggleOutsideSchedule.setAttribute("aria-expanded", String(outsideScheduleExpanded));
+  elements.outsideScheduleList.hidden = !outsideScheduleExpanded;
+  if (expenses.length === 0) {
+    elements.outsideScheduleList.innerHTML = "";
+    return;
+  }
+  elements.outsideScheduleList.innerHTML = expenses.map((expense) => `
+    <div class="outside-expense-row">
+      <span><strong>${escapeHtml(expense.title)}</strong><small>${escapeHtml([expense.spentAt, majorCategories[expense.majorCategory]?.label, getPersonName(expense.payerId)].filter(Boolean).join(" · "))}</small></span>
+      <b>${formatMoney(expense.amount)}</b>
+      ${canEdit() ? `<button class="text-button" type="button" data-edit-expense="${escapeHtml(expense.id)}">수정</button>` : ""}
+    </div>
+  `).join("");
+}
+
+function renderItinerary() {
+  const itinerary = itinerarySettings();
+  const editable = canEdit();
+  elements.openScheduleModal.hidden = !editable;
+  elements.openScheduleModal.textContent = itinerary ? "일정 수정" : "일정 설정";
+  elements.startScheduleSetup.hidden = !editable;
+  elements.openDayExpense.hidden = !itinerary;
+  elements.openDayExpense.disabled = !editable || state.people.length === 0;
+
+  if (!itinerary) {
+    elements.itineraryRangeLabel.textContent = "여행 기간을 설정해 주세요.";
+    elements.itineraryEmpty.hidden = false;
+    elements.itineraryContent.hidden = true;
+    const title = elements.itineraryEmpty.querySelector("strong");
+    const copy = elements.itineraryEmpty.querySelector("p");
+    title.textContent = editable ? "여행 일정을 먼저 정해 주세요" : "여행 일정이 아직 설정되지 않았습니다";
+    copy.textContent = editable
+      ? "출발일과 종료일을 한 번만 선택하면 지출할 때 달력을 다시 열지 않아도 됩니다."
+      : "편집자가 여행 기간을 설정하기 전까지 아래 전체 지출에서 기존 기록을 볼 수 있습니다.";
+    return;
+  }
+
+  const dates = itineraryDates();
+  if (!dates.includes(selectedItineraryDate)) {
+    selectedItineraryDate = dates[0] || "";
+  }
+  elements.itineraryRangeLabel.textContent = `${itinerary.startDate} ~ ${itinerary.endDate} · ${dates.length}일`;
+  elements.itineraryEmpty.hidden = true;
+  elements.itineraryContent.hidden = false;
+  elements.itineraryDayTabs.innerHTML = dates.map((date) => `
+    <button type="button" role="tab" aria-selected="${date === selectedItineraryDate}" data-select-itinerary-day="${date}" class="${date === selectedItineraryDate ? "is-selected" : ""}">
+      <strong>${itineraryDayNumber(date)}일차</strong>
+      <span>${escapeHtml(shortDateLabel(date))}</span>
+    </button>
+  `).join("");
+  elements.itineraryBoard.innerHTML = dates.map(renderItineraryDayColumn).join("");
+  renderOutsideSchedule();
+  refreshCustomSelects(elements.itineraryPanel);
+}
+
+function renderExpenseHistoryState() {
+  const collapsed = itinerarySettings() ? expenseHistoryCollapsed : false;
+  elements.expenseHistoryBody.hidden = collapsed;
+  elements.toggleExpenseHistory.setAttribute("aria-expanded", String(!collapsed));
+  elements.toggleExpenseHistory.title = collapsed ? "전체 지출 펼치기" : "전체 지출 접기";
+  elements.toggleExpenseHistory.querySelector("span").textContent = collapsed ? "▾" : "▴";
 }
 
 function percentOf(value, total) {
@@ -1655,6 +2193,29 @@ function currentEditingExpense() {
   return state?.expenses.find((expense) => expense.id === editingExpenseId) || null;
 }
 
+function syncScheduleExpenseFields({ resetDetailCategory = false } = {}) {
+  const itinerary = itinerarySettings();
+  const majorCategory = majorCategories[elements.expenseMajorCategory.value]
+    ? elements.expenseMajorCategory.value
+    : "other";
+  const scheduleDate = elements.expenseScheduleDay.value || selectedItineraryDate || itinerary?.startDate || localDateString();
+
+  elements.expenseScheduleDayField.hidden = !itinerary || majorCategory === "lodging";
+  elements.expenseDateField.hidden = Boolean(itinerary);
+  elements.expenseMealSlotField.hidden = majorCategory !== "food";
+  elements.expenseLodgingStartField.hidden = majorCategory !== "lodging" || !itinerary;
+  elements.expenseLodgingEndField.hidden = majorCategory !== "lodging" || !itinerary;
+  elements.expenseDate.value = scheduleDate;
+
+  if (resetDetailCategory) {
+    const category = defaultDetailCategoryForMajor(majorCategory);
+    if (category) elements.expenseCategory.value = category;
+    if (majorCategory === "food" && !elements.expenseTitle.value.trim()) {
+      elements.expenseTitle.value = mealSlots[elements.expenseMealSlot.value] || "식비";
+    }
+  }
+}
+
 function renderCategoryControls({ disableExpenseCategory = false, extraCategories = [], selectedCategory = null } = {}) {
   const editable = canEdit();
   const categories = tripCategories();
@@ -1690,6 +2251,7 @@ function renderExpenseForm() {
   const showForeignFields = overseas.enabled || editingCurrency !== "KRW";
   const editingItems = editingExpense ? normalizeExpenseItems(editingExpense) : null;
   const editingParticipants = editingExpense ? new Set(editingExpense.participantIds || []) : null;
+  const itinerary = itinerarySettings();
   elements.openExpenseModal.disabled = !editable || !hasPeople;
   elements.expenseLaunchLabel.textContent = !editable
     ? "보기 전용"
@@ -1704,6 +2266,11 @@ function renderExpenseForm() {
   elements.personForm.querySelector("button").disabled = !editable;
   elements.addExpense.disabled = !editable || !hasPeople;
   elements.expenseTitle.disabled = !editable || !hasPeople;
+  elements.expenseMajorCategory.disabled = !editable || !hasPeople;
+  elements.expenseScheduleDay.disabled = !editable || !hasPeople;
+  elements.expenseMealSlot.disabled = !editable || !hasPeople;
+  elements.expenseLodgingStart.disabled = !editable || !hasPeople;
+  elements.expenseLodgingEnd.disabled = !editable || !hasPeople;
   elements.expenseCategory.disabled = !editable || !hasPeople;
   elements.expenseCurrency.disabled = !editable || !hasPeople;
   elements.expenseAmount.disabled = !editable || !hasPeople;
@@ -1717,12 +2284,39 @@ function renderExpenseForm() {
   elements.clearAll.disabled = !editable || !hasPeople;
 
   if (editingExpense) {
+    elements.expenseMajorCategory.value = editingExpense.majorCategory || inferMajorCategory(editingExpense.category, editingExpense.title);
     elements.expenseTitle.value = editingExpense.title || "";
     elements.expenseMemo.value = editingExpense.memo || "";
     elements.expenseDate.value = editingExpense.spentAt || localDateString();
     elements.expenseRate.value = editingCurrency === "KRW" ? "" : editingExpense.exchangeRate || defaultRateFor(editingCurrency);
     elements.expenseCardKrw.value = editingCurrency === "KRW" ? "" : editingExpense.cardKrwAmount || "";
   }
+
+  const currentScheduleDate = editingExpense?.scheduleDate
+    || elements.expenseScheduleDay.value
+    || selectedItineraryDate
+    || itinerary?.startDate
+    || elements.expenseDate.value
+    || localDateString();
+  if (itinerary) {
+    const currentIsOutside = !itineraryDates().includes(currentScheduleDate);
+    elements.expenseScheduleDay.innerHTML = `${currentIsOutside ? `<option value="${escapeHtml(currentScheduleDate)}">일정 밖 · ${escapeHtml(currentScheduleDate)}</option>` : ""}${itineraryDayOptionsHtml(currentScheduleDate)}`;
+    elements.expenseScheduleDay.value = currentScheduleDate;
+    const lodgingStartDate = editingExpense?.lodgingStartDate
+      || elements.expenseLodgingStart.value
+      || currentScheduleDate;
+    const lodgingEndDate = editingExpense?.lodgingEndDate
+      || elements.expenseLodgingEnd.value
+      || lodgingStartDate;
+    elements.expenseLodgingStart.innerHTML = itineraryDayOptionsHtml(lodgingStartDate, { includeOutside: true });
+    elements.expenseLodgingEnd.innerHTML = itineraryDayOptionsHtml(lodgingEndDate, { includeOutside: true });
+    elements.expenseLodgingStart.value = lodgingStartDate;
+    elements.expenseLodgingEnd.value = lodgingEndDate;
+  }
+  elements.expenseMealSlot.value = Object.hasOwn(mealSlots, editingExpense?.mealSlot)
+    ? editingExpense.mealSlot
+    : elements.expenseMealSlot.value || "food-other";
+  syncScheduleExpenseFields();
 
   const currentPayer = editingExpense ? editingExpense.payerId : elements.expensePayer.value;
   elements.expensePayer.innerHTML = state.people.map((person) => (
@@ -2383,6 +2977,10 @@ function renderExpenses() {
     const items = normalizeExpenseItems(expense);
     const originalAmount = expenseOriginalText(expense);
     const rate = expenseRateDisplay(expense);
+    const primaryDate = expensePrimaryItineraryDate(expense);
+    const scheduleLabel = itinerarySettings()
+      ? primaryDate ? itineraryDayLabel(primaryDate) : "일정 밖"
+      : "";
     return `
       <article class="expense-item">
         <div class="expense-main">
@@ -2393,6 +2991,9 @@ function renderExpenses() {
           </div>
         </div>
         <div class="expense-meta">
+          ${scheduleLabel ? `<span>${escapeHtml(scheduleLabel)}</span>` : ""}
+          <span>${escapeHtml(majorCategories[expense.majorCategory]?.label || "그 외")}</span>
+          ${expense.mealSlot ? `<span>${escapeHtml(mealSlots[expense.mealSlot] || expense.mealSlot)}</span>` : ""}
           ${expense.category ? `<span>${escapeHtml(expense.category)}</span>` : ""}
           <span>결제 ${escapeHtml(getPersonName(expense.payerId))}</span>
           <span>${escapeHtml(expense.spentAt)}</span>
@@ -2496,7 +3097,8 @@ function modalBackdrops() {
     elements.accountBackdrop,
     elements.exportBackdrop,
     elements.importBackdrop,
-    elements.expenseBackdrop
+    elements.expenseBackdrop,
+    elements.scheduleBackdrop
   ];
 }
 
@@ -2567,6 +3169,138 @@ function closeExportModal() {
   restoreModalFocus();
 }
 
+function suggestedScheduleRange() {
+  const expenseDates = state?.expenses
+    .map((expense) => expense.spentAt)
+    .filter(isDateKey)
+    .sort() || [];
+  return {
+    startDate: expenseDates[0] || localDateString(),
+    endDate: expenseDates.at(-1) || addDateDays(localDateString(), 2)
+  };
+}
+
+function openScheduleEditor() {
+  if (!canEdit()) {
+    showToast("보기 전용 링크에서는 일정을 수정할 수 없습니다.");
+    return;
+  }
+  const itinerary = itinerarySettings();
+  const suggested = suggestedScheduleRange();
+  elements.scheduleStartDate.value = itinerary?.startDate || suggested.startDate;
+  elements.scheduleEndDate.value = itinerary?.endDate || suggested.endDate;
+  rememberModalFocus();
+  elements.scheduleBackdrop.hidden = false;
+  document.body.classList.add("schedule-modal-open");
+  syncModalInert();
+  requestAnimationFrame(() => elements.scheduleStartDate.focus());
+}
+
+function closeScheduleEditor() {
+  elements.scheduleBackdrop.hidden = true;
+  document.body.classList.remove("schedule-modal-open");
+  syncModalInert();
+  restoreModalFocus(elements.openScheduleModal);
+}
+
+function normalizedItineraryUpdate(update) {
+  const current = itinerarySettings() || {
+    startDate: update.startDate,
+    endDate: update.endDate,
+    hiddenSlots: {},
+    extraMealSlots: {},
+    dayOrders: {}
+  };
+  return normalizeItinerary({
+    itinerary: {
+      ...current,
+      ...update
+    }
+  });
+}
+
+async function saveItinerary(itinerary, expenses = state.expenses) {
+  await saveTrip({
+    ...state,
+    expenses,
+    settings: {
+      ...state.settings,
+      itinerary
+    }
+  });
+}
+
+function currentTimelineTokens(date) {
+  return timelineEntriesForDate(date).map(timelineEntryToken);
+}
+
+async function saveTimelineOrder(date, tokens) {
+  const itinerary = itinerarySettings();
+  if (!itinerary) return;
+  await saveItinerary(normalizedItineraryUpdate({
+    dayOrders: {
+      ...itinerary.dayOrders,
+      [date]: Array.from(new Set(tokens))
+    }
+  }));
+}
+
+async function moveTimelineEntry(date, token, direction) {
+  const tokens = currentTimelineTokens(date);
+  const index = tokens.indexOf(token);
+  const nextIndex = direction === "up" ? index - 1 : index + 1;
+  if (index < 0 || nextIndex < 0 || nextIndex >= tokens.length) return;
+  [tokens[index], tokens[nextIndex]] = [tokens[nextIndex], tokens[index]];
+  await saveTimelineOrder(date, tokens);
+}
+
+async function hideScheduleSlot(date, slot) {
+  const itinerary = itinerarySettings();
+  if (!itinerary) return;
+  const hidden = new Set(itinerary.hiddenSlots?.[date] || []);
+  hidden.add(slot);
+  await saveItinerary(normalizedItineraryUpdate({
+    hiddenSlots: {
+      ...itinerary.hiddenSlots,
+      [date]: Array.from(hidden)
+    }
+  }));
+  showToast(`${mealSlots[slot] || "숙소"} 칸을 숨겼습니다.`);
+}
+
+async function showMealSlot(date, slot) {
+  const itinerary = itinerarySettings();
+  if (!itinerary || !(slot in mealSlots)) return;
+  const hidden = new Set(itinerary.hiddenSlots?.[date] || []);
+  hidden.delete(slot);
+  const extras = new Set(itinerary.extraMealSlots?.[date] || []);
+  if (optionalMealSlots.includes(slot)) extras.add(slot);
+  await saveItinerary(normalizedItineraryUpdate({
+    hiddenSlots: { ...itinerary.hiddenSlots, [date]: Array.from(hidden) },
+    extraMealSlots: { ...itinerary.extraMealSlots, [date]: Array.from(extras) }
+  }));
+}
+
+async function moveExpenseToDate(expenseId, date) {
+  const expense = state.expenses.find((item) => item.id === expenseId);
+  if (!expense || expense.majorCategory === "lodging" || !itineraryDates().includes(date)) return;
+  const previousDate = expense.scheduleDate;
+  if (previousDate === date) return;
+  const itinerary = itinerarySettings();
+  const dayOrders = { ...itinerary.dayOrders };
+  const token = expense.majorCategory === "food" ? `meal:${expense.mealSlot}` : `expense:${expense.id}`;
+  dayOrders[previousDate] = (dayOrders[previousDate] || []).filter((item) => item !== token);
+  dayOrders[date] = Array.from(new Set([...(dayOrders[date] || []), token]));
+  const expenses = state.expenses.map((item) => (
+    item.id === expenseId
+      ? { ...item, scheduleDate: date, spentAt: date, updatedAt: new Date().toISOString() }
+      : item
+  ));
+  selectedItineraryDate = date;
+  await saveItinerary(normalizedItineraryUpdate({ dayOrders }), expenses);
+  showToast(`${itineraryDayLabel(date)}로 옮겼습니다.`);
+}
+
 function expenseFormSignature() {
   return JSON.stringify(Array.from(elements.expenseForm.querySelectorAll("input, select, textarea")).map((field) => ({
     key: field.name || field.id || field.dataset.expenseItemInput || field.dataset.expenseItemParticipant || field.type,
@@ -2575,23 +3309,43 @@ function expenseFormSignature() {
   })));
 }
 
-function resetExpenseFormForCreate() {
-  const defaultCategory = tripCategories()[0] || "";
+function defaultDetailCategoryForMajor(majorCategory) {
+  const preferred = {
+    transport: "교통",
+    lodging: "숙소",
+    food: "식비",
+    other: "기타"
+  }[majorCategory];
+  return tripCategories().includes(preferred) ? preferred : tripCategories()[0] || "";
+}
+
+function resetExpenseFormForCreate(context = {}) {
+  const majorCategory = majorCategories[context.majorCategory] ? context.majorCategory : "other";
+  const defaultCategory = context.category || defaultDetailCategoryForMajor(majorCategory);
   const defaultPayerId = state?.people[0]?.id || "";
   const defaultParticipantIds = state?.people.map((person) => person.id) || [];
+  const scheduleDate = itineraryDates().includes(context.scheduleDate)
+    ? context.scheduleDate
+    : selectedItineraryDate || itineraryDates()[0] || localDateString();
+  const mealSlot = Object.hasOwn(mealSlots, context.mealSlot) ? context.mealSlot : "lunch";
 
   editingExpenseId = "";
   participantsTouched = false;
   participantSelection = new Set(defaultParticipantIds);
-  elements.expenseTitle.value = "";
+  elements.expenseMajorCategory.value = majorCategory;
+  elements.expenseTitle.value = context.title || (majorCategory === "food" ? mealSlots[mealSlot] : "");
   elements.expenseCategory.value = defaultCategory;
+  elements.expenseScheduleDay.value = scheduleDate;
+  elements.expenseMealSlot.value = mealSlot;
+  elements.expenseLodgingStart.value = scheduleDate;
+  elements.expenseLodgingEnd.value = context.lodgingEndDate || itinerarySettings()?.endDate || scheduleDate;
   elements.expenseCurrency.value = "KRW";
   elements.expenseAmount.value = "";
   elements.expenseRate.value = "";
   elements.expenseCardKrw.value = "";
   elements.expensePayer.value = defaultPayerId;
   elements.expenseMemo.value = "";
-  elements.expenseDate.value = localDateString();
+  elements.expenseDate.value = scheduleDate;
   renderExpenseItemInputs({
     container: elements.expenseItemList,
     totalElement: elements.expenseItemsTotal,
@@ -2604,13 +3358,18 @@ function resetExpenseFormForCreate() {
   });
 }
 
-function openExpenseModal(expenseId = "") {
+function openExpenseModal(expenseId = "", context = {}) {
   if (!canEdit()) {
     showToast("보기 전용 링크에서는 수정할 수 없습니다.");
     return;
   }
   if (!state?.people.length) {
     showToast("친구를 먼저 추가해 주세요.");
+    return;
+  }
+  if (!itinerarySettings() && !expenseId) {
+    showToast("여행 기간을 먼저 설정해 주세요.");
+    openScheduleEditor();
     return;
   }
 
@@ -2624,11 +3383,18 @@ function openExpenseModal(expenseId = "") {
 
   rememberModalFocus();
   if (expense) {
+    expenseDraftContext = {
+      majorCategory: expense.majorCategory,
+      scheduleDate: expense.scheduleDate,
+      mealSlot: expense.mealSlot,
+      lodgingEndDate: expense.lodgingEndDate
+    };
     editingExpenseId = expense.id;
     participantsTouched = true;
     participantSelection = new Set(expense.participantIds || []);
   } else {
-    resetExpenseFormForCreate();
+    expenseDraftContext = { ...context };
+    resetExpenseFormForCreate(expenseDraftContext);
   }
   renderExpenseForm();
   elements.expenseBackdrop.hidden = false;
@@ -2650,11 +3416,12 @@ function closeExpenseModal({ force = false } = {}) {
   document.body.classList.remove("expense-modal-open");
   expenseFormInitialSignature = "";
   if (state?.people) {
-    resetExpenseFormForCreate();
+    expenseDraftContext = null;
+    resetExpenseFormForCreate({});
     renderExpenseForm();
   }
   syncModalInert();
-  restoreModalFocus(elements.openExpenseModal);
+  restoreModalFocus(elements.openDayExpense || elements.openExpenseModal);
 }
 
 function renderExpenseEditor(expense) {
@@ -2940,6 +3707,7 @@ function importPreviewStatus(row) {
 
   if (!amount) messages.push("금액 필요");
   if (!payerName) messages.push("결제자 필요");
+  if (itinerarySettings() && !row.spentAt) messages.push("일차 필요");
   if (messages.length > 0) {
     return { kind: "error", label: messages.join(", ") };
   }
@@ -2949,6 +3717,18 @@ function importPreviewStatus(row) {
   }
 
   return { kind: "ready", label: "저장 예정" };
+}
+
+function importDateControlHtml(value = "") {
+  const itinerary = itinerarySettings();
+  if (!itinerary) {
+    return `<input data-import-spent-at type="date" value="${escapeHtml(value)}">`;
+  }
+  return `
+    <select data-import-spent-at>
+      ${itineraryDayOptionsHtml(value, { includeOutside: true, emptyLabel: "일차 선택" })}
+    </select>
+  `;
 }
 
 function renderCsvImportMapping() {
@@ -3028,7 +3808,7 @@ function renderCsvImportPreview() {
                   <span class="import-status ${status.kind}">${escapeHtml(status.label)}</span>
                   <small>${row.sourceIndex}행</small>
                 </td>
-                <td><input data-import-spent-at type="date" value="${escapeHtml(row.spentAt)}"></td>
+                <td>${importDateControlHtml(row.spentAt)}</td>
                 <td><input data-import-title type="text" maxlength="70" value="${escapeHtml(row.title)}" placeholder="CSV 지출"></td>
                 <td><input data-import-item-title type="text" maxlength="70" value="${escapeHtml(row.itemTitle)}" placeholder="비우면 내용과 같음"></td>
                 <td><input data-import-quantity type="text" inputmode="decimal" value="${escapeHtml(row.quantity)}" placeholder="1"></td>
@@ -3047,6 +3827,7 @@ function renderCsvImportPreview() {
     </div>
   `;
   elements.saveImport.disabled = readyCount === 0 || !canEdit();
+  refreshCustomSelects(elements.importPreview);
 }
 
 function refreshCsvImportPreviewStatuses() {
@@ -3131,7 +3912,7 @@ function buildCsvImportPlan() {
   for (const row of rows) {
     const unitAmount = amountFromInput(row.amountInput);
     const payerName = row.payerName;
-    if (!unitAmount || !payerName) {
+    if (!unitAmount || !payerName || (itinerarySettings() && !row.spentAt)) {
       errors.push(`${row.sourceIndex}행`);
       continue;
     }
@@ -3155,7 +3936,7 @@ function buildCsvImportPlan() {
       preparedGroups.set(groupKey, {
         sourceIndexes: [],
         firstSourceIndex: row.sourceIndex,
-        spentAt: row.spentAt || localDateString(),
+        spentAt: row.spentAt || selectedItineraryDate || itinerarySettings()?.startDate || localDateString(),
         title,
         payerName,
         participantNames,
@@ -3255,10 +4036,18 @@ function buildCsvImportPlan() {
         : []
     }));
 
+    const majorCategory = inferMajorCategory(row.category, row.title);
+    const scheduleDate = row.spentAt;
+    const mealSlot = majorCategory === "food" ? inferMealSlot(row.title) : "";
     return {
       id: makeId("e_"),
       title: row.title,
       category: row.category,
+      majorCategory,
+      scheduleDate,
+      mealSlot,
+      lodgingStartDate: majorCategory === "lodging" ? scheduleDate : "",
+      lodgingEndDate: majorCategory === "lodging" ? scheduleDate : "",
       amount: row.amount,
       currency: "KRW",
       foreignAmount: null,
@@ -3357,7 +4146,12 @@ function buildExportData(sections) {
       total: state.summary.total,
       peopleCount: state.people.length,
       expenseCount: state.expenses.length,
-      updatedAt: state.updatedAt || ""
+      updatedAt: state.updatedAt || "",
+      itinerary: itinerarySettings() ? {
+        startDate: itinerarySettings().startDate,
+        endDate: itinerarySettings().endDate,
+        dayCount: itineraryDates().length
+      } : null
     }
   };
 
@@ -3376,9 +4170,19 @@ function buildExportData(sections) {
   if (included.has("expenses")) {
     data.expenses = state.expenses.map((expense) => {
       const items = normalizeExpenseItems(expense);
+      const primaryDate = expensePrimaryItineraryDate(expense);
       return {
         title: expense.title,
         category: expense.category || "",
+        majorCategory: majorCategories[expense.majorCategory]?.label || majorCategories.other.label,
+        scheduleDate: expense.scheduleDate || expense.spentAt || "",
+        dayNumber: itineraryDayNumber(primaryDate),
+        dayLabel: itinerarySettings()
+          ? primaryDate ? itineraryDayLabel(primaryDate) : "일정 밖"
+          : "일정 없음",
+        mealSlot: expense.mealSlot ? mealSlots[expense.mealSlot] || expense.mealSlot : "",
+        lodgingStartDate: expense.lodgingStartDate || "",
+        lodgingEndDate: expense.lodgingEndDate || "",
         spentAt: expense.spentAt || "",
         payer: getPersonName(expense.payerId),
         amountKrw: Math.round(Number(expense.amount) || 0),
@@ -3482,7 +4286,7 @@ function buildCsv(data) {
     appendCsvSection(
       rows,
       "지출 목록",
-      ["날짜", "내용", "품목", "수량", "금액", "품목 금액", "카테고리", "품목 카테고리", "결제자", "원화 총액", "결제 통화", "외화 총액", "원화 계산 환율", "카드 청구액", "참여자", "품목 참여자", "메모"],
+      ["일차", "일정 날짜", "대분류", "식사", "숙소 시작일", "숙소 종료일", "날짜", "내용", "품목", "수량", "금액", "품목 금액", "세부분류", "품목 카테고리", "결제자", "원화 총액", "결제 통화", "외화 총액", "원화 계산 환율", "카드 청구액", "참여자", "품목 참여자", "메모"],
       data.expenses.flatMap((expense) => (
         (expense.items?.length ? expense.items : [{
           title: expense.title,
@@ -3494,6 +4298,12 @@ function buildCsv(data) {
         }]).map((item) => ({ expense, item }))
       )),
       ({ expense, item }) => [
+        expense.dayLabel,
+        expense.scheduleDate,
+        expense.majorCategory,
+        expense.mealSlot,
+        expense.lodgingStartDate,
+        expense.lodgingEndDate,
         expense.spentAt,
         expense.title,
         item.title,
@@ -3610,7 +4420,11 @@ function buildPdfLines(data) {
           ? ` / ${formatCurrencyAmount(expense.foreignAmount, expense.currency)}`
           : "";
         const category = expense.category ? `[${expense.category}] ` : "";
-        addLine(`${index + 1}. ${expense.spentAt} ${category}${expense.title} - ${formatMoney(expense.amountKrw)}${foreign}`);
+        const schedule = [expense.dayLabel, expense.majorCategory, expense.mealSlot].filter(Boolean).join(" · ");
+        addLine(`${index + 1}. ${schedule} ${category}${expense.title} - ${formatMoney(expense.amountKrw)}${foreign}`);
+        if (expense.lodgingStartDate) {
+          addLine(`   숙박 기간: ${expense.lodgingStartDate} ~ ${expense.lodgingEndDate}`);
+        }
         addLine(`   결제자: ${expense.payer} / 참여자: ${expense.participants || "-"}`);
         if (expense.items?.length) {
           expense.items.forEach((item) => {
@@ -4025,6 +4839,45 @@ elements.expenseCurrency.addEventListener("change", () => {
   syncExpenseCurrencyFields({ resetRate: true });
 });
 
+elements.expenseMajorCategory.addEventListener("change", () => {
+  const category = defaultDetailCategoryForMajor(elements.expenseMajorCategory.value);
+  if (category) {
+    elements.expenseCategory.value = category;
+    syncCustomSelect(elements.expenseCategory);
+    applyBulkCategoryToItems(elements.expenseItemList, category);
+  }
+  syncScheduleExpenseFields({ resetDetailCategory: true });
+  syncCustomSelect(elements.expenseMajorCategory);
+  syncCustomSelect(elements.expenseMealSlot);
+  syncExpenseItemsTotal();
+});
+
+elements.expenseScheduleDay.addEventListener("change", () => {
+  const date = elements.expenseScheduleDay.value;
+  elements.expenseDate.value = date;
+  if (elements.expenseMajorCategory.value === "lodging" && itineraryDates().includes(date)) {
+    elements.expenseLodgingStart.value = date;
+    if (elements.expenseLodgingEnd.value < date) elements.expenseLodgingEnd.value = date;
+    syncCustomSelect(elements.expenseLodgingStart);
+    syncCustomSelect(elements.expenseLodgingEnd);
+  }
+});
+
+elements.expenseMealSlot.addEventListener("change", () => {
+  if (!elements.expenseTitle.value.trim() || Object.values(mealSlots).includes(elements.expenseTitle.value.trim())) {
+    elements.expenseTitle.value = mealSlots[elements.expenseMealSlot.value] || "식비";
+  }
+});
+
+elements.expenseLodgingStart.addEventListener("change", () => {
+  const date = elements.expenseLodgingStart.value;
+  elements.expenseScheduleDay.value = date;
+  elements.expenseDate.value = date;
+  if (elements.expenseLodgingEnd.value < date) elements.expenseLodgingEnd.value = date;
+  syncCustomSelect(elements.expenseScheduleDay);
+  syncCustomSelect(elements.expenseLodgingEnd);
+});
+
 elements.expenseCategory.addEventListener("change", () => {
   applyBulkCategoryToItems(elements.expenseItemList, elements.expenseCategory.value);
   syncExpenseItemsTotal();
@@ -4072,6 +4925,191 @@ elements.expenseItemList.addEventListener("change", (event) => {
 });
 
 elements.openExpenseModal.addEventListener("click", () => openExpenseModal());
+
+elements.openDayExpense.addEventListener("click", () => openExpenseModal("", {
+  majorCategory: "other",
+  scheduleDate: selectedItineraryDate
+}));
+
+elements.openScheduleModal.addEventListener("click", openScheduleEditor);
+elements.startScheduleSetup.addEventListener("click", openScheduleEditor);
+elements.closeScheduleModal.addEventListener("click", closeScheduleEditor);
+
+elements.scheduleBackdrop.addEventListener("click", (event) => {
+  if (event.target === elements.scheduleBackdrop) closeScheduleEditor();
+});
+
+elements.scheduleForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canEdit() || !state) return;
+  const startDate = elements.scheduleStartDate.value;
+  const endDate = elements.scheduleEndDate.value;
+  if (!isDateKey(startDate) || !isDateKey(endDate)) {
+    showToast("출발일과 종료일을 입력해 주세요.");
+    return;
+  }
+  if (startDate > endDate) {
+    showToast("종료일은 출발일보다 빠를 수 없습니다.");
+    return;
+  }
+  if (dateRangeKeys(startDate, endDate).length >= 366) {
+    showToast("여행 기간은 365일 이내로 설정해 주세요.");
+    return;
+  }
+  try {
+    selectedItineraryDate = startDate;
+    await saveItinerary(normalizedItineraryUpdate({ startDate, endDate }));
+    closeScheduleEditor();
+    showToast("여행 일정을 저장했습니다.");
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.itineraryDayTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-select-itinerary-day]");
+  if (!button) return;
+  selectedItineraryDate = button.dataset.selectItineraryDay;
+  renderItinerary();
+});
+
+elements.toggleOutsideSchedule.addEventListener("click", () => {
+  outsideScheduleExpanded = !outsideScheduleExpanded;
+  renderOutsideSchedule();
+});
+
+elements.outsideScheduleList.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-edit-expense]");
+  if (editButton) openExpenseModal(editButton.dataset.editExpense);
+});
+
+elements.toggleExpenseHistory.addEventListener("click", () => {
+  expenseHistoryCollapsed = !expenseHistoryCollapsed;
+  renderExpenseHistoryState();
+});
+
+elements.itineraryBoard.addEventListener("click", async (event) => {
+  const details = event.target.closest("details");
+  const removeButton = event.target.closest("[data-remove-expense]");
+  if (removeButton && canEdit()) {
+    details?.removeAttribute("open");
+    try {
+      await saveTrip({
+        ...state,
+        expenses: state.expenses.filter((expense) => expense.id !== removeButton.dataset.removeExpense)
+      });
+      showToast("지출을 삭제했습니다.");
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+  const editButton = event.target.closest("[data-edit-expense]");
+  if (editButton) {
+    details?.removeAttribute("open");
+    openExpenseModal(editButton.dataset.editExpense);
+    return;
+  }
+
+  const addButton = event.target.closest("[data-add-schedule-expense]");
+  if (addButton) {
+    details?.removeAttribute("open");
+    const majorCategory = addButton.dataset.addScheduleExpense;
+    openExpenseModal("", {
+      majorCategory,
+      scheduleDate: addButton.dataset.scheduleDate,
+      mealSlot: addButton.dataset.mealSlot || "food-other",
+      lodgingEndDate: majorCategory === "lodging" ? itinerarySettings()?.endDate : ""
+    });
+    return;
+  }
+
+  const showMealButton = event.target.closest("[data-show-meal-slot]");
+  if (showMealButton && canEdit()) {
+    details?.removeAttribute("open");
+    try {
+      await showMealSlot(showMealButton.dataset.scheduleDate, showMealButton.dataset.showMealSlot);
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  const hideButton = event.target.closest("[data-hide-schedule-slot]");
+  if (hideButton && canEdit()) {
+    try {
+      await hideScheduleSlot(hideButton.dataset.scheduleDate, hideButton.dataset.hideScheduleSlot);
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  const moveButton = event.target.closest("[data-move-timeline]");
+  if (moveButton && canEdit()) {
+    details?.removeAttribute("open");
+    try {
+      await moveTimelineEntry(moveButton.dataset.entryDate, moveButton.dataset.entryToken, moveButton.dataset.moveTimeline);
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
+});
+
+elements.itineraryBoard.addEventListener("change", async (event) => {
+  const select = event.target.closest("[data-move-expense-day]");
+  if (!select || !canEdit()) return;
+  try {
+    await moveExpenseToDate(select.dataset.moveExpenseDay, select.value);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.itineraryBoard.addEventListener("dragstart", (event) => {
+  const card = event.target.closest("[data-timeline-token]");
+  if (!card || !canEdit()) return;
+  draggedTimelineEntry = {
+    token: card.dataset.timelineToken,
+    date: card.dataset.timelineDate
+  };
+  card.classList.add("is-dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", draggedTimelineEntry.token);
+});
+
+elements.itineraryBoard.addEventListener("dragover", (event) => {
+  const card = event.target.closest("[data-timeline-token]");
+  if (!card || !draggedTimelineEntry || card.dataset.timelineDate !== draggedTimelineEntry.date) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  card.classList.add("is-drop-target");
+});
+
+elements.itineraryBoard.addEventListener("dragleave", (event) => {
+  event.target.closest("[data-timeline-token]")?.classList.remove("is-drop-target");
+});
+
+elements.itineraryBoard.addEventListener("drop", async (event) => {
+  const target = event.target.closest("[data-timeline-token]");
+  if (!target || !draggedTimelineEntry || target.dataset.timelineDate !== draggedTimelineEntry.date) return;
+  event.preventDefault();
+  const tokens = currentTimelineTokens(draggedTimelineEntry.date).filter((token) => token !== draggedTimelineEntry.token);
+  const targetIndex = Math.max(0, tokens.indexOf(target.dataset.timelineToken));
+  tokens.splice(targetIndex, 0, draggedTimelineEntry.token);
+  try {
+    await saveTimelineOrder(draggedTimelineEntry.date, tokens);
+  } catch (error) {
+    showToast(error.message);
+  }
+});
+
+elements.itineraryBoard.addEventListener("dragend", () => {
+  draggedTimelineEntry = null;
+  elements.itineraryBoard.querySelectorAll(".is-dragging, .is-drop-target").forEach((item) => {
+    item.classList.remove("is-dragging", "is-drop-target");
+  });
+});
 
 elements.expensePanel.addEventListener("click", (event) => {
   if (event.target.closest(".quick-switch-field")) {
@@ -4268,6 +5306,10 @@ document.addEventListener("keydown", (event) => {
   if (openCustomSelect) return;
   if (elements.actionMenu?.open) {
     elements.actionMenu.open = false;
+    return;
+  }
+  if (!elements.scheduleBackdrop.hidden) {
+    closeScheduleEditor();
     return;
   }
   if (!elements.accountBackdrop.hidden) {
@@ -4701,6 +5743,25 @@ elements.expenseForm.addEventListener("submit", async (event) => {
   const editingExpense = currentEditingExpense();
   const title = elements.expenseTitle.value.trim().slice(0, 70);
   const category = elements.expenseCategory.value.trim().slice(0, 20);
+  const majorCategory = majorCategories[elements.expenseMajorCategory.value]
+    ? elements.expenseMajorCategory.value
+    : inferMajorCategory(category, title);
+  let scheduleDate = itinerarySettings()
+    ? elements.expenseScheduleDay.value
+    : elements.expenseDate.value || localDateString();
+  let lodgingStartDate = majorCategory === "lodging"
+    ? elements.expenseLodgingStart.value || scheduleDate
+    : "";
+  let lodgingEndDate = majorCategory === "lodging"
+    ? elements.expenseLodgingEnd.value || lodgingStartDate
+    : "";
+  if (lodgingStartDate && lodgingEndDate && lodgingStartDate > lodgingEndDate) {
+    [lodgingStartDate, lodgingEndDate] = [lodgingEndDate, lodgingStartDate];
+  }
+  if (majorCategory === "lodging") scheduleDate = lodgingStartDate;
+  const mealSlot = majorCategory === "food"
+    ? (Object.hasOwn(mealSlots, elements.expenseMealSlot.value) ? elements.expenseMealSlot.value : "food-other")
+    : "";
   const currency = currentExpenseCurrency();
   const itemDrafts = readExpenseItemsFromContainer(elements.expenseItemList, { currency, defaultCategory: category });
   const items = itemDrafts.map((item, index) => ({
@@ -4763,6 +5824,11 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     id: editingExpense?.id || makeId("e_"),
     title,
     category,
+    majorCategory,
+    scheduleDate,
+    mealSlot,
+    lodgingStartDate,
+    lodgingEndDate,
     amount,
     currency,
     foreignAmount: currency === "KRW" ? null : foreignAmount,
@@ -4772,7 +5838,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     participantIds,
     items,
     memo: elements.expenseMemo.value.trim().slice(0, 140),
-    spentAt: elements.expenseDate.value || localDateString(),
+    spentAt: scheduleDate || localDateString(),
     createdAt: editingExpense?.createdAt || new Date().toISOString(),
     updatedAt: editingExpense ? new Date().toISOString() : undefined
   };
