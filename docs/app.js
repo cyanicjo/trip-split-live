@@ -84,6 +84,7 @@ const elements = {
   clearAll: document.querySelector("#clear-all"),
   addExpense: document.querySelector("#add-expense"),
   balanceList: document.querySelector("#balance-list"),
+  copySettlements: document.querySelector("#copy-settlements"),
   settlementList: document.querySelector("#settlement-list"),
   completedSettlementList: document.querySelector("#completed-settlement-list"),
   expenseFilterStartDate: document.querySelector("#expense-filter-start-date"),
@@ -2037,6 +2038,9 @@ function renderBalances() {
 
 function renderSettlements() {
   const settlements = state.summary.settlements;
+  if (elements.copySettlements) {
+    elements.copySettlements.disabled = settlements.length === 0;
+  }
   if (settlements.length === 0) {
     elements.settlementList.className = "settlement-list empty-state";
     elements.settlementList.textContent = state.expenses.length === 0
@@ -2061,6 +2065,24 @@ function renderSettlements() {
     </div>
   `).join("");
   renderCompletedSettlements();
+}
+
+function settlementCopyText() {
+  const settlements = state?.summary?.settlements || [];
+  if (settlements.length === 0) return "";
+
+  const lines = [`[${state.name || "여행"} 송금표]`, ""];
+  settlements.forEach((item, index) => {
+    lines.push(`${item.fromName} → ${item.toName} ${formatMoney(item.amount)}`);
+    const account = personAccountCopyText(personById(item.toId));
+    if (account) {
+      lines.push(`계좌: ${account}`);
+    }
+    if (index < settlements.length - 1) {
+      lines.push("");
+    }
+  });
+  return lines.join("\n");
 }
 
 function renderCompletedSettlements() {
@@ -4252,6 +4274,12 @@ elements.settlementList.addEventListener("click", async (event) => {
   } catch (error) {
     showToast(error.message);
   }
+});
+
+elements.copySettlements?.addEventListener("click", async () => {
+  const text = settlementCopyText();
+  if (!text) return;
+  await copyText(text, "송금표를 복사했습니다.");
 });
 
 elements.completedSettlementList.addEventListener("click", async (event) => {

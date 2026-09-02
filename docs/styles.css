@@ -794,6 +794,10 @@ body.has-overseas .workspace {
   top: 98px;
 }
 
+.settlement-copy-button {
+  align-self: center;
+}
+
 .expense-list-panel {
   grid-area: history;
 }
@@ -1511,7 +1515,8 @@ label span,
 }
 
 .primary-button:disabled,
-.icon-button:disabled {
+.icon-button:disabled,
+.text-button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
   box-shadow: none;
