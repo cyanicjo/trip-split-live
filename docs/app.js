@@ -1779,6 +1779,7 @@ function renderExpenseForm() {
     editable,
     items: editingItems
   });
+  refreshCustomSelects(elements.expenseForm);
 }
 
 function defaultExpenseItem({ category = "", participantIds = [] } = {}) {
@@ -2493,15 +2494,32 @@ function closeExportModal() {
 }
 
 function resetExpenseFormForCreate() {
+  const defaultCategory = tripCategories()[0] || "";
+  const defaultPayerId = state?.people[0]?.id || "";
+  const defaultParticipantIds = state?.people.map((person) => person.id) || [];
+
   editingExpenseId = "";
   participantsTouched = false;
-  participantSelection = new Set(state?.people.map((person) => person.id) || []);
+  participantSelection = new Set(defaultParticipantIds);
   elements.expenseTitle.value = "";
+  elements.expenseCategory.value = defaultCategory;
+  elements.expenseCurrency.value = "KRW";
   elements.expenseAmount.value = "";
   elements.expenseRate.value = "";
   elements.expenseCardKrw.value = "";
+  elements.expensePayer.value = defaultPayerId;
   elements.expenseMemo.value = "";
   elements.expenseDate.value = localDateString();
+  renderExpenseItemInputs({
+    container: elements.expenseItemList,
+    totalElement: elements.expenseItemsTotal,
+    amountInput: elements.expenseAmount,
+    currency: "KRW",
+    defaultCategory,
+    defaultParticipantIds,
+    editable: canEdit(),
+    items: [defaultExpenseItem({ category: defaultCategory })]
+  });
 }
 
 function openExpenseModal(expenseId = "") {
@@ -2538,10 +2556,8 @@ function openExpenseModal(expenseId = "") {
 function closeExpenseModal() {
   elements.expenseBackdrop.hidden = true;
   document.body.classList.remove("expense-modal-open");
-  editingExpenseId = "";
   if (state?.people) {
-    participantsTouched = false;
-    participantSelection = new Set(state.people.map((person) => person.id));
+    resetExpenseFormForCreate();
     renderExpenseForm();
   }
   elements.openExpenseModal.focus();
@@ -4629,24 +4645,6 @@ elements.expenseForm.addEventListener("submit", async (event) => {
       ? state.expenses.map((expense) => (expense.id === editingExpense.id ? nextExpense : expense))
       : [nextExpense, ...state.expenses];
     await saveTrip({ ...state, expenses: nextExpenses });
-    elements.expenseTitle.value = "";
-    elements.expenseAmount.value = "";
-    elements.expenseCardKrw.value = "";
-    elements.expenseMemo.value = "";
-    elements.expenseDate.value = localDateString();
-    renderExpenseItemInputs({
-      container: elements.expenseItemList,
-      totalElement: elements.expenseItemsTotal,
-      amountInput: elements.expenseAmount,
-      currency: currentExpenseCurrency(),
-      defaultCategory: elements.expenseCategory.value,
-      defaultParticipantIds: Array.from(participantSelection),
-      editable: true,
-      items: [defaultExpenseItem({ category: elements.expenseCategory.value })]
-    });
-    participantsTouched = false;
-    participantSelection = new Set(state.people.map((person) => person.id));
-    renderExpenseForm();
     closeExpenseModal();
     showToast(editingExpense ? "지출을 수정했습니다." : "지출을 저장했습니다.");
   } catch (error) {
