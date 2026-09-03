@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>실시간 여행 n빵</title>
-    <link rel="stylesheet" href="./styles.css?v=20260903-1">
+    <link rel="stylesheet" href="./styles.css?v=20260903-2">
   </head>
   <body>
     <div class="app-shell">
@@ -433,6 +433,59 @@
         </div>
 
         <form id="expense-form" class="expense-form">
+          <div class="expense-basic-grid">
+            <label>
+              <span>내용</span>
+              <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
+            </label>
+            <label>
+              <span id="expense-amount-label">금액</span>
+              <input id="expense-amount" type="text" inputmode="numeric" placeholder="예: 120000" autocomplete="off">
+            </label>
+            <label>
+              <span>결제자</span>
+              <select id="expense-payer"></select>
+            </label>
+          </div>
+
+          <div class="participant-row expense-participant-heading">
+            <div class="field-label">n빵 참여자</div>
+            <div class="participant-tools">
+              <button id="select-all" type="button" class="text-button">전체</button>
+              <button id="clear-all" type="button" class="text-button">해제</button>
+            </div>
+          </div>
+          <div id="participant-list" class="participant-list empty-state">친구를 먼저 추가해 주세요.</div>
+
+          <div class="expense-mode-controls">
+            <label class="expense-mode-switch">
+              <input id="expense-itemized-toggle" type="checkbox">
+              <span class="expense-mode-switch-copy">
+                <strong>여러 품목</strong>
+                <small id="expense-itemized-hint">품목별 수량과 단가를 입력합니다.</small>
+              </span>
+            </label>
+            <button id="expense-extra-toggle" class="expense-extra-toggle" type="button" aria-expanded="false" aria-controls="expense-extra-options">
+              <span>
+                <strong>추가 옵션</strong>
+                <small id="expense-extra-summary">1일차 · 그 외 · 원화</small>
+              </span>
+              <span class="expense-extra-chevron" aria-hidden="true">▾</span>
+            </button>
+          </div>
+
+          <section id="expense-itemized-section" class="itemized-section" aria-labelledby="expense-items-heading" hidden>
+            <div class="participant-row">
+              <div>
+                <div id="expense-items-heading" class="field-label">품목</div>
+                <div id="expense-items-total" class="items-total">합계 0원</div>
+              </div>
+              <button id="add-expense-item" type="button" class="text-button">품목 추가</button>
+            </div>
+            <div id="expense-item-list" class="expense-item-list"></div>
+          </section>
+
+          <section id="expense-extra-options" class="expense-extra-options" hidden>
           <div class="form-grid">
             <label id="expense-schedule-day-field" hidden>
               <span>일차</span>
@@ -446,10 +499,6 @@
                 <option value="food">식비</option>
                 <option value="other">그 외</option>
               </select>
-            </label>
-            <label>
-              <span>내용</span>
-              <input id="expense-title" type="text" maxlength="70" placeholder="예: 숙소, 택시, 저녁" autocomplete="off">
             </label>
             <label>
               <span>세부분류</span>
@@ -485,10 +534,6 @@
               <span>결제 통화</span>
               <select id="expense-currency"></select>
             </label>
-            <label>
-              <span id="expense-amount-label">총액</span>
-              <input id="expense-amount" type="text" inputmode="numeric" placeholder="품목 합계" autocomplete="off" readonly>
-            </label>
             <label id="expense-rate-field" hidden>
               <span>원화 계산 환율</span>
               <input id="expense-rate" type="text" inputmode="decimal" placeholder="예: 9.5" autocomplete="off" aria-describedby="expense-rate-help">
@@ -498,26 +543,11 @@
               <span>카드 실제 청구액</span>
               <input id="expense-card-krw" type="text" inputmode="numeric" placeholder="선택 사항" autocomplete="off">
             </label>
-            <label>
-              <span>결제자</span>
-              <select id="expense-payer"></select>
-            </label>
             <label id="expense-date-field">
               <span>날짜</span>
               <input id="expense-date" type="date">
             </label>
           </div>
-
-          <section class="itemized-section" aria-labelledby="expense-items-heading">
-            <div class="participant-row">
-              <div>
-                <div id="expense-items-heading" class="field-label">품목</div>
-                <div id="expense-items-total" class="items-total">합계 0원</div>
-              </div>
-              <button id="add-expense-item" type="button" class="text-button">품목 추가</button>
-            </div>
-            <div id="expense-item-list" class="expense-item-list"></div>
-          </section>
 
           <div class="category-manager">
             <div class="participant-row">
@@ -530,19 +560,11 @@
             <div id="category-list" class="category-list"></div>
           </div>
 
-          <div class="participant-row">
-            <div class="field-label">n빵 참여자</div>
-            <div class="participant-tools">
-              <button id="select-all" type="button" class="text-button">전체</button>
-              <button id="clear-all" type="button" class="text-button">해제</button>
-            </div>
-          </div>
-          <div id="participant-list" class="participant-list empty-state">친구를 먼저 추가해 주세요.</div>
-
           <label class="memo-field">
             <span>메모</span>
             <input id="expense-memo" type="text" maxlength="140" placeholder="선택 사항" autocomplete="off">
           </label>
+          </section>
 
           <button id="add-expense" class="primary-button" type="submit">지출 저장</button>
         </form>
@@ -579,6 +601,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./config.js"></script>
-    <script type="module" src="./app.js?v=20260903-1"></script>
+    <script type="module" src="./app.js?v=20260903-2"></script>
   </body>
 </html>

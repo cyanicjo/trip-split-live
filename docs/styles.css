@@ -1246,6 +1246,103 @@ input[readonly] {
   gap: 14px;
 }
 
+.expense-basic-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(150px, 0.75fr) minmax(150px, 0.7fr);
+  align-items: end;
+  gap: 12px;
+}
+
+.expense-participant-heading {
+  margin-top: 2px;
+}
+
+.expense-mode-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.expense-mode-switch,
+.expense-extra-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 60px;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  text-align: left;
+}
+
+.expense-mode-switch {
+  cursor: pointer;
+}
+
+.expense-mode-switch:has(input:checked),
+.expense-extra-toggle.is-expanded {
+  border-color: #b9ddff;
+  background: #f7fbff;
+}
+
+.expense-mode-switch:has(input:disabled) {
+  cursor: default;
+}
+
+.expense-mode-switch input {
+  flex: 0 0 auto;
+  width: 20px;
+  min-height: 20px;
+  accent-color: var(--mint);
+}
+
+.expense-mode-switch-copy,
+.expense-extra-toggle > span:first-child {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 3px;
+}
+
+.expense-mode-switch-copy strong,
+.expense-extra-toggle strong {
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.expense-mode-switch-copy small,
+.expense-extra-toggle small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.expense-extra-chevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.9rem;
+  transition: transform 0.16s ease;
+}
+
+.expense-extra-toggle.is-expanded .expense-extra-chevron {
+  transform: rotate(180deg);
+}
+
+.expense-extra-options {
+  display: grid;
+  gap: 14px;
+  padding-top: 2px;
+}
+
+.expense-extra-options[hidden],
+.itemized-section[hidden] {
+  display: none;
+}
+
 .expense-launch {
   display: grid;
   width: 100%;
@@ -2687,10 +2784,15 @@ body.is-readonly .export-form .primary-button {
   }
 
   .expense-edit-grid,
+  .expense-basic-grid,
   .expense-modal .form-grid,
   .expense-item-grid,
   .person-form,
   .expense-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .expense-mode-controls {
     grid-template-columns: 1fr;
   }
 

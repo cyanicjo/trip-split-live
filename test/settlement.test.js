@@ -71,6 +71,19 @@ function normalizeExpenseItems(expense = {}) {
     .filter((item) => item.amount > 0);
 }
 
+function simpleExpenseItem({ existingItem = null, title = "", amount = 0, category = "" } = {}) {
+  return {
+    id: existingItem?.id || "it_new",
+    title,
+    quantity: 1,
+    unitAmount: amount,
+    amount,
+    category,
+    participantIds: [],
+    useDefaultParticipants: true
+  };
+}
+
 function distributeAmountByWeights(total, weights) {
   const roundedTotal = Math.round(Number(total) || 0);
   const normalizedWeights = weights.map((weight) => Math.max(0, Number(weight) || 0));
@@ -383,5 +396,37 @@ assert.deepStrictEqual(
     ["c", "a", 10000]
   ]
 );
+
+const simpleItem = simpleExpenseItem({
+  existingItem: { id: "keep-this-id" },
+  title: "택시",
+  amount: 18000,
+  category: "교통"
+});
+assert.deepStrictEqual(simpleItem, {
+  id: "keep-this-id",
+  title: "택시",
+  quantity: 1,
+  unitAmount: 18000,
+  amount: 18000,
+  category: "교통",
+  participantIds: [],
+  useDefaultParticipants: true
+});
+assert.deepStrictEqual(normalizeExpenseItems({
+  id: "simple-expense",
+  title: "택시",
+  amount: 18000,
+  category: "교통",
+  items: [simpleItem]
+}), [{
+  id: "keep-this-id",
+  title: "택시",
+  quantity: 1,
+  unitAmount: 18000,
+  amount: 18000,
+  category: "교통",
+  participantIds: []
+}]);
 
 console.log("settlement tests passed");

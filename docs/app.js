@@ -76,6 +76,12 @@ const elements = {
   expenseModalHeading: document.querySelector("#expense-modal-heading"),
   closeExpenseModal: document.querySelector("#close-expense-modal"),
   expenseForm: document.querySelector("#expense-form"),
+  expenseItemizedToggle: document.querySelector("#expense-itemized-toggle"),
+  expenseItemizedHint: document.querySelector("#expense-itemized-hint"),
+  expenseItemizedSection: document.querySelector("#expense-itemized-section"),
+  expenseExtraToggle: document.querySelector("#expense-extra-toggle"),
+  expenseExtraSummary: document.querySelector("#expense-extra-summary"),
+  expenseExtraOptions: document.querySelector("#expense-extra-options"),
   expenseScheduleDayField: document.querySelector("#expense-schedule-day-field"),
   expenseScheduleDay: document.querySelector("#expense-schedule-day"),
   expenseMajorCategory: document.querySelector("#expense-major-category"),
@@ -170,6 +176,8 @@ let expandedCompletedSettlementId = "";
 let spendingInsightsExpanded = false;
 let selectedItineraryDate = "";
 let expenseDraftContext = null;
+let expenseItemsExpanded = false;
+let expenseOptionsExpanded = false;
 let expenseHistoryCollapsed = true;
 let outsideScheduleExpanded = false;
 let draggedTimelineEntry = null;
@@ -2283,6 +2291,54 @@ function syncScheduleExpenseFields({ resetDetailCategory = false } = {}) {
   }
 }
 
+function expenseInputAmount(expense) {
+  if (!expense) return 0;
+  if ((expense.currency || "KRW") === "KRW") {
+    return Math.round(Number(expense.amount) || 0);
+  }
+  return Number(expense.foreignAmount) || expenseItemsTotal(normalizeExpenseItems(expense));
+}
+
+function expenseOriginalAmountFromInput(value, currency = currentExpenseCurrency()) {
+  const amount = parsePositiveNumber(value);
+  return amount ? itemLineAmount(1, amount, currency) : null;
+}
+
+function expenseOptionsSummaryText() {
+  const itinerary = itinerarySettings();
+  const date = elements.expenseMultiDay.checked
+    ? elements.expenseLodgingStart.value
+    : elements.expenseScheduleDay.value || elements.expenseDate.value;
+  const dayText = itinerary && date && itineraryDates().includes(date)
+    ? itineraryDayLabel(date)
+    : date || "날짜 미정";
+  const majorText = majorCategories[elements.expenseMajorCategory.value] || "그 외";
+  const currency = currentExpenseCurrency();
+  const currencyText = currency === "KRW" ? "원화" : currency;
+  return `${dayText} · ${majorText} · ${currencyText}`;
+}
+
+function syncExpenseEntryMode() {
+  const itemCount = elements.expenseItemList.querySelectorAll("[data-expense-item-row]").length;
+  const itemized = expenseItemsExpanded || itemCount > 1;
+  expenseItemsExpanded = itemized;
+  elements.expenseItemizedToggle.checked = itemized;
+  elements.expenseItemizedToggle.disabled = !canEdit() || !state?.people.length || itemCount > 1;
+  elements.expenseItemizedSection.hidden = !itemized;
+  elements.expenseAmount.readOnly = itemized;
+  elements.expenseAmount.inputMode = currentExpenseCurrency() === "KRW" ? "numeric" : "decimal";
+  elements.expenseAmount.placeholder = itemized ? "품목 합계" : "예: 120000";
+  elements.expenseItemizedHint.textContent = itemCount > 1
+    ? "품목을 하나만 남기면 간단 입력으로 돌아갈 수 있습니다."
+    : "품목별 수량과 단가를 입력합니다.";
+
+  elements.expenseExtraOptions.hidden = !expenseOptionsExpanded;
+  elements.expenseExtraToggle.setAttribute("aria-expanded", String(expenseOptionsExpanded));
+  elements.expenseExtraToggle.classList.toggle("is-expanded", expenseOptionsExpanded);
+  elements.expenseExtraSummary.textContent = expenseOptionsSummaryText();
+  elements.expenseAmountLabel.textContent = currentExpenseCurrency() === "KRW" ? "금액" : `${currentExpenseCurrency()} 금액`;
+}
+
 function renderCategoryControls({ disableExpenseCategory = false, extraCategories = [], selectedCategory = null } = {}) {
   const editable = canEdit();
   const categories = tripCategories();
@@ -2333,6 +2389,8 @@ function renderExpenseForm() {
   elements.personForm.querySelector("button").disabled = !editable;
   elements.addExpense.disabled = !editable || !hasPeople;
   elements.expenseTitle.disabled = !editable || !hasPeople;
+  elements.expenseItemizedToggle.disabled = !editable || !hasPeople;
+  elements.expenseExtraToggle.disabled = !editable || !hasPeople;
   elements.expenseMajorCategory.disabled = !editable || !hasPeople;
   elements.expenseScheduleDay.disabled = !editable || !hasPeople;
   elements.expenseMealSlot.disabled = !editable || !hasPeople;
@@ -2360,6 +2418,7 @@ function renderExpenseForm() {
     elements.expenseDate.value = editingExpense.spentAt || localDateString();
     elements.expenseRate.value = editingCurrency === "KRW" ? "" : editingExpense.exchangeRate || defaultRateFor(editingCurrency);
     elements.expenseCardKrw.value = editingCurrency === "KRW" ? "" : editingExpense.cardKrwAmount || "";
+    elements.expenseAmount.value = expenseInputAmount(editingExpense) || "";
   }
 
   const currentScheduleDate = editingExpense?.scheduleDate
@@ -2440,6 +2499,9 @@ function renderExpenseForm() {
     `;
   }).join("");
 
+  const simpleAmount = editingExpense && !expenseItemsExpanded
+    ? expenseInputAmount(editingExpense)
+    : expenseOriginalAmountFromInput(elements.expenseAmount.value);
   renderExpenseItemInputs({
     container: elements.expenseItemList,
     totalElement: elements.expenseItemsTotal,
@@ -2450,6 +2512,10 @@ function renderExpenseForm() {
     editable,
     items: editingItems
   });
+  if (!expenseItemsExpanded) {
+    elements.expenseAmount.value = simpleAmount || "";
+  }
+  syncExpenseEntryMode();
   refreshCustomSelects(elements.expenseForm);
 }
 
@@ -2463,6 +2529,31 @@ function defaultExpenseItem({ category = "", participantIds = [] } = {}) {
     category,
     participantIds
   };
+}
+
+function simpleExpenseItem({ existingItem = null, title = "", amount = 0, category = "" } = {}) {
+  return {
+    id: existingItem?.id || makeId("it_"),
+    title,
+    quantity: 1,
+    unitAmount: amount,
+    amount,
+    category,
+    participantIds: [],
+    useDefaultParticipants: true
+  };
+}
+
+function expenseNeedsItemizedMode(expense) {
+  const items = normalizeExpenseItems(expense);
+  if (items.length > 1) return true;
+  const item = items[0];
+  return Boolean(item && (
+    item.quantity !== 1
+    || item.title !== (expense.title || "")
+    || item.category !== (expense.category || "")
+    || item.participantIds.length > 0
+  ));
 }
 
 function itemParticipantOptionsHtml(selectedIds = [], disabled = false) {
@@ -2620,7 +2711,6 @@ function syncExpenseCurrencyFields({ resetRate = false } = {}) {
   }
   const currency = currentExpenseCurrency();
   const isForeign = allowForeign && currency !== "KRW";
-  elements.expenseAmountLabel.textContent = isForeign ? "외화 총액" : "총액";
   elements.expenseRateField.hidden = !isForeign;
   elements.expenseCardKrwField.hidden = !isForeign;
 
@@ -2631,7 +2721,7 @@ function syncExpenseCurrencyFields({ resetRate = false } = {}) {
     elements.expenseRate.value = "";
     elements.expenseCardKrw.value = "";
   }
-  if (elements.expenseItemList) {
+  if (elements.expenseItemList && expenseItemsExpanded) {
     renderExpenseItemInputs({
       container: elements.expenseItemList,
       totalElement: elements.expenseItemsTotal,
@@ -2642,6 +2732,7 @@ function syncExpenseCurrencyFields({ resetRate = false } = {}) {
       editable: canEdit() && state?.people.length > 0
     });
   }
+  syncExpenseEntryMode();
 }
 
 async function saveOverseasSettings(overseas) {
@@ -3413,6 +3504,8 @@ function resetExpenseFormForCreate(context = {}) {
   const mealSlot = Object.hasOwn(mealSlots, context.mealSlot) ? context.mealSlot : "lunch";
 
   editingExpenseId = "";
+  expenseItemsExpanded = false;
+  expenseOptionsExpanded = false;
   participantsTouched = false;
   participantSelection = new Set(defaultParticipantIds);
   elements.expenseMajorCategory.value = majorCategory;
@@ -3479,6 +3572,8 @@ function openExpenseModal(expenseId = "", context = {}) {
       lodgingEndDate: expense.lodgingEndDate
     };
     editingExpenseId = expense.id;
+    expenseItemsExpanded = expenseNeedsItemizedMode(expense);
+    expenseOptionsExpanded = false;
     participantsTouched = true;
     participantSelection = new Set(expense.participantIds || []);
   } else {
@@ -4943,6 +5038,54 @@ elements.expenseCurrency.addEventListener("change", () => {
   syncExpenseCurrencyFields({ resetRate: true });
 });
 
+elements.expenseItemizedToggle.addEventListener("change", () => {
+  const rows = elements.expenseItemList.querySelectorAll("[data-expense-item-row]");
+  if (!elements.expenseItemizedToggle.checked && rows.length > 1) {
+    elements.expenseItemizedToggle.checked = true;
+    showToast("품목을 하나만 남긴 뒤 간단 입력으로 바꿔 주세요.");
+    return;
+  }
+
+  if (elements.expenseItemizedToggle.checked) {
+    const currentItems = readExpenseItemsFromContainer(elements.expenseItemList, {
+      currency: currentExpenseCurrency(),
+      defaultCategory: elements.expenseCategory.value
+    });
+    const simpleAmount = expenseOriginalAmountFromInput(elements.expenseAmount.value);
+    const firstItem = currentItems[0] || defaultExpenseItem({ category: elements.expenseCategory.value });
+    expenseItemsExpanded = true;
+    renderExpenseItemInputs({
+      container: elements.expenseItemList,
+      totalElement: elements.expenseItemsTotal,
+      amountInput: elements.expenseAmount,
+      currency: currentExpenseCurrency(),
+      defaultCategory: elements.expenseCategory.value,
+      defaultParticipantIds: Array.from(participantSelection),
+      editable: canEdit(),
+      items: [{
+        ...firstItem,
+        title: firstItem.title || elements.expenseTitle.value.trim(),
+        quantity: firstItem.amount ? firstItem.quantity : 1,
+        unitAmount: firstItem.amount ? firstItem.unitAmount : simpleAmount,
+        amount: firstItem.amount || simpleAmount
+      }]
+    });
+  } else {
+    const { total } = syncExpenseItemsTotal();
+    expenseItemsExpanded = false;
+    elements.expenseAmount.value = total || "";
+  }
+  syncExpenseEntryMode();
+});
+
+elements.expenseExtraToggle.addEventListener("click", () => {
+  expenseOptionsExpanded = !expenseOptionsExpanded;
+  syncExpenseEntryMode();
+  if (expenseOptionsExpanded) {
+    requestAnimationFrame(() => refreshCustomSelects(elements.expenseExtraOptions));
+  }
+});
+
 elements.expenseMajorCategory.addEventListener("change", () => {
   const previousMajorCategory = elements.expenseMajorCategory.dataset.previousValue || "";
   const nextMajorCategory = elements.expenseMajorCategory.value;
@@ -4968,13 +5111,17 @@ elements.expenseMajorCategory.addEventListener("change", () => {
   syncScheduleExpenseFields({ resetDetailCategory: true });
   syncCustomSelect(elements.expenseMajorCategory);
   syncCustomSelect(elements.expenseMealSlot);
-  syncExpenseItemsTotal();
+  if (expenseItemsExpanded) syncExpenseItemsTotal();
+  syncExpenseEntryMode();
 });
 
 elements.expenseScheduleDay.addEventListener("change", () => {
   const date = elements.expenseScheduleDay.value;
   elements.expenseDate.value = date;
+  syncExpenseEntryMode();
 });
+
+elements.expenseDate.addEventListener("change", syncExpenseEntryMode);
 
 elements.expenseMultiDay.addEventListener("change", () => {
   const date = elements.expenseScheduleDay.value || selectedItineraryDate || itinerarySettings()?.startDate || localDateString();
@@ -4989,12 +5136,14 @@ elements.expenseMultiDay.addEventListener("change", () => {
   syncCustomSelect(elements.expenseScheduleDay);
   syncCustomSelect(elements.expenseLodgingStart);
   syncCustomSelect(elements.expenseLodgingEnd);
+  syncExpenseEntryMode();
 });
 
 elements.expenseMealSlot.addEventListener("change", () => {
   if (!elements.expenseTitle.value.trim() || Object.values(mealSlots).includes(elements.expenseTitle.value.trim())) {
     elements.expenseTitle.value = mealSlots[elements.expenseMealSlot.value] || "식비";
   }
+  syncExpenseEntryMode();
 });
 
 elements.expenseLodgingStart.addEventListener("change", () => {
@@ -5004,6 +5153,7 @@ elements.expenseLodgingStart.addEventListener("change", () => {
   if (elements.expenseLodgingEnd.value < date) elements.expenseLodgingEnd.value = date;
   syncCustomSelect(elements.expenseScheduleDay);
   syncCustomSelect(elements.expenseLodgingEnd);
+  syncExpenseEntryMode();
 });
 
 elements.expenseLodgingEnd.addEventListener("change", () => {
@@ -5014,11 +5164,13 @@ elements.expenseLodgingEnd.addEventListener("change", () => {
     syncCustomSelect(elements.expenseLodgingStart);
     syncCustomSelect(elements.expenseScheduleDay);
   }
+  syncExpenseEntryMode();
 });
 
 elements.expenseCategory.addEventListener("change", () => {
   applyBulkCategoryToItems(elements.expenseItemList, elements.expenseCategory.value);
-  syncExpenseItemsTotal();
+  if (expenseItemsExpanded) syncExpenseItemsTotal();
+  syncExpenseEntryMode();
 });
 
 elements.addExpenseItem.addEventListener("click", () => {
@@ -5039,6 +5191,7 @@ elements.addExpenseItem.addEventListener("click", () => {
     editable: true,
     items
   });
+  syncExpenseEntryMode();
 });
 
 elements.expenseItemList.addEventListener("click", (event) => {
@@ -5048,6 +5201,7 @@ elements.expenseItemList.addEventListener("click", (event) => {
   if (rows.length <= 1) return;
   removeButton.closest("[data-expense-item-row]")?.remove();
   syncExpenseItemsTotal();
+  syncExpenseEntryMode();
 });
 
 elements.expenseItemList.addEventListener("input", () => {
@@ -5913,7 +6067,12 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     ? (Object.hasOwn(mealSlots, elements.expenseMealSlot.value) ? elements.expenseMealSlot.value : "food-other")
     : "";
   const currency = currentExpenseCurrency();
-  const itemDrafts = readExpenseItemsFromContainer(elements.expenseItemList, { currency, defaultCategory: category });
+  const itemized = expenseItemsExpanded;
+  const existingSingleItem = editingExpense ? normalizeExpenseItems(editingExpense)[0] : null;
+  const simpleAmount = expenseOriginalAmountFromInput(elements.expenseAmount.value, currency);
+  const itemDrafts = itemized
+    ? readExpenseItemsFromContainer(elements.expenseItemList, { currency, defaultCategory: category })
+    : [simpleExpenseItem({ existingItem: existingSingleItem, title, amount: simpleAmount, category })];
   const items = itemDrafts.map((item, index) => ({
     id: item.id || makeId("it_"),
     title: item.title || `품목 ${index + 1}`,
@@ -5945,10 +6104,10 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     return;
   }
   if (items.length === 0 || !itemTotal) {
-    showToast("품목과 금액을 한 개 이상 입력해 주세요.");
+    showToast(itemized ? "품목과 금액을 한 개 이상 입력해 주세요." : "금액을 입력해 주세요.");
     return;
   }
-  if (itemDrafts.some((item) => !item.title || !item.quantity || !item.unitAmount || !item.amount)) {
+  if (itemized && itemDrafts.some((item) => !item.title || !item.quantity || !item.unitAmount || !item.amount)) {
     showToast("모든 품목의 이름, 수량, 단가를 입력해 주세요.");
     return;
   }
@@ -5964,7 +6123,7 @@ elements.expenseForm.addEventListener("submit", async (event) => {
     showToast("n빵 참여자를 한 명 이상 선택해 주세요.");
     return;
   }
-  if (itemDrafts.some((item) => !item.useDefaultParticipants && item.participantIds.length === 0)) {
+  if (itemized && itemDrafts.some((item) => !item.useDefaultParticipants && item.participantIds.length === 0)) {
     showToast("품목별 참여자를 쓰는 품목은 참여자를 한 명 이상 선택해 주세요.");
     return;
   }
