@@ -22,6 +22,25 @@ function dateRangeKeys(startDate, endDate) {
   return dates;
 }
 
+function expenseAllocationDates(expense) {
+  if (!expense.spreadAcrossDays) return [expense.scheduleDate].filter(isDateKey);
+  return dateRangeKeys(
+    expense.allocationStartDate || expense.lodgingStartDate || expense.scheduleDate,
+    expense.allocationEndDate || expense.lodgingEndDate || expense.allocationStartDate || expense.scheduleDate
+  );
+}
+
+function expenseAllocationBreakdown(expense) {
+  const dates = expenseAllocationDates(expense);
+  const total = Math.round(Number(expense.amount) || 0);
+  const baseAmount = Math.floor(total / dates.length);
+  const remainder = total - baseAmount * dates.length;
+  return dates.map((date, index) => ({
+    date,
+    amount: baseAmount + (index < remainder ? 1 : 0)
+  }));
+}
+
 function inferMajorCategory(category = "", title = "") {
   const titleText = String(title || "").toLowerCase();
   const categoryText = String(category || "").toLowerCase();
@@ -68,22 +87,44 @@ const lodging = {
   id: "hotel-1",
   amount: 300000,
   scheduleDate: "2026-07-16",
+  spreadAcrossDays: true,
+  allocationStartDate: "2026-07-16",
+  allocationEndDate: "2026-07-19",
   lodgingStartDate: "2026-07-16",
   lodgingEndDate: "2026-07-19"
 };
-const displayedDays = dateRangeKeys(lodging.lodgingStartDate, lodging.lodgingEndDate)
+const displayedDays = expenseAllocationDates(lodging)
   .filter((date) => dates.includes(date));
 assert.strictEqual(displayedDays.length, 4);
 assert.strictEqual([lodging].reduce((sum, expense) => sum + expense.amount, 0), 300000);
+
+const rental = {
+  id: "rental-1",
+  amount: 10000,
+  scheduleDate: "2026-07-16",
+  spreadAcrossDays: true,
+  allocationStartDate: "2026-07-16",
+  allocationEndDate: "2026-07-18"
+};
+const rentalBreakdown = expenseAllocationBreakdown(rental);
+assert.deepStrictEqual(rentalBreakdown, [
+  { date: "2026-07-16", amount: 3334 },
+  { date: "2026-07-17", amount: 3333 },
+  { date: "2026-07-18", amount: 3333 }
+]);
+assert.strictEqual(rentalBreakdown.reduce((sum, item) => sum + item.amount, 0), rental.amount);
 
 const crossingLodging = {
   id: "hotel-2",
   amount: 180000,
   scheduleDate: "2026-07-14",
+  spreadAcrossDays: true,
+  allocationStartDate: "2026-07-14",
+  allocationEndDate: "2026-07-17",
   lodgingStartDate: "2026-07-14",
   lodgingEndDate: "2026-07-17"
 };
-const crossingDisplayedDays = dateRangeKeys(crossingLodging.lodgingStartDate, crossingLodging.lodgingEndDate)
+const crossingDisplayedDays = expenseAllocationDates(crossingLodging)
   .filter((date) => dates.includes(date));
 assert.deepStrictEqual(crossingDisplayedDays, ["2026-07-16", "2026-07-17"]);
 assert.strictEqual(crossingDisplayedDays[0], "2026-07-16");
@@ -94,7 +135,7 @@ const expenses = [
   { id: "old-1", amount: 10000, scheduleDate: "2026-07-10" }
 ];
 const outside = expenses.filter((expense) => !dates.includes(expense.scheduleDate)
-  && !(expense.lodgingStartDate && dateRangeKeys(expense.lodgingStartDate, expense.lodgingEndDate).some((date) => dates.includes(date))));
+  && !expenseAllocationDates(expense).some((date) => dates.includes(date)));
 assert.deepStrictEqual(outside.map((expense) => expense.id), ["old-1"]);
 
 console.log("itinerary tests passed");
