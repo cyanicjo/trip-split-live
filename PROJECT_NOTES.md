@@ -1,6 +1,6 @@
 # Trip Split Live 프로젝트 요약
 
-마지막 정리일: 2026-09-02
+마지막 정리일: 2026-09-03
 
 이 파일은 다음 대화에서 긴 설명 없이 이어가기 위한 요약입니다.
 
@@ -55,6 +55,9 @@
 - 이동·숙소·식비·그 외 대분류와 기존 카테고리 세부분류 유지
 - 같은 일차 안 카드 순서 변경 및 다른 일차 이동
 - 숙소를 여러 일차에 이어 표시하되 정산에는 한 번만 포함
+- 여러 일차 지출은 기간을 체크해서 총액을 날짜 수만큼 균등 배분해 표시
+- 나누어떨어지지 않는 원 단위는 앞 일차부터 1원씩 배분
+- 새 숙소 지출은 여러 일차 배분이 기본으로 켜지고, 다른 지출은 사용자가 선택
 - 매일 점심·저녁 기본 슬롯과 선택형 식사 슬롯
 - 여행 기간 밖 기존 지출 보존
 - 전체 지출 목록 접기와 기존 날짜·카테고리 필터 유지
@@ -157,7 +160,7 @@ git diff --check
 ## 일정 데이터
 
 - 여행 기간과 카드 순서, 숨긴 기본 슬롯은 기존 `settings.itinerary` JSON에 저장합니다.
-- 지출에는 `majorCategory`, `scheduleDate`, `mealSlot`, `lodgingStartDate`, `lodgingEndDate`를 추가합니다.
+- 지출에는 `majorCategory`, `scheduleDate`, `mealSlot`, `spreadAcrossDays`, `allocationStartDate`, `allocationEndDate`, `lodgingStartDate`, `lodgingEndDate`를 추가합니다.
 - Supabase 테이블 변경이나 SQL 재실행은 필요 없습니다.
 - 기존 지출은 날짜와 카테고리로 자동 배치되고 일정 밖 기록도 삭제되지 않습니다.
 - 편집 토큰은 공개 저장소나 문서에 기록하지 않습니다.
