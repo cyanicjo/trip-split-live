@@ -1395,50 +1395,6 @@ input[readonly] {
   gap: 12px;
 }
 
-.expense-multi-day-field {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-height: 56px;
-  padding: 10px 12px;
-  border: 1px solid #d9eaff;
-  border-radius: 8px;
-  background: #f7fbff;
-  cursor: pointer;
-}
-
-.expense-multi-day-field[hidden] {
-  display: none;
-}
-
-.expense-multi-day-field input {
-  flex: 0 0 auto;
-  width: 20px;
-  min-height: 20px;
-  accent-color: var(--mint);
-}
-
-.expense-multi-day-copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  margin: 0;
-}
-
-.expense-multi-day-copy strong {
-  color: var(--ink);
-  font-size: 0.86rem;
-  font-weight: 900;
-}
-
-.expense-multi-day-copy small {
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 750;
-  line-height: 1.45;
-}
-
 label span,
 .field-label {
   display: block;

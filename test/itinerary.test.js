@@ -114,6 +114,18 @@ assert.deepStrictEqual(rentalBreakdown, [
 ]);
 assert.strictEqual(rentalBreakdown.reduce((sum, item) => sum + item.amount, 0), rental.amount);
 
+const sameDayExpense = {
+  id: "same-day-1",
+  amount: 27500,
+  scheduleDate: "2026-07-17",
+  spreadAcrossDays: true,
+  allocationStartDate: "2026-07-17",
+  allocationEndDate: "2026-07-17"
+};
+assert.deepStrictEqual(expenseAllocationBreakdown(sameDayExpense), [
+  { date: "2026-07-17", amount: 27500 }
+]);
+
 const crossingLodging = {
   id: "hotel-2",
   amount: 180000,
@@ -128,6 +140,12 @@ const crossingDisplayedDays = expenseAllocationDates(crossingLodging)
   .filter((date) => dates.includes(date));
 assert.deepStrictEqual(crossingDisplayedDays, ["2026-07-16", "2026-07-17"]);
 assert.strictEqual(crossingDisplayedDays[0], "2026-07-16");
+assert.deepStrictEqual(expenseAllocationDates(lodging), [
+  "2026-07-16",
+  "2026-07-17",
+  "2026-07-18",
+  "2026-07-19"
+]);
 
 const expenses = [
   lodging,

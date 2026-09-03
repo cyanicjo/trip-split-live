@@ -89,7 +89,6 @@ const elements = {
   expenseCategory: document.querySelector("#expense-category"),
   expenseMealSlotField: document.querySelector("#expense-meal-slot-field"),
   expenseMealSlot: document.querySelector("#expense-meal-slot"),
-  expenseMultiDayField: document.querySelector("#expense-multi-day-field"),
   expenseMultiDay: document.querySelector("#expense-multi-day"),
   expenseLodgingStartField: document.querySelector("#expense-lodging-start-field"),
   expenseLodgingStart: document.querySelector("#expense-lodging-start"),
@@ -2274,7 +2273,6 @@ function syncScheduleExpenseFields({ resetDetailCategory = false } = {}) {
     ? elements.expenseLodgingStart.value || elements.expenseScheduleDay.value || selectedItineraryDate || itinerary?.startDate || localDateString()
     : elements.expenseScheduleDay.value || selectedItineraryDate || itinerary?.startDate || localDateString();
 
-  elements.expenseMultiDayField.hidden = !itinerary;
   elements.expenseScheduleDayField.hidden = !itinerary || spreadAcrossDays;
   elements.expenseDateField.hidden = Boolean(itinerary);
   elements.expenseMealSlotField.hidden = majorCategory !== "food";
@@ -3510,16 +3508,13 @@ function resetExpenseFormForCreate(context = {}) {
   participantSelection = new Set(defaultParticipantIds);
   elements.expenseMajorCategory.value = majorCategory;
   elements.expenseMajorCategory.dataset.previousValue = majorCategory;
-  elements.expenseMultiDay.checked = Boolean(itinerarySettings() && majorCategory === "lodging");
+  elements.expenseMultiDay.checked = false;
   elements.expenseTitle.value = context.title || (majorCategory === "food" ? mealSlots[mealSlot] : "");
   elements.expenseCategory.value = defaultCategory;
   elements.expenseScheduleDay.value = scheduleDate;
   elements.expenseMealSlot.value = mealSlot;
   elements.expenseLodgingStart.value = scheduleDate;
-  elements.expenseLodgingEnd.value = context.allocationEndDate
-    || context.lodgingEndDate
-    || (majorCategory === "lodging" ? itinerarySettings()?.endDate : "")
-    || scheduleDate;
+  elements.expenseLodgingEnd.value = scheduleDate;
   elements.expenseCurrency.value = "KRW";
   elements.expenseAmount.value = "";
   elements.expenseRate.value = "";
@@ -5079,7 +5074,23 @@ elements.expenseItemizedToggle.addEventListener("change", () => {
 });
 
 elements.expenseExtraToggle.addEventListener("click", () => {
-  expenseOptionsExpanded = !expenseOptionsExpanded;
+  const opening = !expenseOptionsExpanded;
+  if (opening && itinerarySettings() && !elements.expenseMultiDay.checked) {
+    const date = elements.expenseScheduleDay.value
+      || currentEditingExpense()?.scheduleDate
+      || selectedItineraryDate
+      || itinerarySettings()?.startDate
+      || localDateString();
+    elements.expenseMultiDay.checked = true;
+    elements.expenseLodgingStart.value = date;
+    elements.expenseLodgingEnd.value = date;
+    elements.expenseDate.value = date;
+    syncScheduleExpenseFields();
+    syncCustomSelect(elements.expenseScheduleDay);
+    syncCustomSelect(elements.expenseLodgingStart);
+    syncCustomSelect(elements.expenseLodgingEnd);
+  }
+  expenseOptionsExpanded = opening;
   syncExpenseEntryMode();
   if (expenseOptionsExpanded) {
     requestAnimationFrame(() => refreshCustomSelects(elements.expenseExtraOptions));
@@ -5087,20 +5098,7 @@ elements.expenseExtraToggle.addEventListener("click", () => {
 });
 
 elements.expenseMajorCategory.addEventListener("change", () => {
-  const previousMajorCategory = elements.expenseMajorCategory.dataset.previousValue || "";
   const nextMajorCategory = elements.expenseMajorCategory.value;
-  if (!editingExpenseId) {
-    if (nextMajorCategory === "lodging") {
-      elements.expenseMultiDay.checked = true;
-      elements.expenseLodgingStart.value = elements.expenseScheduleDay.value || selectedItineraryDate || itinerarySettings()?.startDate || "";
-      elements.expenseLodgingEnd.value = itinerarySettings()?.endDate || elements.expenseLodgingStart.value;
-    } else if (previousMajorCategory === "lodging") {
-      elements.expenseMultiDay.checked = false;
-      elements.expenseLodgingEnd.value = elements.expenseLodgingStart.value || elements.expenseScheduleDay.value;
-    }
-  } else if (nextMajorCategory === "lodging" && previousMajorCategory !== "lodging" && !elements.expenseMultiDay.checked) {
-    elements.expenseMultiDay.checked = true;
-  }
   elements.expenseMajorCategory.dataset.previousValue = nextMajorCategory;
   const category = defaultDetailCategoryForMajor(elements.expenseMajorCategory.value);
   if (category) {
@@ -5122,22 +5120,6 @@ elements.expenseScheduleDay.addEventListener("change", () => {
 });
 
 elements.expenseDate.addEventListener("change", syncExpenseEntryMode);
-
-elements.expenseMultiDay.addEventListener("change", () => {
-  const date = elements.expenseScheduleDay.value || selectedItineraryDate || itinerarySettings()?.startDate || localDateString();
-  if (elements.expenseMultiDay.checked) {
-    elements.expenseLodgingStart.value = elements.expenseLodgingStart.value || date;
-    elements.expenseLodgingEnd.value = elements.expenseLodgingEnd.value || date;
-    if (elements.expenseLodgingEnd.value < elements.expenseLodgingStart.value) {
-      elements.expenseLodgingEnd.value = elements.expenseLodgingStart.value;
-    }
-  }
-  syncScheduleExpenseFields();
-  syncCustomSelect(elements.expenseScheduleDay);
-  syncCustomSelect(elements.expenseLodgingStart);
-  syncCustomSelect(elements.expenseLodgingEnd);
-  syncExpenseEntryMode();
-});
 
 elements.expenseMealSlot.addEventListener("change", () => {
   if (!elements.expenseTitle.value.trim() || Object.values(mealSlots).includes(elements.expenseTitle.value.trim())) {
@@ -5310,8 +5292,7 @@ elements.itineraryBoard.addEventListener("click", async (event) => {
     openExpenseModal("", {
       majorCategory,
       scheduleDate: addButton.dataset.scheduleDate,
-      mealSlot: addButton.dataset.mealSlot || "food-other",
-      lodgingEndDate: majorCategory === "lodging" ? itinerarySettings()?.endDate : ""
+      mealSlot: addButton.dataset.mealSlot || "food-other"
     });
     return;
   }
