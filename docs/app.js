@@ -1808,18 +1808,9 @@ function timelineEntriesForDate(date, { includeAll = false } = {}) {
   });
 }
 
-function timelineCardMenuHtml(expense, editLabel = "") {
+function timelineDeleteButtonHtml(expense) {
   if (!canEdit() || !expense) return "";
-  const resolvedEditLabel = editLabel || (expense.spreadAcrossDays ? "적용 기간 수정" : "지출 수정");
-  return `
-    <details class="timeline-card-menu" draggable="false">
-      <summary title="카드 메뉴" aria-label="카드 메뉴">•••</summary>
-      <div class="timeline-card-menu-popover">
-        <button type="button" data-edit-expense="${escapeHtml(expense.id)}">${escapeHtml(resolvedEditLabel)}</button>
-        <button class="is-danger" type="button" data-remove-expense="${escapeHtml(expense.id)}">지출 삭제</button>
-      </div>
-    </details>
-  `;
+  return `<button class="timeline-delete-button" type="button" draggable="false" data-remove-expense="${escapeHtml(expense.id)}" aria-label="${escapeHtml(expense.title || "지출")} 삭제">삭제</button>`;
 }
 
 function normalizedCardLabel(value = "") {
@@ -1861,7 +1852,7 @@ function timelineExpenseCardHtml(expense, date) {
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
           <span class="timeline-major">${escapeHtml(major.label)}</span>
-          ${timelineCardMenuHtml(expense)}
+          ${timelineDeleteButtonHtml(expense)}
         </div>
         <button class="timeline-card-main" type="button" data-edit-expense="${escapeHtml(expense.id)}" ${canEdit() ? "" : "disabled"}>
           <span>
@@ -1902,7 +1893,7 @@ function mealSlotCardHtml(entry, date) {
                     <b>${formatMoney(expensePerspectiveAmountForDate(expense, date))}</b>
                   </span>
                 </button>
-                ${timelineCardMenuHtml(expense, "지출 수정")}
+                ${timelineDeleteButtonHtml(expense)}
               </div>
             `;}).join("")}
             ${mealDropZoneHtml(date, entry.slot, entry.expenses.length)}
@@ -5698,7 +5689,7 @@ elements.itineraryBoard.addEventListener("click", async (event) => {
 elements.itineraryBoard.addEventListener("pointerdown", (event) => {
   const draggableItem = event.target.closest("[data-meal-expense-id], [data-timeline-token]");
   if (!draggableItem) return;
-  draggableItem.draggable = timelineDraggingEnabled() && !event.target.closest(".timeline-card-menu");
+  draggableItem.draggable = timelineDraggingEnabled() && !event.target.closest(".timeline-delete-button");
 });
 
 elements.itineraryBoard.addEventListener("dragstart", (event) => {

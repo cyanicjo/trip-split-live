@@ -3734,13 +3734,11 @@ body.has-itinerary .expense-panel {
   white-space: nowrap;
 }
 
-.day-add-menu,
-.timeline-card-menu {
+.day-add-menu {
   position: relative;
 }
 
-.day-add-menu summary,
-.timeline-card-menu summary {
+.day-add-menu summary {
   display: grid;
   place-items: center;
   width: 36px;
@@ -3754,13 +3752,11 @@ body.has-itinerary .expense-panel {
   list-style: none;
 }
 
-.day-add-menu summary::-webkit-details-marker,
-.timeline-card-menu summary::-webkit-details-marker {
+.day-add-menu summary::-webkit-details-marker {
   display: none;
 }
 
-.day-add-popover,
-.timeline-card-menu-popover {
+.day-add-popover {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
@@ -3774,8 +3770,7 @@ body.has-itinerary .expense-panel {
   box-shadow: 0 14px 34px rgba(25, 31, 40, 0.16);
 }
 
-.day-add-popover button,
-.timeline-card-menu-popover > button {
+.day-add-popover button {
   min-height: 40px;
   padding: 8px 10px;
   border: 0;
@@ -3786,13 +3781,8 @@ body.has-itinerary .expense-panel {
   text-align: left;
 }
 
-.day-add-popover button:hover,
-.timeline-card-menu-popover > button:hover {
+.day-add-popover button:hover {
   background: #f2f4f6;
-}
-
-.timeline-card-menu-popover > button.is-danger {
-  color: var(--coral);
 }
 
 .day-timeline {
@@ -3935,8 +3925,28 @@ body.has-itinerary .expense-panel {
 .major-lodging .timeline-major { background: #f1ecff; color: #7252c7; }
 .major-food .timeline-major { background: #fff4d6; color: #9b6b00; }
 
-.timeline-card-topline .timeline-card-menu {
+.timeline-card-topline .timeline-delete-button {
   margin-left: auto;
+}
+
+.timeline-delete-button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.timeline-delete-button:hover,
+.timeline-delete-button:focus-visible {
+  outline: none;
+  background: var(--coral-soft);
+  color: var(--coral);
 }
 
 .timeline-card-main {
@@ -4071,7 +4081,7 @@ body.has-itinerary .expense-panel {
 
 .meal-expense-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 4px;
   border-bottom: 1px solid #f2f4f6;
@@ -4095,7 +4105,7 @@ body.has-itinerary .expense-panel {
   text-align: left;
 }
 
-.meal-expense-row > .timeline-card-menu {
+.meal-expense-row > .timeline-delete-button {
   justify-self: end;
 }
 
@@ -4555,8 +4565,7 @@ body.has-itinerary .expense-panel {
     min-height: 190px;
   }
 
-  .day-add-popover,
-  .timeline-card-menu-popover {
+  .day-add-popover {
     position: fixed;
     top: auto;
     right: 12px;
@@ -4567,15 +4576,14 @@ body.has-itinerary .expense-panel {
     overflow: auto;
   }
 
-  .day-add-popover button,
-  .timeline-card-menu-popover > button {
+  .day-add-popover button {
     min-height: 46px;
   }
 
   .day-add-menu summary,
-  .timeline-card-menu summary,
   .timeline-add-button,
-  .timeline-hide-button {
+  .timeline-hide-button,
+  .timeline-delete-button {
     min-height: 44px;
   }
 
@@ -4590,14 +4598,13 @@ body.has-itinerary .expense-panel {
   }
 
   .day-add-menu summary,
-  .timeline-card-menu summary,
   .timeline-hide-button {
     width: 44px;
     height: 44px;
   }
 
   .meal-expense-row {
-    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .timeline-card-main,
