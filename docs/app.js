@@ -35,6 +35,7 @@ const elements = {
   itineraryPerspectiveSummary: document.querySelector("#itinerary-perspective-summary"),
   itineraryPerspectiveLabel: document.querySelector("#itinerary-perspective-label"),
   itineraryPerspectiveTotal: document.querySelector("#itinerary-perspective-total"),
+  openPerspective: document.querySelector("#open-perspective"),
   openScheduleModal: document.querySelector("#open-schedule-modal"),
   startScheduleSetup: document.querySelector("#start-schedule-setup"),
   openDayExpense: document.querySelector("#open-day-expense"),
@@ -160,6 +161,7 @@ const elements = {
   scheduleStartDate: document.querySelector("#schedule-start-date"),
   scheduleEndDate: document.querySelector("#schedule-end-date"),
   perspectiveBackdrop: document.querySelector("#perspective-backdrop"),
+  closePerspective: document.querySelector("#close-perspective"),
   perspectiveList: document.querySelector("#perspective-list"),
   chooseOverallPerspective: document.querySelector("#choose-overall-perspective"),
   perspectivePersonForm: document.querySelector("#perspective-person-form"),
@@ -191,6 +193,8 @@ let expenseOptionsExpanded = false;
 let expenseHistoryCollapsed = true;
 let perspectiveChosen = false;
 let perspectivePersonId = "";
+let perspectiveModalOpen = false;
+let perspectiveModalDismissible = false;
 let outsideScheduleExpanded = false;
 let draggedTimelineEntry = null;
 let csvImportState = {
@@ -1994,6 +1998,9 @@ function renderItinerary() {
   elements.openDayExpense.hidden = !itinerary;
   elements.openDayExpense.disabled = !editable || state.people.length === 0;
   const perspectivePerson = selectedPerspectivePerson();
+  const perspectiveName = perspectiveChosen ? perspectivePerson?.name || "전체 보기" : "선택 전";
+  elements.openPerspective.setAttribute("aria-label", `관점 바꾸기, 현재 ${perspectiveName}`);
+  elements.openPerspective.title = `현재 관점: ${perspectiveName}`;
   elements.itineraryPerspectiveSummary.hidden = !perspectivePerson;
   if (perspectivePerson) {
     elements.itineraryPerspectiveLabel.textContent = `${perspectivePerson.name}의 총 부담액`;
@@ -3368,12 +3375,15 @@ function renderPerspectiveModal() {
   if (perspectiveChosen && perspectivePersonId && !selectedPerspectivePerson()) {
     perspectiveChosen = false;
     perspectivePersonId = "";
+    perspectiveModalOpen = true;
+    perspectiveModalDismissible = false;
   }
 
-  const shouldOpen = !perspectiveChosen;
+  const shouldOpen = !perspectiveChosen || perspectiveModalOpen;
   elements.perspectiveBackdrop.hidden = !shouldOpen;
   document.body.classList.toggle("perspective-modal-open", shouldOpen);
   elements.perspectivePersonForm.hidden = !canEdit();
+  elements.closePerspective.hidden = !perspectiveModalDismissible;
 
   if (state.people.length === 0) {
     elements.perspectiveList.className = "perspective-list empty-state";
@@ -3383,20 +3393,18 @@ function renderPerspectiveModal() {
   } else {
     elements.perspectiveList.className = "perspective-list";
     elements.perspectiveList.innerHTML = state.people.map((person) => `
-      <button type="button" class="perspective-person-button" data-choose-perspective="${escapeHtml(person.id)}">
-        <span class="perspective-avatar" aria-hidden="true">${escapeHtml(person.name.trim().slice(0, 1) || "?")}</span>
-        <span>
-          <strong>${escapeHtml(person.name)}</strong>
-          <small>내가 부담한 날짜와 금액으로 보기</small>
-        </span>
-        <span class="perspective-arrow" aria-hidden="true">›</span>
-      </button>
+      <button type="button" class="perspective-person-button ${perspectiveChosen && person.id === perspectivePersonId ? "is-selected" : ""}" data-choose-perspective="${escapeHtml(person.id)}" aria-pressed="${perspectiveChosen && person.id === perspectivePersonId}">${escapeHtml(person.name)}</button>
     `).join("");
   }
+  elements.chooseOverallPerspective.classList.toggle("is-selected", perspectiveChosen && !perspectivePersonId);
+  elements.chooseOverallPerspective.setAttribute("aria-pressed", String(perspectiveChosen && !perspectivePersonId));
   syncModalInert();
   if (shouldOpen && document.activeElement?.closest("#perspective-backdrop") === null) {
     requestAnimationFrame(() => {
-      const firstChoice = elements.perspectiveList.querySelector("button") || elements.chooseOverallPerspective;
+      const firstChoice = elements.perspectiveList.querySelector(".is-selected") ||
+        (elements.chooseOverallPerspective.classList.contains("is-selected") ? elements.chooseOverallPerspective : null) ||
+        elements.perspectiveList.querySelector("button") ||
+        elements.chooseOverallPerspective;
       firstChoice.focus();
     });
   }
@@ -3404,12 +3412,33 @@ function renderPerspectiveModal() {
 
 function choosePerspective(personId = "") {
   if (personId && !state.people.some((person) => person.id === personId)) return;
+  const returnFocus = perspectiveModalDismissible;
   perspectivePersonId = personId;
   perspectiveChosen = true;
+  perspectiveModalOpen = false;
+  perspectiveModalDismissible = false;
   elements.perspectiveBackdrop.hidden = true;
   document.body.classList.remove("perspective-modal-open");
   syncModalInert();
   renderItinerary();
+  if (returnFocus) elements.openPerspective.focus();
+}
+
+function openPerspectiveChooser() {
+  if (!perspectiveChosen) return;
+  perspectiveModalOpen = true;
+  perspectiveModalDismissible = true;
+  renderPerspectiveModal();
+}
+
+function closePerspectiveChooser() {
+  if (!perspectiveChosen || !perspectiveModalDismissible) return;
+  perspectiveModalOpen = false;
+  perspectiveModalDismissible = false;
+  elements.perspectiveBackdrop.hidden = true;
+  document.body.classList.remove("perspective-modal-open");
+  syncModalInert();
+  elements.openPerspective.focus();
 }
 
 function activeModalDialog() {
@@ -5722,6 +5751,10 @@ document.addEventListener("keydown", (event) => {
 
   if (event.key !== "Escape") return;
   if (openCustomSelect) return;
+  if (!elements.perspectiveBackdrop.hidden) {
+    closePerspectiveChooser();
+    return;
+  }
   if (elements.actionMenu?.open) {
     elements.actionMenu.open = false;
     return;
@@ -5950,6 +5983,12 @@ elements.tripName.addEventListener("keydown", (event) => {
 elements.togglePeoplePanel.addEventListener("click", () => {
   peopleCollapsed = !peopleCollapsed;
   renderPeople();
+});
+
+elements.openPerspective.addEventListener("click", openPerspectiveChooser);
+elements.closePerspective.addEventListener("click", closePerspectiveChooser);
+elements.perspectiveBackdrop.addEventListener("click", (event) => {
+  if (event.target === elements.perspectiveBackdrop) closePerspectiveChooser();
 });
 
 elements.perspectiveList.addEventListener("click", (event) => {

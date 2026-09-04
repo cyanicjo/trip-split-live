@@ -3569,6 +3569,33 @@ body.has-itinerary .expense-panel {
   font-size: 1.28rem;
 }
 
+.itinerary-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.perspective-change-button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.perspective-change-button:hover,
+.perspective-change-button:focus-visible {
+  border-color: rgba(49, 130, 246, 0.4);
+  background: var(--mint-soft);
+  color: var(--mint);
+  outline: none;
+}
+
 .itinerary-range-label {
   margin: 4px 0 0;
   color: var(--muted);
@@ -4164,16 +4191,20 @@ body.has-itinerary .expense-panel {
   font-size: 1.42rem;
 }
 
-.perspective-intro > p:last-child {
-  margin: 7px 0 4px;
-  color: var(--muted);
-  font-size: 0.9rem;
-  font-weight: 700;
+.perspective-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.perspective-intro .panel-toggle[hidden] {
+  display: none;
 }
 
 .perspective-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
 }
 
@@ -4184,18 +4215,19 @@ body.has-itinerary .expense-panel {
 
 .perspective-person-button,
 .perspective-overall-button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: grid;
+  place-items: center;
   min-width: 0;
-  min-height: 66px;
-  padding: 10px 12px;
+  min-height: 46px;
+  padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   color: var(--ink);
-  text-align: left;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  font-size: 0.94rem;
+  font-weight: 900;
+  text-align: center;
 }
 
 .perspective-person-button:hover,
@@ -4208,45 +4240,18 @@ body.has-itinerary .expense-panel {
   outline: none;
 }
 
-.perspective-avatar {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
+.perspective-person-button.is-selected,
+.perspective-overall-button.is-selected {
+  border-color: rgba(49, 130, 246, 0.42);
   background: var(--mint-soft);
   color: var(--mint);
-  font-weight: 950;
+  box-shadow: inset 0 0 0 1px rgba(49, 130, 246, 0.08);
 }
 
-.perspective-person-button > span:nth-child(2),
-.perspective-overall-button > span:first-child {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.perspective-person-button strong,
-.perspective-overall-button strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.perspective-person-button small,
-.perspective-overall-button small,
 .perspective-person-form small {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 700;
-}
-
-.perspective-arrow,
-.perspective-overall-button > span:last-child {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 1.35rem;
 }
 
 .perspective-overall-button {

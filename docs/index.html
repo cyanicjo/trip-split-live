@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>실시간 여행 n빵</title>
-    <link rel="stylesheet" href="./styles.css?v=20260904-1">
+    <link rel="stylesheet" href="./styles.css?v=20260904-2">
   </head>
   <body>
     <div class="app-shell">
@@ -91,7 +91,10 @@
           <div class="itinerary-heading-row">
             <div>
               <p class="eyebrow">Trip plan</p>
-              <h2 id="itinerary-heading">일차별 지출 일정</h2>
+              <div class="itinerary-title-row">
+                <h2 id="itinerary-heading">일차별 지출 일정</h2>
+                <button id="open-perspective" class="perspective-change-button" type="button">관점 바꾸기</button>
+              </div>
               <p id="itinerary-range-label" class="itinerary-range-label">여행 기간을 설정해 주세요.</p>
               <div id="itinerary-perspective-summary" class="itinerary-perspective-summary" hidden>
                 <span id="itinerary-perspective-label">내 부담액</span>
@@ -575,18 +578,16 @@
     <div id="perspective-backdrop" class="perspective-backdrop" hidden>
       <section class="perspective-modal" role="dialog" aria-modal="true" aria-labelledby="perspective-heading">
         <div class="perspective-intro">
-          <p class="eyebrow">Your view</p>
-          <h2 id="perspective-heading">누구의 관점으로 볼까요?</h2>
-          <p>내가 부담한 지출만 모아 일차별로 확인할 수 있습니다.</p>
+          <div>
+            <p class="eyebrow">Your view</p>
+            <h2 id="perspective-heading">누구의 관점으로 볼까요?</h2>
+          </div>
+          <button id="close-perspective" class="panel-toggle" type="button" title="관점 선택 닫기" aria-label="관점 선택 닫기" hidden>
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
         <div id="perspective-list" class="perspective-list"></div>
-        <button id="choose-overall-perspective" class="perspective-overall-button" type="button">
-          <span>
-            <strong>전체 보기</strong>
-            <small>모든 여행자의 전체 결제액으로 봅니다.</small>
-          </span>
-          <span aria-hidden="true">›</span>
-        </button>
+        <button id="choose-overall-perspective" class="perspective-overall-button" type="button">전체 보기</button>
         <form id="perspective-person-form" class="perspective-person-form" hidden>
           <div>
             <strong>친구 추가</strong>
@@ -632,6 +633,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./config.js"></script>
-    <script type="module" src="./app.js?v=20260904-1"></script>
+    <script type="module" src="./app.js?v=20260904-2"></script>
   </body>
 </html>
