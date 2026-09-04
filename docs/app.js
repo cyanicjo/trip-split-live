@@ -1870,7 +1870,6 @@ function timelineExpenseCardHtml(expense, date) {
           </span>
           <span class="timeline-amount-stack">
             <b>${formatMoney(dailyAmount)}</b>
-            ${isPersonalPerspective() ? `<small>내 부담</small>` : ""}
           </span>
         </button>
       </div>
@@ -1901,7 +1900,6 @@ function mealSlotCardHtml(entry, date) {
                   </span>
                   <span class="timeline-amount-stack">
                     <b>${formatMoney(expensePerspectiveAmountForDate(expense, date))}</b>
-                    ${isPersonalPerspective() ? `<small>내 부담</small>` : ""}
                   </span>
                 </button>
                 ${timelineCardMenuHtml(expense, "지출 수정")}
@@ -2001,7 +1999,7 @@ function renderOutsideSchedule() {
   elements.outsideScheduleCount.textContent = `${expenses.length}개`;
   const outsideTotal = expenses.reduce((sum, expense) => sum + expensePerspectiveAmount(expense), 0);
   elements.outsideScheduleTotal.hidden = !isPersonalPerspective();
-  elements.outsideScheduleTotal.textContent = `내 부담 ${formatMoney(outsideTotal)}`;
+  elements.outsideScheduleTotal.textContent = formatMoney(outsideTotal);
   elements.toggleOutsideSchedule.setAttribute("aria-expanded", String(outsideScheduleExpanded));
   elements.outsideScheduleList.hidden = !outsideScheduleExpanded;
   if (expenses.length === 0) {
@@ -2011,7 +2009,7 @@ function renderOutsideSchedule() {
   elements.outsideScheduleList.innerHTML = expenses.map((expense) => `
     <div class="outside-expense-row">
       <span><strong>${escapeHtml(expense.title)}</strong><small>${escapeHtml([expense.spentAt, majorCategories[expense.majorCategory]?.label, getPersonName(expense.payerId)].filter(Boolean).join(" · "))}</small></span>
-      <span class="outside-expense-amount"><b>${formatMoney(expensePerspectiveAmount(expense))}</b>${isPersonalPerspective() ? `<small>내 부담</small>` : ""}</span>
+      <span class="outside-expense-amount"><b>${formatMoney(expensePerspectiveAmount(expense))}</b></span>
       ${canEdit() ? `<button class="text-button" type="button" data-edit-expense="${escapeHtml(expense.id)}">수정</button>` : ""}
     </div>
   `).join("");

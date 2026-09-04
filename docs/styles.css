@@ -3685,7 +3685,7 @@ body.has-itinerary .expense-panel {
 .itinerary-day-column {
   min-width: 310px;
   max-width: 410px;
-  min-height: 328px;
+  min-height: 288px;
   border-right: 1px solid var(--line);
   background: #fff;
   scroll-snap-align: start;
@@ -3703,8 +3703,8 @@ body.has-itinerary .expense-panel {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 64px;
-  padding: 11px 14px;
+  min-height: 58px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
@@ -3799,16 +3799,16 @@ body.has-itinerary .expense-panel {
   display: grid;
   align-content: start;
   gap: 0;
-  min-height: 264px;
-  padding: 13px 12px 18px 42px;
+  min-height: 220px;
+  padding: 9px 10px 12px 40px;
 }
 
 .day-timeline::before {
   content: "";
   position: absolute;
-  top: 18px;
-  bottom: 20px;
-  left: 25px;
+  top: 14px;
+  bottom: 14px;
+  left: 24px;
   width: 2px;
   border-radius: 2px;
   background: #dfe5eb;
@@ -3846,7 +3846,7 @@ body.has-itinerary .expense-panel {
 }
 
 .timeline-drop-zone {
-  height: 8px;
+  height: 6px;
 }
 
 .meal-drop-zone {
@@ -3892,8 +3892,8 @@ body.has-itinerary .expense-panel {
 
 .timeline-node {
   position: absolute;
-  top: 14px;
-  left: -30px;
+  top: 10px;
+  left: -28px;
   z-index: 2;
   display: grid;
   place-items: center;
@@ -3910,14 +3910,14 @@ body.has-itinerary .expense-panel {
 
 .timeline-card-body {
   min-width: 0;
-  padding: 10px;
+  padding: 8px;
 }
 
 .timeline-card-topline {
   display: flex;
   align-items: center;
   gap: 7px;
-  min-height: 30px;
+  min-height: 28px;
 }
 
 .timeline-major {
@@ -3944,8 +3944,8 @@ body.has-itinerary .expense-panel {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 46px;
-  padding: 6px 0 0;
+  min-height: 42px;
+  padding: 4px 0 0;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -4007,7 +4007,7 @@ body.has-itinerary .expense-panel {
 }
 
 .timeline-empty-copy {
-  margin: 6px 0 8px;
+  margin: 4px 0 6px;
   color: var(--muted);
   font-size: 0.83rem;
 }
@@ -4023,7 +4023,7 @@ body.has-itinerary .expense-panel {
   justify-content: space-between;
   gap: 6px;
   border-top: 1px solid #f2f4f6;
-  padding-top: 7px;
+  padding-top: 5px;
 }
 
 .timeline-add-button,
@@ -4065,7 +4065,7 @@ body.has-itinerary .expense-panel {
 .meal-expense-list {
   display: grid;
   gap: 0;
-  margin: 4px -4px 6px;
+  margin: 2px -3px 4px;
 }
 
 .meal-expense-row {
@@ -4086,8 +4086,8 @@ body.has-itinerary .expense-panel {
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  min-height: 44px;
-  padding: 4px;
+  min-height: 40px;
+  padding: 2px 3px;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -4551,7 +4551,7 @@ body.has-itinerary .expense-panel {
   }
 
   .day-timeline {
-    min-height: 224px;
+    min-height: 190px;
   }
 
   .day-add-popover,
@@ -4599,6 +4599,11 @@ body.has-itinerary .expense-panel {
     grid-template-columns: minmax(0, 1fr) 44px;
   }
 
+  .timeline-card-main,
+  .meal-expense-row > button:first-child {
+    min-height: 44px;
+  }
+
   .schedule-backdrop {
     padding: 8px;
   }
@@ -4623,8 +4628,8 @@ body.has-itinerary .expense-panel {
   }
 
   .day-timeline {
-    padding-right: 10px;
-    padding-left: 40px;
+    padding-right: 8px;
+    padding-left: 38px;
   }
 
   .outside-expense-row {
