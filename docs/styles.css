@@ -3910,7 +3910,7 @@ body.has-itinerary .expense-panel {
 
 .timeline-card-body {
   min-width: 0;
-  padding: 8px;
+  padding: 8px 8px 8px 12px;
 }
 
 .timeline-card-topline {
@@ -4065,7 +4065,7 @@ body.has-itinerary .expense-panel {
 .meal-expense-list {
   display: grid;
   gap: 0;
-  margin: 2px -3px 4px;
+  margin: 2px 0 4px;
 }
 
 .meal-expense-row {
@@ -4087,7 +4087,7 @@ body.has-itinerary .expense-panel {
   gap: 8px;
   width: 100%;
   min-height: 40px;
-  padding: 2px 3px;
+  padding: 2px 4px 2px 0;
   border: 0;
   background: transparent;
   color: var(--ink);
