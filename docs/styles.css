@@ -4681,3 +4681,1034 @@ body.has-itinerary .expense-panel {
     min-height: 44px;
   }
 }
+
+/* Apple-inspired semantic interface. Keep this final in the cascade. */
+:root {
+  color-scheme: light dark;
+  --app-background: #f5f5f7;
+  --group-background: #ffffff;
+  --secondary-background: #f2f2f7;
+  --tertiary-background: #e9e9ee;
+  --elevated-background: #ffffff;
+  --primary-label: #1d1d1f;
+  --secondary-label: #6e6e73;
+  --tertiary-label: #8e8e93;
+  --separator: rgba(60, 60, 67, 0.18);
+  --opaque-separator: #d8d8dc;
+  --accent: #3182f6;
+  --accent-pressed: #1769d2;
+  --accent-fill: rgba(49, 130, 246, 0.12);
+  --success-color: #0a9f7a;
+  --success-fill: rgba(10, 159, 122, 0.12);
+  --warning-color: #b96f00;
+  --danger-color: #d92d3a;
+  --danger-fill: rgba(217, 45, 58, 0.1);
+  --glass-background: rgba(245, 245, 247, 0.82);
+  --glass-elevated: rgba(255, 255, 255, 0.88);
+  --overlay-background: rgba(0, 0, 0, 0.34);
+  --focus-ring: rgba(49, 130, 246, 0.34);
+  --floating-shadow: 0 18px 50px rgba(0, 0, 0, 0.14);
+  --ink: var(--primary-label);
+  --muted: var(--secondary-label);
+  --line: var(--separator);
+  --panel: var(--group-background);
+  --paper: var(--app-background);
+  --mint: var(--accent);
+  --mint-soft: var(--accent-fill);
+  --coral: var(--danger-color);
+  --coral-soft: var(--danger-fill);
+  --blue: var(--secondary-label);
+  --blue-soft: var(--secondary-background);
+  --amber: var(--warning-color);
+  --success: var(--success-color);
+  --success-soft: var(--success-fill);
+  --shadow: none;
+}
+
+html,
+body {
+  background: var(--app-background);
+  color: var(--primary-label);
+}
+
+body {
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent-fill);
+  color: var(--primary-label);
+}
+
+svg.lucide,
+[data-lucide] {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  stroke-width: 2;
+}
+
+.app-shell {
+  width: min(1440px, 100%);
+  padding: 0 24px 40px;
+}
+
+.topbar {
+  min-height: 64px;
+  padding: 8px 0;
+  border-color: var(--separator);
+  background: var(--glass-background);
+  backdrop-filter: saturate(170%) blur(20px);
+  -webkit-backdrop-filter: saturate(170%) blur(20px);
+}
+
+.brand-block {
+  gap: 10px;
+}
+
+.route-mark {
+  width: 42px;
+  opacity: 0.9;
+}
+
+.route-mark span {
+  border-color: var(--glass-background);
+  box-shadow: none;
+}
+
+.eyebrow {
+  margin-bottom: 2px;
+  color: var(--tertiary-label);
+  font-size: 0.69rem;
+  font-weight: 720;
+  line-height: 1.2;
+}
+
+.trip-name {
+  width: min(520px, 48vw);
+  color: var(--primary-label);
+  font-size: 1.42rem;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.topbar-actions {
+  gap: 7px;
+}
+
+.live-status {
+  min-height: 34px;
+  padding: 0 9px;
+  border: 0;
+  background: transparent;
+  color: var(--secondary-label);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  box-shadow: none !important;
+}
+
+.icon-button,
+.action-menu-trigger,
+.panel-toggle {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.icon-button,
+.icon-button.labeled,
+.primary-button {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.icon-button.labeled {
+  min-width: 108px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 720;
+}
+
+.action-menu-trigger,
+.panel-toggle,
+.day-add-menu summary {
+  border-color: transparent;
+  background: var(--secondary-background);
+  color: var(--secondary-label);
+}
+
+.action-menu-trigger:hover,
+.action-menu-trigger:focus-visible,
+.panel-toggle:hover,
+.panel-toggle:focus-visible,
+.day-add-menu summary:hover,
+.day-add-menu summary:focus-visible {
+  background: var(--tertiary-background);
+  color: var(--primary-label);
+}
+
+.action-menu[open] .action-menu-trigger {
+  border: 0;
+  background: var(--accent-fill);
+  color: var(--accent);
+}
+
+.action-menu-popover,
+.day-add-popover,
+.custom-select-menu {
+  border-color: var(--separator);
+  background: var(--glass-elevated);
+  color: var(--primary-label);
+  box-shadow: var(--floating-shadow);
+  backdrop-filter: saturate(160%) blur(22px);
+  -webkit-backdrop-filter: saturate(160%) blur(22px);
+}
+
+.menu-action,
+.day-add-popover button,
+.custom-select-option {
+  color: var(--primary-label);
+  font-weight: 650;
+}
+
+.menu-action:hover,
+.menu-action:focus-visible,
+.day-add-popover button:hover,
+.day-add-popover button:focus-visible,
+.custom-select-option:hover,
+.custom-select-option:focus-visible {
+  background: var(--secondary-background);
+}
+
+.workspace,
+body.has-overseas .workspace,
+body.has-itinerary .workspace,
+body.has-itinerary.has-overseas .workspace {
+  grid-template-columns: minmax(0, 1.14fr) minmax(340px, 0.86fr);
+  grid-template-areas:
+    "summary summary"
+    "itinerary itinerary"
+    "settlement balance"
+    "history history"
+    "people people"
+    "overseas overseas";
+  gap: 14px;
+  padding-top: 14px;
+}
+
+body:not(.has-itinerary) .workspace {
+  grid-template-areas:
+    "summary summary"
+    "itinerary itinerary"
+    "expense expense"
+    "settlement balance"
+    "history history"
+    "people people"
+    "overseas overseas";
+}
+
+body.is-readonly .expense-panel {
+  display: none;
+}
+
+.summary-band,
+.panel,
+.itinerary-panel {
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  background: var(--group-background);
+  color: var(--primary-label);
+  box-shadow: none;
+}
+
+.summary-band {
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 270px);
+  min-height: 108px;
+  gap: 14px 28px;
+  padding: 17px 20px;
+}
+
+.summary-copy h1 {
+  max-width: none;
+  color: var(--primary-label);
+  font-size: 1.36rem;
+  font-weight: 750;
+  line-height: 1.22;
+}
+
+.summary-copy p:last-child {
+  margin-top: 5px;
+  color: var(--secondary-label);
+  font-size: 0.84rem;
+}
+
+.summary-metrics {
+  width: 100%;
+}
+
+.metric {
+  padding: 10px 14px;
+  border: 0;
+  background: var(--secondary-background);
+}
+
+.metric span {
+  color: var(--secondary-label);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.metric strong {
+  margin-top: 1px;
+  color: var(--primary-label);
+  font-size: 1.62rem;
+  font-weight: 780;
+}
+
+.spending-insights {
+  padding-top: 11px;
+  border-color: var(--separator);
+}
+
+.insight-bar,
+.compact-bar,
+.stacked-bar {
+  background: var(--secondary-background);
+}
+
+.insight-amount-slot,
+.compact-insight-main span,
+.compact-insight-legend,
+.category-breakdown-row small {
+  color: var(--secondary-label);
+}
+
+.insight-toggle,
+.insight-chip {
+  border-color: var(--separator);
+  background: var(--secondary-background);
+  color: var(--secondary-label);
+}
+
+.panel {
+  padding: 16px;
+}
+
+.panel-heading {
+  margin-bottom: 10px;
+}
+
+.panel h2,
+.modal-header h2,
+.dashboard-header h2,
+.itinerary-heading-row h2,
+.itinerary-day-header h3,
+.itinerary-day-summary > strong {
+  color: var(--primary-label);
+  font-weight: 750;
+}
+
+.settlement-panel { grid-area: settlement; }
+.balance-panel { grid-area: balance; }
+.expense-list-panel { grid-area: history; }
+.people-panel { grid-area: people; }
+.overseas-panel { grid-area: overseas; }
+.expense-panel { grid-area: expense; }
+
+.people-panel.is-collapsed,
+.overseas-panel.is-collapsed,
+.expense-list-panel:has(.expense-history-body[hidden]) {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.people-panel.is-collapsed .panel-heading,
+.overseas-panel.is-collapsed .panel-heading,
+.expense-list-panel:has(.expense-history-body[hidden]) .panel-heading {
+  margin-bottom: 0;
+}
+
+.itinerary-panel {
+  grid-area: itinerary;
+  padding: 0;
+  overflow: hidden;
+}
+
+.itinerary-heading-row {
+  padding: 14px 16px;
+  border-color: var(--separator);
+}
+
+.itinerary-heading-row h2 {
+  font-size: 1.22rem;
+}
+
+.itinerary-range-label {
+  color: var(--secondary-label);
+  font-size: 0.79rem;
+  font-weight: 600;
+}
+
+.perspective-change-button,
+.text-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--secondary-background);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.perspective-change-button:hover,
+.perspective-change-button:focus-visible,
+.text-button:hover,
+.text-button:focus-visible {
+  border: 0;
+  background: var(--tertiary-background);
+  color: var(--accent-pressed);
+}
+
+.itinerary-perspective-summary {
+  margin-top: 7px;
+  padding: 5px 8px;
+  background: var(--accent-fill);
+  color: var(--accent);
+}
+
+.itinerary-empty,
+.outside-schedule,
+.itinerary-board {
+  background: var(--secondary-background);
+}
+
+.itinerary-empty p,
+.timeline-card-main small,
+.meal-expense-row small,
+.outside-expense-row small,
+.timeline-empty-copy,
+.expense-meta,
+.expense-memo,
+.balance-detail,
+.field-help,
+label span,
+.field-label {
+  color: var(--secondary-label);
+}
+
+.itinerary-day-column,
+.itinerary-day-header {
+  border-color: var(--separator);
+  background: var(--group-background);
+}
+
+.itinerary-day-header {
+  min-height: 56px;
+  background: var(--glass-elevated);
+  backdrop-filter: saturate(160%) blur(18px);
+  -webkit-backdrop-filter: saturate(160%) blur(18px);
+}
+
+.itinerary-day-header span {
+  color: var(--accent);
+}
+
+.day-timeline::before {
+  background: var(--opaque-separator);
+}
+
+.timeline-card,
+.outside-toggle,
+.outside-expense-row,
+.person-chip,
+.balance-card,
+.settlement-item,
+.completed-settlement-item,
+.completed-detail,
+.expense-item,
+.exchange-item,
+.expense-item-row,
+.perspective-person-button,
+.perspective-overall-button {
+  border-color: var(--separator);
+  background: var(--group-background);
+  color: var(--primary-label);
+  box-shadow: none;
+}
+
+.timeline-placeholder,
+.itemized-section,
+.expense-editor,
+.perspective-schedule {
+  background: var(--secondary-background);
+}
+
+.timeline-node {
+  border-color: var(--group-background);
+  box-shadow: 0 0 0 1px var(--separator);
+}
+
+.timeline-node svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2.4;
+}
+
+.timeline-card-main,
+.meal-expense-row > button:first-child {
+  color: var(--primary-label);
+}
+
+.timeline-card-main b,
+.meal-expense-row b,
+.expense-amount,
+.compact-insight-main strong,
+.exchange-rate-chip strong {
+  color: var(--primary-label);
+}
+
+.timeline-major {
+  background: var(--secondary-background);
+  color: var(--secondary-label);
+}
+
+.major-transport .timeline-major { background: rgba(49, 130, 246, 0.12); color: #1769d2; }
+.major-lodging .timeline-major { background: rgba(139, 92, 246, 0.12); color: #7351c9; }
+.major-food .timeline-major { background: rgba(245, 159, 0, 0.14); color: #956000; }
+
+.meal-expense-row,
+.timeline-slot-actions,
+.completed-settlement-list,
+.completed-expense-row {
+  border-color: var(--separator);
+}
+
+.timeline-add-button,
+.balance-amount.positive,
+.settlement-amount {
+  color: var(--accent);
+}
+
+.timeline-delete-button {
+  color: var(--primary-label);
+}
+
+.timeline-delete-button:hover,
+.timeline-delete-button:focus-visible {
+  background: var(--danger-fill);
+  color: var(--danger-color);
+}
+
+.timeline-drop-zone::after,
+.meal-drop-zone::after {
+  background: var(--accent);
+}
+
+.empty-state,
+.completed-toggle,
+.expense-meta span,
+.expense-item-snippets span,
+.completed-detail-meta span,
+.category-chip {
+  border-color: var(--separator);
+  background: var(--secondary-background);
+  color: var(--secondary-label);
+}
+
+.people-list,
+.balance-list,
+.settlement-list {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  background: var(--group-background);
+}
+
+.person-chip,
+.balance-card,
+.settlement-item {
+  border: 0;
+  border-bottom: 1px solid var(--separator);
+  border-radius: 0;
+}
+
+.person-chip:last-child,
+.balance-card:last-child,
+.settlement-item:last-child {
+  border-bottom: 0;
+}
+
+.account-copy,
+.person-chip .account-copy,
+.settlement-account-copy {
+  background: var(--success-fill);
+  color: var(--success-color);
+}
+
+.person-chip button,
+.expense-delete,
+.category-chip button,
+.timeline-hide-button {
+  background: var(--secondary-background);
+  color: var(--secondary-label);
+}
+
+.person-chip button:hover,
+.person-chip button:focus-visible,
+.expense-delete:hover,
+.expense-delete:focus-visible,
+.category-chip button:hover,
+.category-chip button:focus-visible,
+.timeline-hide-button:hover,
+.timeline-hide-button:focus-visible {
+  background: var(--danger-fill);
+  color: var(--danger-color);
+}
+
+.balance-amount.negative {
+  color: var(--danger-color);
+}
+
+.expense-list {
+  max-height: 720px;
+  gap: 0;
+}
+
+.expense-item {
+  padding: 14px 4px;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.expense-item:last-child {
+  border-bottom: 0;
+}
+
+input,
+textarea,
+select,
+.custom-select-button,
+.expense-mode-switch,
+.expense-extra-toggle,
+.participant-option span,
+.item-participant-option span {
+  border-color: var(--separator);
+  background: var(--group-background);
+  color: var(--primary-label);
+  box-shadow: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--tertiary-label);
+}
+
+input.trip-name,
+input.trip-name:hover,
+input.trip-name:focus {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+input.trip-name:focus {
+  border-bottom-color: var(--accent);
+}
+
+input:hover:not(:disabled),
+textarea:hover:not(:disabled),
+.custom-select-button:hover:not(:disabled) {
+  border-color: var(--opaque-separator);
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+.custom-select-button:focus-visible,
+.custom-select.is-open .custom-select-button {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.custom-select-arrow {
+  background: transparent;
+  color: var(--tertiary-label);
+}
+
+.custom-select-option.is-selected,
+.expense-mode-switch:has(input:checked),
+.expense-extra-toggle.is-expanded,
+.participant-option input:checked + span,
+.item-participant-option input:checked + span,
+.perspective-person-button.is-selected,
+.perspective-overall-button.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-fill);
+  color: var(--accent);
+}
+
+.expense-launch {
+  border-color: var(--separator);
+  background: var(--secondary-background);
+  color: var(--primary-label);
+}
+
+.expense-launch:hover,
+.expense-launch:focus-visible,
+.expense-panel:has(.expense-launch:not(:disabled)):hover .expense-launch {
+  border-color: var(--accent);
+  background: var(--accent-fill);
+  box-shadow: none;
+  transform: none;
+}
+
+.primary-button {
+  min-height: 46px;
+  border-radius: 8px;
+  font-weight: 750;
+}
+
+.primary-button:hover,
+.primary-button:focus-visible,
+.icon-button:hover,
+.icon-button:focus-visible {
+  background: var(--accent-pressed);
+}
+
+.primary-button:disabled {
+  background: var(--tertiary-background);
+  color: var(--tertiary-label);
+}
+
+.dashboard-backdrop,
+.export-backdrop,
+.import-backdrop,
+.account-backdrop,
+.expense-backdrop,
+.perspective-backdrop,
+.schedule-backdrop {
+  background: var(--overlay-background);
+  backdrop-filter: saturate(120%) blur(10px);
+  -webkit-backdrop-filter: saturate(120%) blur(10px);
+}
+
+.dashboard-panel,
+.export-panel,
+.import-panel,
+.account-modal,
+.expense-modal,
+.perspective-modal,
+.schedule-modal {
+  border-color: var(--separator);
+  background: var(--elevated-background);
+  color: var(--primary-label);
+  box-shadow: var(--floating-shadow);
+}
+
+.dashboard-header,
+.modal-header,
+.perspective-intro {
+  border-color: var(--separator);
+  background: var(--glass-elevated);
+  backdrop-filter: saturate(160%) blur(20px);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+}
+
+.expense-modal {
+  width: min(780px, 100%);
+}
+
+.expense-form > .primary-button:last-child {
+  position: sticky;
+  z-index: 6;
+  bottom: 0;
+  box-shadow: 0 -10px 18px var(--elevated-background);
+}
+
+.toast {
+  border: 1px solid var(--separator);
+  border-radius: 8px;
+  background: var(--glass-elevated);
+  color: var(--primary-label);
+  box-shadow: var(--floating-shadow);
+  backdrop-filter: saturate(160%) blur(20px);
+  -webkit-backdrop-filter: saturate(160%) blur(20px);
+}
+
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (min-width: 801px) {
+  .itinerary-day-tabs {
+    display: none;
+  }
+
+  .itinerary-board {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(300px, 1fr);
+    overflow-x: auto;
+  }
+
+  .itinerary-day-column,
+  .itinerary-day-column.is-selected {
+    display: block;
+    width: auto;
+    min-width: 300px;
+    max-width: 410px;
+    border-right: 1px solid var(--separator);
+  }
+
+  .timeline-drop-zone,
+  .meal-drop-zone {
+    display: block;
+  }
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .workspace,
+  body.has-overseas .workspace,
+  body.has-itinerary .workspace,
+  body.has-itinerary.has-overseas .workspace,
+  body:not(.has-itinerary) .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "summary"
+      "itinerary"
+      "expense"
+      "settlement"
+      "balance"
+      "history"
+      "people"
+      "overseas";
+  }
+}
+
+@media (max-width: 800px) {
+  body {
+    overflow-x: clip;
+  }
+
+  .app-shell {
+    padding: 0 12px 28px;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .brand-block {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+
+  .brand-block > div:last-child {
+    width: 100%;
+  }
+
+  .topbar-actions {
+    display: flex;
+    flex: 0 0 auto;
+    width: auto;
+    gap: 4px;
+  }
+
+  .topbar-actions .live-status {
+    flex: 0 0 24px;
+    width: 24px;
+    min-width: 24px;
+    min-height: 44px;
+    padding: 0 3px;
+    justify-content: center;
+    font-size: 0;
+  }
+
+  .workspace > *,
+  .summary-band,
+  .spending-insights,
+  .insight-composition,
+  .expense-history-body {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .summary-band,
+  .insight-composition,
+  .expense-history-body {
+    overflow-x: hidden;
+  }
+
+  .route-mark,
+  .brand-block .eyebrow {
+    display: none;
+  }
+
+  .trip-name {
+    width: 100%;
+    font-size: 1.13rem;
+  }
+
+  .topbar-actions .icon-button.labeled {
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .icon-button.labeled > span {
+    display: none;
+  }
+
+  .summary-band {
+    grid-template-columns: 1fr;
+    padding: 15px;
+  }
+
+  .summary-metrics {
+    order: -1;
+  }
+
+  .summary-copy h1 {
+    font-size: 1.14rem;
+  }
+
+  .summary-copy p:last-child {
+    display: none;
+  }
+
+  .itinerary-heading-row {
+    padding: 13px 14px;
+  }
+
+  .itinerary-day-tabs {
+    border-color: var(--separator);
+    background: var(--glass-elevated);
+  }
+
+  .itinerary-day-tabs button {
+    border-color: var(--separator);
+    background: var(--secondary-background);
+    color: var(--secondary-label);
+  }
+
+  .itinerary-day-tabs button.is-selected {
+    border-color: var(--accent);
+    background: var(--accent-fill);
+    color: var(--accent);
+  }
+
+  .expense-backdrop,
+  .perspective-backdrop,
+  .account-backdrop,
+  .schedule-backdrop,
+  .export-backdrop,
+  .dashboard-backdrop {
+    place-items: end center;
+    padding: 8px;
+  }
+
+  .expense-modal,
+  .perspective-modal,
+  .account-modal,
+  .schedule-modal,
+  .export-panel,
+  .dashboard-panel {
+    width: 100%;
+    max-height: calc(100dvh - 16px);
+    border-radius: 8px 8px 0 0;
+  }
+
+  .panel-toggle,
+  .action-menu-trigger,
+  .icon-button,
+  .day-add-menu summary,
+  .timeline-hide-button {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .text-button,
+  .perspective-change-button,
+  .timeline-delete-button {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-background: #000000;
+    --group-background: #1c1c1e;
+    --secondary-background: #2c2c2e;
+    --tertiary-background: #3a3a3c;
+    --elevated-background: #242426;
+    --primary-label: #f5f5f7;
+    --secondary-label: #aeaeb2;
+    --tertiary-label: #8e8e93;
+    --separator: rgba(84, 84, 88, 0.62);
+    --opaque-separator: #48484a;
+    --accent: #409cff;
+    --accent-pressed: #66b0ff;
+    --accent-fill: rgba(64, 156, 255, 0.18);
+    --success-color: #30d6a3;
+    --success-fill: rgba(48, 214, 163, 0.16);
+    --warning-color: #ffd60a;
+    --danger-color: #ff6961;
+    --danger-fill: rgba(255, 105, 97, 0.16);
+    --glass-background: rgba(28, 28, 30, 0.78);
+    --glass-elevated: rgba(44, 44, 46, 0.9);
+    --overlay-background: rgba(0, 0, 0, 0.66);
+    --focus-ring: rgba(64, 156, 255, 0.42);
+    --floating-shadow: 0 22px 60px rgba(0, 0, 0, 0.52);
+  }
+
+  .major-transport .timeline-major { background: rgba(64, 156, 255, 0.18); color: #73b6ff; }
+  .major-lodging .timeline-major { background: rgba(191, 148, 255, 0.18); color: #c8a4ff; }
+  .major-food .timeline-major { background: rgba(255, 214, 10, 0.16); color: #ffd95a; }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+}

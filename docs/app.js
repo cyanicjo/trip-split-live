@@ -250,10 +250,10 @@ const csvImportAliases = {
 const defaultCategories = ["숙소", "교통", "식비", "관광", "쇼핑", "기타"];
 
 const majorCategories = {
-  transport: { label: "이동", icon: "↗", color: "#3182f6" },
-  lodging: { label: "숙소", icon: "⌂", color: "#8b5cf6" },
-  food: { label: "식비", icon: "●", color: "#f59f00" },
-  other: { label: "그 외", icon: "＋", color: "#6b7684" }
+  transport: { label: "이동", icon: "route", color: "#3182f6" },
+  lodging: { label: "숙소", icon: "bed-double", color: "#8b5cf6" },
+  food: { label: "식비", icon: "utensils", color: "#f59f00" },
+  other: { label: "그 외", icon: "receipt-text", color: "#6b7684" }
 };
 
 const mealSlots = {
@@ -434,6 +434,35 @@ async function copyAccountFromButton(accountCopyButton) {
   if (accountCopyText) {
     await copyText(accountCopyText, "계좌 정보를 복사했습니다.");
   }
+}
+
+let iconRefreshFrame = 0;
+
+function refreshIcons() {
+  iconRefreshFrame = 0;
+  if (!window.lucide?.createIcons) return;
+  window.lucide.createIcons({
+    attrs: {
+      "aria-hidden": "true",
+      "stroke-width": "2"
+    }
+  });
+}
+
+function scheduleIconRefresh() {
+  if (iconRefreshFrame) return;
+  iconRefreshFrame = requestAnimationFrame(refreshIcons);
+}
+
+function setDisclosureIcon(button, expanded) {
+  if (!button) return;
+  const icon = button.querySelector("[data-lucide]");
+  if (icon) {
+    icon.setAttribute("data-lucide", expanded ? "chevron-up" : "chevron-down");
+  } else {
+    button.innerHTML = `<i data-lucide="${expanded ? "chevron-up" : "chevron-down"}" aria-hidden="true"></i>`;
+  }
+  scheduleIconRefresh();
 }
 
 function showToast(message) {
@@ -927,11 +956,12 @@ function renderCustomSelectOptions(select) {
     item.disabled = option.disabled;
     item.setAttribute("role", "option");
     item.setAttribute("aria-selected", String(isSelected));
-    item.innerHTML = `<span></span><span class="custom-select-check" aria-hidden="true">${isSelected ? "✓" : ""}</span>`;
+    item.innerHTML = `<span></span><span class="custom-select-check" aria-hidden="true">${isSelected ? '<i data-lucide="check"></i>' : ""}</span>`;
     item.querySelector("span").textContent = option.textContent;
     item.addEventListener("click", () => selectCustomOption(select, option.value));
     parts.menu.append(item);
   }
+  scheduleIconRefresh();
 }
 
 function syncCustomSelect(select) {
@@ -1029,7 +1059,7 @@ function enhanceCustomSelect(select) {
   button.setAttribute("aria-expanded", "false");
   button.innerHTML = `
     <span class="custom-select-value"></span>
-    <span class="custom-select-arrow" aria-hidden="true">▾</span>
+    <span class="custom-select-arrow" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
   `;
 
   const menu = document.createElement("div");
@@ -1640,6 +1670,7 @@ function render() {
   renderAccountModal();
   refreshCustomSelects();
   renderPerspectiveModal();
+  scheduleIconRefresh();
 }
 
 function renderHeader() {
@@ -1848,7 +1879,7 @@ function timelineExpenseCardHtml(expense, date) {
   const copy = expenseCardCopy(expense, major.label);
   return `
     <article class="timeline-card major-${expense.majorCategory}" draggable="${timelineDraggingEnabled()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
-      <span class="timeline-node" style="--category-color:${major.color}" aria-hidden="true">${major.icon}</span>
+      <span class="timeline-node" style="--category-color:${major.color}" aria-hidden="true"><i data-lucide="${major.icon}"></i></span>
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
           <span class="timeline-major">${escapeHtml(major.label)}</span>
@@ -1873,7 +1904,7 @@ function mealSlotCardHtml(entry, date) {
   const slotLabel = mealSlots[entry.slot] || "식비";
   return `
     <article class="timeline-card timeline-meal-card major-food" draggable="${timelineDraggingEnabled()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}">
-      <span class="timeline-node" style="--category-color:${majorCategories.food.color}" aria-hidden="true">${majorCategories.food.icon}</span>
+      <span class="timeline-node" style="--category-color:${majorCategories.food.color}" aria-hidden="true"><i data-lucide="${majorCategories.food.icon}"></i></span>
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
           <span class="timeline-major">${escapeHtml(slotLabel)}</span>
@@ -1902,7 +1933,7 @@ function mealSlotCardHtml(entry, date) {
         ${canEdit() ? `
           <div class="timeline-slot-actions">
             <button type="button" class="timeline-add-button" data-add-schedule-expense="food" data-schedule-date="${date}" data-meal-slot="${escapeHtml(entry.slot)}" aria-label="${escapeHtml(slotLabel)} 지출 입력">+ 입력</button>
-            ${entry.expenses.length === 0 ? `<button type="button" class="timeline-hide-button" data-hide-schedule-slot="${escapeHtml(entry.slot)}" data-schedule-date="${date}" title="${escapeHtml(slotLabel)} 칸 숨기기" aria-label="${escapeHtml(slotLabel)} 칸 숨기기"><span aria-hidden="true">&#128465;</span></button>` : ""}
+            ${entry.expenses.length === 0 ? `<button type="button" class="timeline-hide-button" data-hide-schedule-slot="${escapeHtml(entry.slot)}" data-schedule-date="${date}" title="${escapeHtml(slotLabel)} 칸 숨기기" aria-label="${escapeHtml(slotLabel)} 칸 숨기기"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ""}
           </div>
         ` : ""}
       </div>
@@ -1914,7 +1945,7 @@ function lodgingSlotCardHtml(date) {
   const token = "slot:lodging";
   return `
     <article class="timeline-card timeline-placeholder major-lodging" draggable="${timelineDraggingEnabled()}" data-timeline-token="${token}" data-timeline-date="${date}">
-      <span class="timeline-node" style="--category-color:${majorCategories.lodging.color}" aria-hidden="true">${majorCategories.lodging.icon}</span>
+      <span class="timeline-node" style="--category-color:${majorCategories.lodging.color}" aria-hidden="true"><i data-lucide="${majorCategories.lodging.icon}"></i></span>
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
           <span class="timeline-major">숙소</span>
@@ -1923,7 +1954,7 @@ function lodgingSlotCardHtml(date) {
         ${canEdit() ? `
           <div class="timeline-slot-actions">
             <button type="button" class="timeline-add-button" data-add-schedule-expense="lodging" data-schedule-date="${date}" aria-label="숙소 지출 입력">+ 입력</button>
-            <button type="button" class="timeline-hide-button" data-hide-schedule-slot="lodging" data-schedule-date="${date}" title="숙소 칸 숨기기" aria-label="숙소 칸 숨기기"><span aria-hidden="true">&#128465;</span></button>
+            <button type="button" class="timeline-hide-button" data-hide-schedule-slot="lodging" data-schedule-date="${date}" title="숙소 칸 숨기기" aria-label="숙소 칸 숨기기"><i data-lucide="trash-2" aria-hidden="true"></i></button>
           </div>
         ` : ""}
       </div>
@@ -1937,7 +1968,7 @@ function itineraryDayAddMenuHtml(date) {
     (itinerarySettings()?.hiddenSlots?.[date] || []).includes("lodging");
   return `
     <details class="day-add-menu">
-      <summary aria-label="${escapeHtml(itineraryDayLabel(date))} 항목 추가">＋</summary>
+      <summary aria-label="${escapeHtml(itineraryDayLabel(date))} 항목 추가"><i data-lucide="plus" aria-hidden="true"></i></summary>
       <div class="day-add-popover">
         <button type="button" data-add-schedule-expense="transport" data-schedule-date="${date}">이동</button>
         <button type="button" ${restoresHiddenLodging ? "data-show-lodging-slot" : "data-add-schedule-expense=\"lodging\""} data-schedule-date="${date}">숙소</button>
@@ -2051,6 +2082,7 @@ function renderItinerary() {
   elements.itineraryBoard.innerHTML = dates.map(renderItineraryDayColumn).join("");
   renderOutsideSchedule();
   refreshCustomSelects(elements.itineraryPanel);
+  scheduleIconRefresh();
 }
 
 function renderExpenseHistoryState() {
@@ -2058,7 +2090,7 @@ function renderExpenseHistoryState() {
   elements.expenseHistoryBody.hidden = collapsed;
   elements.toggleExpenseHistory.setAttribute("aria-expanded", String(!collapsed));
   elements.toggleExpenseHistory.title = collapsed ? "전체 지출 펼치기" : "전체 지출 접기";
-  elements.toggleExpenseHistory.querySelector("span").textContent = collapsed ? "▾" : "▴";
+  setDisclosureIcon(elements.toggleExpenseHistory, !collapsed);
 }
 
 function percentOf(value, total) {
@@ -2260,7 +2292,7 @@ function renderOverseasPanel() {
   elements.overseasPanel.classList.toggle("is-collapsed", overseas.enabled && overseasCollapsed);
   elements.toggleOverseasPanel.setAttribute("aria-expanded", String(overseas.enabled && !overseasCollapsed));
   elements.toggleOverseasPanel.title = overseasCollapsed ? "외화 정산 펼치기" : "외화 정산 접기";
-  elements.toggleOverseasPanel.querySelector("span").textContent = overseasCollapsed ? "▾" : "▴";
+  setDisclosureIcon(elements.toggleOverseasPanel, overseas.enabled && !overseasCollapsed);
 
   elements.currencyOne.innerHTML = createCurrencyOptions(currencyOne);
   elements.currencyTwo.innerHTML = createCurrencyOptions(currencyTwo);
@@ -2319,7 +2351,7 @@ function renderExchangeList() {
       <article class="exchange-item">
         <div class="exchange-main">
           <strong>${escapeHtml(from)}</strong>
-          <span>→</span>
+          <i data-lucide="arrow-right" aria-hidden="true"></i>
           <strong>${escapeHtml(to)}</strong>
         </div>
         <div class="expense-meta">
@@ -2332,10 +2364,11 @@ function renderExchangeList() {
           ` : ""}
           ${record.memo ? `<span>${escapeHtml(record.memo)}</span>` : ""}
         </div>
-        ${canEdit() ? `<button class="expense-delete" type="button" title="환전 기록 삭제" aria-label="환전 기록 삭제" data-remove-exchange="${escapeHtml(record.id)}">×</button>` : ""}
+        ${canEdit() ? `<button class="expense-delete" type="button" title="환전 기록 삭제" aria-label="환전 기록 삭제" data-remove-exchange="${escapeHtml(record.id)}"><i data-lucide="trash-2" aria-hidden="true"></i></button>` : ""}
       </article>
     `;
   }).join("");
+  scheduleIconRefresh();
 }
 
 function renderPeople() {
@@ -2343,7 +2376,7 @@ function renderPeople() {
   elements.peopleBody.hidden = peopleCollapsed;
   elements.togglePeoplePanel.setAttribute("aria-expanded", String(!peopleCollapsed));
   elements.togglePeoplePanel.title = peopleCollapsed ? "친구 펼치기" : "친구 접기";
-  elements.togglePeoplePanel.querySelector("span").textContent = peopleCollapsed ? "▾" : "▴";
+  setDisclosureIcon(elements.togglePeoplePanel, !peopleCollapsed);
 
   if (state.people.length === 0) {
     elements.peopleList.className = "people-list empty-state";
@@ -2367,12 +2400,13 @@ function renderPeople() {
         ${canEdit() ? `
           <div class="person-actions">
             <button class="text-button account-edit" type="button" data-edit-person-account="${person.id}">계좌</button>
-            <button type="button" title="${escapeHtml(person.name)} 삭제" aria-label="${escapeHtml(person.name)} 삭제" data-remove-person="${person.id}">×</button>
+            <button type="button" title="${escapeHtml(person.name)} 삭제" aria-label="${escapeHtml(person.name)} 삭제" data-remove-person="${person.id}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
           </div>
         ` : ""}
       </div>
     `;
   }).join("");
+  scheduleIconRefresh();
 }
 
 function currentEditingExpense() {
@@ -2474,9 +2508,10 @@ function renderCategoryControls({ disableExpenseCategory = false, extraCategorie
   elements.categoryList.innerHTML = categories.map((category) => `
     <span class="category-chip">
       <span>${escapeHtml(category)}</span>
-      ${editable ? `<button type="button" title="${escapeHtml(category)} 삭제" aria-label="${escapeHtml(category)} 삭제" data-remove-category="${escapeHtml(category)}">×</button>` : ""}
+      ${editable ? `<button type="button" title="${escapeHtml(category)} 삭제" aria-label="${escapeHtml(category)} 삭제" data-remove-category="${escapeHtml(category)}"><i data-lucide="x" aria-hidden="true"></i></button>` : ""}
     </span>
   `).join("");
+  scheduleIconRefresh();
 }
 
 function renderExpenseForm() {
@@ -2710,7 +2745,7 @@ function expenseItemRowHtml(item, index, {
           <span>카테고리</span>
           <select data-expense-item-category ${disabled}>${categoryOptionsHtml(category, { extraCategories: [category] })}</select>
         </label>
-        <button class="expense-delete expense-item-remove" type="button" title="품목 삭제" aria-label="품목 삭제" data-remove-expense-item ${removable}>×</button>
+        <button class="expense-delete expense-item-remove" type="button" title="품목 삭제" aria-label="품목 삭제" data-remove-expense-item ${removable}><i data-lucide="trash-2" aria-hidden="true"></i></button>
       </div>
       <label class="item-default-participants">
         <input type="checkbox" data-expense-item-default-participants ${useDefaultParticipants ? "checked" : ""} ${disabled}>
@@ -2787,6 +2822,7 @@ function renderExpenseItemInputs({
   )).join("");
   refreshCustomSelects(container);
   syncExpenseItemsTotal({ container, totalElement, amountInput, currency, defaultCategory });
+  scheduleIconRefresh();
 }
 
 function applyBulkCategoryToItems(container, category) {
@@ -2930,7 +2966,7 @@ function renderSettlements() {
     <div class="settlement-item">
       <div class="settlement-route">
         <strong>${escapeHtml(item.fromName)}</strong>
-        <span> → </span>
+        <i data-lucide="arrow-right" aria-hidden="true"></i>
         ${settlementRecipientHtml(item.toId, item.toName)}
       </div>
       <div class="settlement-side">
@@ -2940,6 +2976,7 @@ function renderSettlements() {
     </div>
   `).join("");
   renderCompletedSettlements();
+  scheduleIconRefresh();
 }
 
 function settlementCopyText() {
@@ -2998,7 +3035,7 @@ function renderCompletedSettlements() {
           >
             <div class="settlement-route">
               <strong>${escapeHtml(getPersonName(record.fromId))}</strong>
-              <span> → </span>
+              <i data-lucide="arrow-right" aria-hidden="true"></i>
               ${settlementRecipientHtml(record.toId, getPersonName(record.toId))}
             </div>
             <div class="settlement-side">
@@ -3012,6 +3049,7 @@ function renderCompletedSettlements() {
       `).join("")}
     </div>
   `;
+  scheduleIconRefresh();
 }
 
 function timestampValue(value) {
@@ -3293,7 +3331,7 @@ function renderExpenses() {
           ${canEdit() ? `
             <div class="expense-button-row">
               <button class="text-button expense-edit-button" type="button" data-edit-expense="${expense.id}">수정</button>
-              <button class="expense-delete" type="button" title="지출 삭제" aria-label="지출 삭제" data-remove-expense="${expense.id}">×</button>
+              <button class="expense-delete" type="button" title="지출 삭제" aria-label="지출 삭제" data-remove-expense="${expense.id}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
             </div>
           ` : ""}
         </div>
@@ -3301,6 +3339,7 @@ function renderExpenses() {
     `;
   }).join("");
   refreshCustomSelects();
+  scheduleIconRefresh();
 }
 
 function expenseOriginalText(expense) {
@@ -3365,11 +3404,12 @@ function renderDashboard() {
         <div class="dashboard-trip-actions">
           <a class="text-button" href="${escapeHtml(tripLinkFromRecord(trip))}">열기</a>
           <button class="text-button" type="button" data-copy-dashboard-trip="${escapeHtml(trip.publicId)}">복사</button>
-          <button class="expense-delete" type="button" title="목록에서 삭제" aria-label="목록에서 삭제" data-remove-dashboard-trip="${escapeHtml(trip.publicId)}">×</button>
+          <button class="expense-delete" type="button" title="목록에서 삭제" aria-label="목록에서 삭제" data-remove-dashboard-trip="${escapeHtml(trip.publicId)}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
         </div>
       </article>
     `;
   }).join("");
+  scheduleIconRefresh();
 }
 
 function modalBackdrops() {
