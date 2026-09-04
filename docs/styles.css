@@ -3794,29 +3794,11 @@ body.has-itinerary .expense-panel {
   color: var(--coral);
 }
 
-.schedule-move-field {
-  display: grid;
-  gap: 4px;
-  padding: 7px 9px 9px;
-  border-top: 1px solid #f2f4f6;
-  border-bottom: 1px solid #f2f4f6;
-}
-
-.schedule-move-field > span {
-  margin: 0;
-  font-size: 0.72rem;
-}
-
-.schedule-move-field .custom-select-button {
-  min-height: 38px;
-  padding: 8px 10px;
-}
-
 .day-timeline {
   position: relative;
   display: grid;
   align-content: start;
-  gap: 10px;
+  gap: 0;
   min-height: 330px;
   padding: 16px 14px 22px 42px;
 }
@@ -3846,9 +3828,66 @@ body.has-itinerary .expense-panel {
   opacity: 0.42;
 }
 
-.timeline-card.is-drop-target {
-  border-color: var(--mint);
-  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.12);
+.timeline-card[draggable="true"],
+.meal-expense-row[draggable="true"] {
+  cursor: grab;
+}
+
+.timeline-card[draggable="true"]:active,
+.meal-expense-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.timeline-drop-zone,
+.meal-drop-zone {
+  position: relative;
+  min-width: 0;
+  transition: height 0.14s ease;
+}
+
+.timeline-drop-zone {
+  height: 10px;
+}
+
+.meal-drop-zone {
+  height: 3px;
+}
+
+.timeline-drop-zone::after,
+.meal-drop-zone::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  left: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--mint);
+  opacity: 0;
+  transform: scaleX(0.82);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.itinerary-board.is-card-reordering .timeline-drop-zone {
+  height: 18px;
+}
+
+.itinerary-board.is-meal-reordering .meal-drop-zone {
+  height: 12px;
+}
+
+.timeline-drop-zone.is-drop-target {
+  height: 28px;
+}
+
+.meal-drop-zone.is-drop-target {
+  height: 20px;
+}
+
+.timeline-drop-zone.is-drop-target::after,
+.meal-drop-zone.is-drop-target::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .timeline-node {
@@ -3895,20 +3934,8 @@ body.has-itinerary .expense-panel {
 .major-lodging .timeline-major { background: #f1ecff; color: #7252c7; }
 .major-food .timeline-major { background: #fff4d6; color: #9b6b00; }
 
-.timeline-drag {
-  margin-left: auto;
-  color: #b0b8c1;
-  font-size: 1.15rem;
-  font-weight: 900;
-  cursor: grab;
-}
-
 .timeline-card-topline .timeline-card-menu {
   margin-left: auto;
-}
-
-.timeline-drag + .timeline-card-menu {
-  margin-left: 0;
 }
 
 .timeline-card-main {
@@ -4037,20 +4064,20 @@ body.has-itinerary .expense-panel {
 
 .meal-expense-list {
   display: grid;
-  gap: 3px;
+  gap: 0;
   margin: 6px -4px 8px;
 }
 
 .meal-expense-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px 32px;
+  grid-template-columns: minmax(0, 1fr) 32px;
   align-items: center;
   gap: 4px;
   border-bottom: 1px solid #f2f4f6;
 }
 
-.meal-expense-row.is-fixed-range {
-  grid-template-columns: minmax(0, 1fr) 32px;
+.meal-expense-row.is-dragging {
+  opacity: 0.42;
 }
 
 .meal-expense-row > button:first-child {
@@ -4065,31 +4092,6 @@ body.has-itinerary .expense-panel {
   background: transparent;
   color: var(--ink);
   text-align: left;
-}
-
-.meal-move-field {
-  display: block;
-  width: 104px;
-  height: auto;
-  margin: 0;
-  overflow: visible;
-}
-
-.meal-move-field > span {
-  display: none;
-}
-
-.meal-move-field > select,
-.meal-move-field > .custom-select {
-  position: static;
-  width: 100%;
-  opacity: 1;
-}
-
-.meal-move-field .custom-select-button {
-  min-height: 36px;
-  padding: 7px 8px;
-  font-size: 0.72rem;
 }
 
 .meal-delete {
@@ -4581,9 +4583,18 @@ body.has-itinerary .expense-panel {
   .timeline-card-menu summary,
   .timeline-add-button,
   .timeline-hide-button,
-  .meal-delete,
-  .meal-move-field .custom-select-button {
+  .meal-delete {
     min-height: 44px;
+  }
+
+  .timeline-drop-zone,
+  .meal-drop-zone {
+    display: none;
+  }
+
+  .timeline-card[draggable="true"],
+  .meal-expense-row[draggable="true"] {
+    cursor: default;
   }
 
   .day-add-menu summary,

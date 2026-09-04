@@ -108,6 +108,64 @@ function normalizeMealOrder(tokens) {
   ))));
 }
 
+function normalizeMealExpenseOrderSlots(slotOrders) {
+  const normalized = {};
+  for (const [rawSlot, expenseIds] of Object.entries(slotOrders)) {
+    const slot = canonicalMealSlot(rawSlot);
+    normalized[slot] = Array.from(new Set([...(normalized[slot] || []), ...expenseIds]));
+  }
+  return normalized;
+}
+
+function insertAtDropIndex(items, value, requestedIndex) {
+  const originalIndex = items.indexOf(value);
+  const filtered = items.filter((item) => item !== value);
+  let index = Math.max(0, Math.min(Number(requestedIndex) || 0, items.length));
+  if (originalIndex >= 0 && originalIndex < index) index -= 1;
+  filtered.splice(Math.min(index, filtered.length), 0, value);
+  return filtered;
+}
+
+function fullDropIndex(visibleItems, fullItems, requestedIndex) {
+  const index = Math.max(0, Math.min(Number(requestedIndex) || 0, visibleItems.length));
+  const nextVisible = visibleItems[index];
+  if (nextVisible && fullItems.includes(nextVisible)) return fullItems.indexOf(nextVisible);
+  const previousVisible = visibleItems[index - 1];
+  if (previousVisible && fullItems.includes(previousVisible)) return fullItems.indexOf(previousVisible) + 1;
+  return fullItems.length;
+}
+
+function movedAllocationRange(expense, sourceDate, targetDate) {
+  let startDate = expense.allocationStartDate || expense.lodgingStartDate || expense.scheduleDate;
+  let endDate = expense.allocationEndDate || expense.lodgingEndDate || startDate;
+  if (!expense.spreadAcrossDays || sourceDate === targetDate) return { startDate, endDate };
+  if (targetDate < startDate) startDate = targetDate;
+  else if (targetDate > endDate) endDate = targetDate;
+  else if (sourceDate === startDate) startDate = targetDate;
+  else if (sourceDate === endDate) endDate = targetDate;
+  else if (targetDate > sourceDate) startDate = targetDate;
+  else if (targetDate < sourceDate) endDate = targetDate;
+  return startDate <= endDate
+    ? { startDate, endDate }
+    : { startDate: targetDate, endDate: targetDate };
+}
+
+function normalizedCardLabel(value = "") {
+  return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
+}
+
+function expenseCardCopy(expense, primaryLabel) {
+  const title = String(expense.title || "").trim();
+  const category = String(expense.category || "").trim();
+  const primaryKey = normalizedCardLabel(primaryLabel);
+  const titleKey = normalizedCardLabel(title);
+  const categoryKey = normalizedCardLabel(category);
+  return {
+    title: titleKey && titleKey !== primaryKey ? title : "",
+    category: categoryKey && categoryKey !== primaryKey && categoryKey !== titleKey ? category : ""
+  };
+}
+
 const dates = dateRangeKeys("2026-07-16", "2026-07-20");
 assert.deepStrictEqual(dates, [
   "2026-07-16",
@@ -132,6 +190,20 @@ assert.strictEqual(canonicalMealSlot("late-night"), "food-other");
 assert.deepStrictEqual(
   normalizeMealOrder(["meal:late-night", "meal:food-other", "expense:1"]),
   ["meal:food-other", "expense:1"]
+);
+assert.deepStrictEqual(
+  normalizeMealExpenseOrderSlots({ "late-night": ["meal-1"], "food-other": ["meal-2", "meal-1"] }),
+  { "food-other": ["meal-1", "meal-2"] }
+);
+assert.deepStrictEqual(insertAtDropIndex(["a", "b", "c"], "c", 0), ["c", "a", "b"]);
+assert.deepStrictEqual(insertAtDropIndex(["a", "b", "c"], "a", 3), ["b", "c", "a"]);
+assert.deepStrictEqual(insertAtDropIndex(["a", "b"], "c", 1), ["a", "c", "b"]);
+assert.strictEqual(fullDropIndex(["visible-a", "visible-b"], ["hidden-a", "visible-a", "hidden-b", "visible-b"], 1), 3);
+assert.strictEqual(fullDropIndex(["visible-a", "visible-b"], ["hidden-a", "visible-a", "hidden-b", "visible-b"], 2), 4);
+assert.deepStrictEqual(expenseCardCopy({ title: "숙소", category: "숙소" }, "숙소"), { title: "", category: "" });
+assert.deepStrictEqual(
+  expenseCardCopy({ title: "비엔티안 호텔", category: "숙소" }, "숙소"),
+  { title: "비엔티안 호텔", category: "" }
 );
 
 const lodging = {
@@ -164,6 +236,27 @@ assert.deepStrictEqual(rentalBreakdown, [
   { date: "2026-07-18", amount: 3333 }
 ]);
 assert.strictEqual(rentalBreakdown.reduce((sum, item) => sum + item.amount, 0), rental.amount);
+const fourDayRental = {
+  ...rental,
+  allocationStartDate: "2026-07-16",
+  allocationEndDate: "2026-07-19"
+};
+assert.deepStrictEqual(
+  movedAllocationRange(fourDayRental, "2026-07-17", "2026-07-18"),
+  { startDate: "2026-07-18", endDate: "2026-07-19" }
+);
+assert.deepStrictEqual(
+  movedAllocationRange(fourDayRental, "2026-07-18", "2026-07-17"),
+  { startDate: "2026-07-16", endDate: "2026-07-17" }
+);
+assert.deepStrictEqual(
+  movedAllocationRange(fourDayRental, "2026-07-19", "2026-07-18"),
+  { startDate: "2026-07-16", endDate: "2026-07-18" }
+);
+assert.deepStrictEqual(
+  movedAllocationRange(fourDayRental, "2026-07-17", "2026-07-20"),
+  { startDate: "2026-07-16", endDate: "2026-07-20" }
+);
 
 const sameDayExpense = {
   id: "same-day-1",

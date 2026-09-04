@@ -557,12 +557,28 @@ function normalizeItinerary(settings = {}) {
       .filter(Boolean))).slice(0, 500);
   }
 
+  const mealExpenseOrders = {};
+  for (const [date, slotOrders] of Object.entries(source.mealExpenseOrders || {})) {
+    if (!dates.has(date) || !slotOrders || typeof slotOrders !== "object") continue;
+    const normalizedOrders = {};
+    for (const [rawSlot, expenseIds] of Object.entries(slotOrders)) {
+      const slot = canonicalMealSlot(rawSlot);
+      if (!(slot in mealSlots) || !Array.isArray(expenseIds)) continue;
+      normalizedOrders[slot] = Array.from(new Set([
+        ...(normalizedOrders[slot] || []),
+        ...expenseIds.map(String).filter(Boolean)
+      ])).slice(0, 500);
+    }
+    mealExpenseOrders[date] = normalizedOrders;
+  }
+
   return {
     startDate: source.startDate,
     endDate: source.endDate,
     hiddenSlots,
     extraMealSlots,
-    dayOrders
+    dayOrders,
+    mealExpenseOrders
   };
 }
 
@@ -1705,9 +1721,9 @@ function expenseDatesForItinerary(expense) {
   return expenseAllocationDates(expense).filter((date) => dates.has(date));
 }
 
-function scheduleExpensesForDate(date) {
+function scheduleExpensesForDate(date, { includeAll = false } = {}) {
   return state.expenses.filter((expense) => (
-    expenseDatesForItinerary(expense).includes(date) && expenseIsVisibleForPerspective(expense)
+    expenseDatesForItinerary(expense).includes(date) && (includeAll || expenseIsVisibleForPerspective(expense))
   ));
 }
 
@@ -1737,14 +1753,14 @@ function timelineEntryPriority(entry) {
   return 50;
 }
 
-function timelineEntriesForDate(date) {
+function timelineEntriesForDate(date, { includeAll = false } = {}) {
   const itinerary = itinerarySettings();
-  const expenses = scheduleExpensesForDate(date);
+  const expenses = scheduleExpensesForDate(date, { includeAll });
   const entries = [];
   const hasAnyLodgingExpense = state.expenses.some((expense) => (
     expense.majorCategory === "lodging" &&
     expenseDatesForItinerary(expense).length > 0 &&
-    expenseIsVisibleForPerspective(expense)
+    (includeAll || expenseIsVisibleForPerspective(expense))
   ));
   const hidden = new Set(itinerary.hiddenSlots?.[date] || []);
 
@@ -1770,7 +1786,14 @@ function timelineEntriesForDate(date) {
     ...foodBySlot.keys()
   ]));
   for (const slot of visibleMealSlots) {
-    entries.push({ type: "meal", slot, expenses: foodBySlot.get(slot) || [] });
+    const expenseOrder = itinerary.mealExpenseOrders?.[date]?.[slot] || [];
+    const expenseOrderIndex = new Map(expenseOrder.map((expenseId, index) => [expenseId, index]));
+    const mealExpenses = [...(foodBySlot.get(slot) || [])].sort((a, b) => {
+      const indexA = expenseOrderIndex.has(a.id) ? expenseOrderIndex.get(a.id) : Number.MAX_SAFE_INTEGER;
+      const indexB = expenseOrderIndex.has(b.id) ? expenseOrderIndex.get(b.id) : Number.MAX_SAFE_INTEGER;
+      return indexA - indexB;
+    });
+    entries.push({ type: "meal", slot, expenses: mealExpenses });
   }
 
   const order = itinerary.dayOrders?.[date] || [];
@@ -1785,69 +1808,68 @@ function timelineEntriesForDate(date) {
   });
 }
 
-function scheduleMoveOptionsHtml(expense) {
-  if (expense.spreadAcrossDays) return "";
-  return `
-    <label class="schedule-move-field">
-      <span>다른 일차로 이동</span>
-      <select data-move-expense-day="${escapeHtml(expense.id)}">
-        ${itineraryDayOptionsHtml(expense.scheduleDate)}
-      </select>
-    </label>
-  `;
-}
-
-function timelineCardMenuHtml(token, date, expense = null) {
-  if (!canEdit()) return "";
+function timelineCardMenuHtml(expense) {
+  if (!canEdit() || !expense) return "";
   return `
     <details class="timeline-card-menu">
       <summary title="카드 메뉴" aria-label="카드 메뉴">•••</summary>
       <div class="timeline-card-menu-popover">
-        <button type="button" data-move-timeline="up" data-entry-token="${escapeHtml(token)}" data-entry-date="${date}">위로 이동</button>
-        <button type="button" data-move-timeline="down" data-entry-token="${escapeHtml(token)}" data-entry-date="${date}">아래로 이동</button>
-        ${expense ? scheduleMoveOptionsHtml(expense) : ""}
-        ${expense ? `<button type="button" data-edit-expense="${escapeHtml(expense.id)}">${expense.spreadAcrossDays ? "적용 기간 수정" : "지출 수정"}</button>` : ""}
-        ${expense ? `<button class="is-danger" type="button" data-remove-expense="${escapeHtml(expense.id)}">지출 삭제</button>` : ""}
+        <button type="button" data-edit-expense="${escapeHtml(expense.id)}">${expense.spreadAcrossDays ? "적용 기간 수정" : "지출 수정"}</button>
+        <button class="is-danger" type="button" data-remove-expense="${escapeHtml(expense.id)}">지출 삭제</button>
       </div>
     </details>
   `;
 }
 
+function normalizedCardLabel(value = "") {
+  return String(value || "").trim().replace(/\s+/g, "").toLowerCase();
+}
+
+function expenseCardCopy(expense, primaryLabel) {
+  const title = String(expense.title || "").trim();
+  const category = String(expense.category || "").trim();
+  const primaryKey = normalizedCardLabel(primaryLabel);
+  const titleKey = normalizedCardLabel(title);
+  const categoryKey = normalizedCardLabel(category);
+  return {
+    title: titleKey && titleKey !== primaryKey ? title : "",
+    category: categoryKey && categoryKey !== primaryKey && categoryKey !== titleKey ? category : ""
+  };
+}
+
+function timelineDropZoneHtml(date, index) {
+  return `<div class="timeline-drop-zone" data-timeline-drop-date="${date}" data-timeline-drop-index="${index}" aria-hidden="true"></div>`;
+}
+
+function mealDropZoneHtml(date, slot, index) {
+  return `<div class="meal-drop-zone" data-meal-drop-date="${date}" data-meal-drop-slot="${escapeHtml(slot)}" data-meal-drop-index="${index}" aria-hidden="true"></div>`;
+}
+
+function timelineDraggingEnabled() {
+  return canEdit() && window.matchMedia("(min-width: 801px)").matches;
+}
+
 function timelineExpenseCardHtml(expense, date) {
   const token = `expense:${expense.id}`;
   const major = majorCategories[expense.majorCategory] || majorCategories.other;
-  const allocationDates = expenseAllocationDates(expense);
-  const allocationIndex = allocationDates.indexOf(date);
-  const showsDailySplit = expense.spreadAcrossDays && allocationDates.length > 1;
-  const allocationRange = expenseAllocationRangeLabel(expense);
-  const continuationLabel = showsDailySplit && allocationIndex > 0
-    ? expense.majorCategory === "lodging" ? "이어 머무름" : "이어 사용"
-    : "";
   const dailyAmount = expensePerspectiveAmountForDate(expense, date);
-  const items = normalizeExpenseItems(expense);
+  const copy = expenseCardCopy(expense, major.label);
   return `
-    <article class="timeline-card major-${expense.majorCategory}" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
+    <article class="timeline-card major-${expense.majorCategory}" draggable="${timelineDraggingEnabled()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
       <span class="timeline-node" style="--category-color:${major.color}" aria-hidden="true">${major.icon}</span>
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
           <span class="timeline-major">${escapeHtml(major.label)}</span>
-          ${canEdit() ? `<span class="timeline-drag" title="끌어서 순서 변경" aria-hidden="true">≡</span>` : ""}
-          ${timelineCardMenuHtml(token, date, expense)}
+          ${timelineCardMenuHtml(expense)}
         </div>
         <button class="timeline-card-main" type="button" data-edit-expense="${escapeHtml(expense.id)}" ${canEdit() ? "" : "disabled"}>
           <span>
-            <strong>${escapeHtml(expense.title)}</strong>
-            <small>${escapeHtml([
-              expense.category,
-              `결제 ${getPersonName(expense.payerId)}`,
-              showsDailySplit ? allocationRange : "",
-              showsDailySplit ? `${allocationIndex + 1}/${allocationDates.length}일 배분` : `${items.length}개 품목`,
-              continuationLabel
-            ].filter(Boolean).join(" · "))}</small>
+            ${copy.title ? `<strong>${escapeHtml(copy.title)}</strong>` : ""}
+            <small>${escapeHtml([copy.category, `결제 ${getPersonName(expense.payerId)}`].filter(Boolean).join(" · "))}</small>
           </span>
           <span class="timeline-amount-stack">
             <b>${formatMoney(dailyAmount)}</b>
-            ${isPersonalPerspective() ? `<small>내 부담</small>` : showsDailySplit ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
+            ${isPersonalPerspective() ? `<small>내 부담</small>` : ""}
           </span>
         </button>
       </div>
@@ -1859,46 +1881,36 @@ function mealSlotCardHtml(entry, date) {
   const token = `meal:${entry.slot}`;
   const slotLabel = mealSlots[entry.slot] || "식비";
   return `
-    <article class="timeline-card timeline-meal-card major-food" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}">
+    <article class="timeline-card timeline-meal-card major-food" draggable="${timelineDraggingEnabled()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}">
       <span class="timeline-node" style="--category-color:${majorCategories.food.color}" aria-hidden="true">${majorCategories.food.icon}</span>
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
           <span class="timeline-major">${escapeHtml(slotLabel)}</span>
-          ${canEdit() ? `<span class="timeline-drag" title="끌어서 순서 변경" aria-hidden="true">≡</span>` : ""}
-          ${timelineCardMenuHtml(token, date)}
         </div>
-        ${entry.expenses.length > 0 ? `
-          <div class="meal-expense-list">
-            ${entry.expenses.map((expense) => `
-              <div class="meal-expense-row ${expense.spreadAcrossDays ? "is-fixed-range" : ""}">
+        <div class="meal-expense-list">
+            ${entry.expenses.map((expense, index) => {
+              const copy = expenseCardCopy(expense, slotLabel);
+              return `
+              ${mealDropZoneHtml(date, entry.slot, index)}
+              <div class="meal-expense-row" draggable="${timelineDraggingEnabled()}" data-meal-expense-id="${escapeHtml(expense.id)}" data-meal-expense-date="${date}" data-meal-expense-slot="${escapeHtml(entry.slot)}">
                 <button type="button" data-edit-expense="${escapeHtml(expense.id)}" ${canEdit() ? "" : "disabled"}>
                   <span>
-                    <strong>${escapeHtml(expense.title)}</strong>
-                    <small>${escapeHtml([
-                      `결제 ${getPersonName(expense.payerId)}`,
-                      expenseAllocationDates(expense).length > 1 ? `${expenseAllocationRangeLabel(expense)} 배분` : ""
-                    ].filter(Boolean).join(" · "))}</small>
+                    ${copy.title ? `<strong>${escapeHtml(copy.title)}</strong>` : ""}
+                    <small>${escapeHtml([copy.category, `결제 ${getPersonName(expense.payerId)}`].filter(Boolean).join(" · "))}</small>
                   </span>
                   <span class="timeline-amount-stack">
                     <b>${formatMoney(expensePerspectiveAmountForDate(expense, date))}</b>
-                    ${isPersonalPerspective() ? `<small>내 부담</small>` : expenseAllocationDates(expense).length > 1 ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
+                    ${isPersonalPerspective() ? `<small>내 부담</small>` : ""}
                   </span>
                 </button>
                 ${canEdit() ? `
-                  ${expense.spreadAcrossDays ? "" : `
-                    <label class="meal-move-field" title="다른 일차로 이동">
-                      <span aria-hidden="true">↗</span>
-                      <select data-move-expense-day="${escapeHtml(expense.id)}" aria-label="${escapeHtml(expense.title)} 다른 일차로 이동">
-                        ${itineraryDayOptionsHtml(expense.scheduleDate)}
-                      </select>
-                    </label>
-                  `}
                   <button class="meal-delete" type="button" data-remove-expense="${escapeHtml(expense.id)}" title="지출 삭제" aria-label="${escapeHtml(expense.title)} 삭제">×</button>
                 ` : ""}
               </div>
-            `).join("")}
-          </div>
-        ` : `<p class="timeline-empty-copy">아직 입력한 지출이 없습니다.</p>`}
+            `;}).join("")}
+            ${mealDropZoneHtml(date, entry.slot, entry.expenses.length)}
+        </div>
+        ${entry.expenses.length === 0 ? `<p class="timeline-empty-copy">아직 입력한 지출이 없습니다.</p>` : ""}
         ${canEdit() ? `
           <div class="timeline-slot-actions">
             <button type="button" class="timeline-add-button" data-add-schedule-expense="food" data-schedule-date="${date}" data-meal-slot="${escapeHtml(entry.slot)}" aria-label="${escapeHtml(slotLabel)} 지출 입력">+ 입력</button>
@@ -1913,13 +1925,11 @@ function mealSlotCardHtml(entry, date) {
 function lodgingSlotCardHtml(date) {
   const token = "slot:lodging";
   return `
-    <article class="timeline-card timeline-placeholder major-lodging" draggable="${canEdit()}" data-timeline-token="${token}" data-timeline-date="${date}">
+    <article class="timeline-card timeline-placeholder major-lodging" draggable="${timelineDraggingEnabled()}" data-timeline-token="${token}" data-timeline-date="${date}">
       <span class="timeline-node" style="--category-color:${majorCategories.lodging.color}" aria-hidden="true">${majorCategories.lodging.icon}</span>
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
           <span class="timeline-major">숙소</span>
-          ${canEdit() ? `<span class="timeline-drag" title="끌어서 순서 변경" aria-hidden="true">≡</span>` : ""}
-          ${timelineCardMenuHtml(token, date)}
         </div>
         <p class="timeline-empty-copy">머무를 숙소를 입력해 주세요.</p>
         ${canEdit() ? `
@@ -1967,11 +1977,14 @@ function renderItineraryDayColumn(date) {
         </div>
       </header>
       <div class="day-timeline" data-day-timeline="${date}">
-        ${entries.map((entry) => {
-          if (entry.type === "meal") return mealSlotCardHtml(entry, date);
-          if (entry.type === "lodging-slot") return lodgingSlotCardHtml(date);
-          return timelineExpenseCardHtml(entry.expense, date);
-        }).join("")}
+        ${entries.map((entry, index) => `${timelineDropZoneHtml(date, index)}${
+          entry.type === "meal"
+            ? mealSlotCardHtml(entry, date)
+            : entry.type === "lodging-slot"
+              ? lodgingSlotCardHtml(date)
+              : timelineExpenseCardHtml(entry.expense, date)
+        }`).join("")}
+        ${timelineDropZoneHtml(date, entries.length)}
       </div>
     </section>
   `;
@@ -3608,7 +3621,8 @@ function normalizedItineraryUpdate(update) {
     endDate: update.endDate,
     hiddenSlots: {},
     extraMealSlots: {},
-    dayOrders: {}
+    dayOrders: {},
+    mealExpenseOrders: {}
   };
   return normalizeItinerary({
     itinerary: {
@@ -3629,28 +3643,169 @@ async function saveItinerary(itinerary, expenses = state.expenses) {
   });
 }
 
-function currentTimelineTokens(date) {
-  return timelineEntriesForDate(date).map(timelineEntryToken);
+function currentTimelineTokens(date, options = {}) {
+  return timelineEntriesForDate(date, options).map(timelineEntryToken);
 }
 
-async function saveTimelineOrder(date, tokens) {
+function insertAtDropIndex(items, value, requestedIndex) {
+  const originalIndex = items.indexOf(value);
+  const filtered = items.filter((item) => item !== value);
+  let index = Math.max(0, Math.min(Number(requestedIndex) || 0, items.length));
+  if (originalIndex >= 0 && originalIndex < index) index -= 1;
+  filtered.splice(Math.min(index, filtered.length), 0, value);
+  return filtered;
+}
+
+function fullDropIndex(visibleItems, fullItems, requestedIndex) {
+  const index = Math.max(0, Math.min(Number(requestedIndex) || 0, visibleItems.length));
+  const nextVisible = visibleItems[index];
+  if (nextVisible && fullItems.includes(nextVisible)) return fullItems.indexOf(nextVisible);
+  const previousVisible = visibleItems[index - 1];
+  if (previousVisible && fullItems.includes(previousVisible)) return fullItems.indexOf(previousVisible) + 1;
+  return fullItems.length;
+}
+
+function movedAllocationRange(expense, sourceDate, targetDate) {
+  let startDate = expense.allocationStartDate || expense.lodgingStartDate || expense.scheduleDate;
+  let endDate = expense.allocationEndDate || expense.lodgingEndDate || startDate;
+  if (!expense.spreadAcrossDays || sourceDate === targetDate) return { startDate, endDate };
+
+  if (targetDate < startDate) startDate = targetDate;
+  else if (targetDate > endDate) endDate = targetDate;
+  else if (sourceDate === startDate) startDate = targetDate;
+  else if (sourceDate === endDate) endDate = targetDate;
+  else if (targetDate > sourceDate) startDate = targetDate;
+  else if (targetDate < sourceDate) endDate = targetDate;
+
+  return startDate <= endDate
+    ? { startDate, endDate }
+    : { startDate: targetDate, endDate: targetDate };
+}
+
+function expenseMovedByDrop(expense, sourceDate, targetDate, targetMealSlot = expense.mealSlot) {
+  const moved = {
+    ...expense,
+    mealSlot: expense.majorCategory === "food" ? targetMealSlot : expense.mealSlot,
+    updatedAt: new Date().toISOString()
+  };
+  if (!expense.spreadAcrossDays) {
+    return {
+      ...moved,
+      scheduleDate: targetDate,
+      spentAt: targetDate,
+      lodgingStartDate: expense.majorCategory === "lodging" ? targetDate : expense.lodgingStartDate,
+      lodgingEndDate: expense.majorCategory === "lodging" ? targetDate : expense.lodgingEndDate
+    };
+  }
+
+  const { startDate, endDate } = movedAllocationRange(expense, sourceDate, targetDate);
+  return {
+    ...moved,
+    scheduleDate: startDate,
+    allocationStartDate: startDate,
+    allocationEndDate: endDate,
+    lodgingStartDate: expense.majorCategory === "lodging" ? startDate : expense.lodgingStartDate,
+    lodgingEndDate: expense.majorCategory === "lodging" ? endDate : expense.lodgingEndDate
+  };
+}
+
+function clonedMealExpenseOrders() {
+  return Object.fromEntries(Object.entries(itinerarySettings()?.mealExpenseOrders || {}).map(([date, slotOrders]) => [
+    date,
+    Object.fromEntries(Object.entries(slotOrders || {}).map(([slot, expenseIds]) => [slot, [...expenseIds]]))
+  ]));
+}
+
+async function moveTimelineEntryToPosition(token, sourceDate, targetDate, targetIndex) {
   const itinerary = itinerarySettings();
-  if (!itinerary) return;
-  await saveItinerary(normalizedItineraryUpdate({
-    dayOrders: {
-      ...itinerary.dayOrders,
-      [date]: Array.from(new Set(tokens))
+  if (!itinerary || !itineraryDates().includes(targetDate)) return;
+  const isExpense = token.startsWith("expense:");
+  if (!isExpense && sourceDate !== targetDate) return;
+
+  const dayOrders = Object.fromEntries(Object.entries(itinerary.dayOrders || {}).map(([date, tokens]) => [date, [...tokens]]));
+  let expenses = state.expenses;
+  if (isExpense && sourceDate !== targetDate) {
+    const expenseId = token.slice("expense:".length);
+    const expense = state.expenses.find((item) => item.id === expenseId);
+    if (!expense) return;
+    const previousDates = expenseDatesForItinerary(expense);
+    const movedExpense = expenseMovedByDrop(expense, sourceDate, targetDate);
+    const nextDates = expenseAllocationDates(movedExpense).filter((date) => itineraryDates().includes(date));
+    expenses = state.expenses.map((item) => item.id === expenseId ? movedExpense : item);
+    for (const date of previousDates.filter((date) => !nextDates.includes(date))) {
+      dayOrders[date] = (dayOrders[date] || []).filter((item) => item !== token);
     }
-  }));
+    if (!expense.spreadAcrossDays) {
+      dayOrders[sourceDate] = (dayOrders[sourceDate] || []).filter((item) => item !== token);
+    }
+  }
+
+  const visibleTargetTokens = currentTimelineTokens(targetDate);
+  const fullTargetTokens = currentTimelineTokens(targetDate, { includeAll: true });
+  dayOrders[targetDate] = insertAtDropIndex(
+    fullTargetTokens,
+    token,
+    fullDropIndex(visibleTargetTokens, fullTargetTokens, targetIndex)
+  );
+  selectedItineraryDate = targetDate;
+  await saveItinerary(normalizedItineraryUpdate({ dayOrders }), expenses);
+  showToast(sourceDate === targetDate ? "카드 순서를 바꿨습니다." : `${itineraryDayLabel(targetDate)}로 옮겼습니다.`);
 }
 
-async function moveTimelineEntry(date, token, direction) {
-  const tokens = currentTimelineTokens(date);
-  const index = tokens.indexOf(token);
-  const nextIndex = direction === "up" ? index - 1 : index + 1;
-  if (index < 0 || nextIndex < 0 || nextIndex >= tokens.length) return;
-  [tokens[index], tokens[nextIndex]] = [tokens[nextIndex], tokens[index]];
-  await saveTimelineOrder(date, tokens);
+async function moveMealExpenseToPosition(expenseId, sourceDate, sourceSlot, targetDate, targetSlot, targetIndex) {
+  const itinerary = itinerarySettings();
+  const expense = state.expenses.find((item) => item.id === expenseId);
+  if (!itinerary || !expense || expense.majorCategory !== "food" || !itineraryDates().includes(targetDate)) return;
+  const movedExpense = expenseMovedByDrop(expense, sourceDate, targetDate, targetSlot);
+  const previousDates = expenseDatesForItinerary(expense);
+  const nextDates = expenseAllocationDates(movedExpense).filter((date) => itineraryDates().includes(date));
+  const mealExpenseOrders = clonedMealExpenseOrders();
+  const previousPositions = new Map();
+
+  for (const [date, slotOrders] of Object.entries(mealExpenseOrders)) {
+    for (const [slot, expenseIds] of Object.entries(slotOrders)) {
+      const position = expenseIds.indexOf(expenseId);
+      if (position >= 0) previousPositions.set(`${date}:${slot}`, position);
+      slotOrders[slot] = expenseIds.filter((id) => id !== expenseId);
+    }
+  }
+
+  for (const date of nextDates) {
+    mealExpenseOrders[date] ||= {};
+    const order = mealExpenseOrders[date][targetSlot] || [];
+    if (date === targetDate) {
+      const visibleIds = (timelineEntriesForDate(targetDate)
+        .find((entry) => entry.type === "meal" && entry.slot === targetSlot)?.expenses || [])
+        .map((item) => item.id);
+      const fullIds = (timelineEntriesForDate(targetDate, { includeAll: true })
+        .find((entry) => entry.type === "meal" && entry.slot === targetSlot)?.expenses || [])
+        .map((item) => item.id);
+      mealExpenseOrders[date][targetSlot] = insertAtDropIndex(
+        fullIds,
+        expenseId,
+        fullDropIndex(visibleIds, fullIds, targetIndex)
+      );
+    } else {
+      const previousPosition = sourceSlot === targetSlot ? previousPositions.get(`${date}:${sourceSlot}`) : undefined;
+      const insertIndex = previousPosition === undefined ? order.length : Math.min(previousPosition, order.length);
+      order.splice(insertIndex, 0, expenseId);
+      mealExpenseOrders[date][targetSlot] = order;
+    }
+  }
+
+  for (const date of previousDates.filter((date) => !nextDates.includes(date))) {
+    if (!mealExpenseOrders[date]) continue;
+    for (const slot of Object.keys(mealExpenseOrders[date])) {
+      mealExpenseOrders[date][slot] = mealExpenseOrders[date][slot].filter((id) => id !== expenseId);
+    }
+  }
+
+  const expenses = state.expenses.map((item) => item.id === expenseId ? movedExpense : item);
+  selectedItineraryDate = targetDate;
+  await saveItinerary(normalizedItineraryUpdate({ mealExpenseOrders }), expenses);
+  showToast(sourceDate === targetDate && sourceSlot === targetSlot
+    ? "식사 지출 순서를 바꿨습니다."
+    : `${itineraryDayLabel(targetDate)} ${mealSlots[targetSlot] || "음식"}으로 옮겼습니다.`);
 }
 
 async function hideScheduleSlot(date, slot) {
@@ -3688,33 +3843,6 @@ async function showLodgingSlot(date) {
   await saveItinerary(normalizedItineraryUpdate({
     hiddenSlots: { ...itinerary.hiddenSlots, [date]: Array.from(hidden) }
   }));
-}
-
-async function moveExpenseToDate(expenseId, date) {
-  const expense = state.expenses.find((item) => item.id === expenseId);
-  if (!expense || expense.spreadAcrossDays || !itineraryDates().includes(date)) return;
-  const previousDate = expense.scheduleDate;
-  if (previousDate === date) return;
-  const itinerary = itinerarySettings();
-  const dayOrders = { ...itinerary.dayOrders };
-  const token = expense.majorCategory === "food" ? `meal:${expense.mealSlot}` : `expense:${expense.id}`;
-  dayOrders[previousDate] = (dayOrders[previousDate] || []).filter((item) => item !== token);
-  dayOrders[date] = Array.from(new Set([...(dayOrders[date] || []), token]));
-  const expenses = state.expenses.map((item) => (
-    item.id === expenseId
-      ? {
-          ...item,
-          scheduleDate: date,
-          lodgingStartDate: item.majorCategory === "lodging" ? date : item.lodgingStartDate,
-          lodgingEndDate: item.majorCategory === "lodging" ? date : item.lodgingEndDate,
-          spentAt: date,
-          updatedAt: new Date().toISOString()
-        }
-      : item
-  ));
-  selectedItineraryDate = date;
-  await saveItinerary(normalizedItineraryUpdate({ dayOrders }), expenses);
-  showToast(`${itineraryDayLabel(date)}로 옮겼습니다.`);
 }
 
 function expenseFormSignature() {
@@ -5568,60 +5696,87 @@ elements.itineraryBoard.addEventListener("click", async (event) => {
     return;
   }
 
-  const moveButton = event.target.closest("[data-move-timeline]");
-  if (moveButton && canEdit()) {
-    details?.removeAttribute("open");
-    try {
-      await moveTimelineEntry(moveButton.dataset.entryDate, moveButton.dataset.entryToken, moveButton.dataset.moveTimeline);
-    } catch (error) {
-      showToast(error.message);
-    }
-  }
-});
-
-elements.itineraryBoard.addEventListener("change", async (event) => {
-  const select = event.target.closest("[data-move-expense-day]");
-  if (!select || !canEdit()) return;
-  try {
-    await moveExpenseToDate(select.dataset.moveExpenseDay, select.value);
-  } catch (error) {
-    showToast(error.message);
-  }
 });
 
 elements.itineraryBoard.addEventListener("dragstart", (event) => {
+  if (!timelineDraggingEnabled()) {
+    event.preventDefault();
+    return;
+  }
+  const mealExpense = event.target.closest("[data-meal-expense-id]");
+  if (mealExpense) {
+    draggedTimelineEntry = {
+      kind: "meal-expense",
+      expenseId: mealExpense.dataset.mealExpenseId,
+      date: mealExpense.dataset.mealExpenseDate,
+      slot: mealExpense.dataset.mealExpenseSlot
+    };
+    mealExpense.classList.add("is-dragging");
+    elements.itineraryBoard.classList.add("is-reordering", "is-meal-reordering");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draggedTimelineEntry.expenseId);
+    return;
+  }
+
   const card = event.target.closest("[data-timeline-token]");
-  if (!card || !canEdit()) return;
+  if (!card || !canEdit()) {
+    event.preventDefault();
+    return;
+  }
   draggedTimelineEntry = {
+    kind: "entry",
     token: card.dataset.timelineToken,
     date: card.dataset.timelineDate
   };
   card.classList.add("is-dragging");
+  elements.itineraryBoard.classList.add("is-reordering", "is-card-reordering");
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", draggedTimelineEntry.token);
 });
 
 elements.itineraryBoard.addEventListener("dragover", (event) => {
-  const card = event.target.closest("[data-timeline-token]");
-  if (!card || !draggedTimelineEntry || card.dataset.timelineDate !== draggedTimelineEntry.date) return;
+  if (!draggedTimelineEntry) return;
+  const timelineDropZone = event.target.closest("[data-timeline-drop-date]");
+  const mealDropZone = event.target.closest("[data-meal-drop-date]");
+  const acceptsTimelineEntry = timelineDropZone && draggedTimelineEntry.kind === "entry" && (
+    timelineDropZone.dataset.timelineDropDate === draggedTimelineEntry.date ||
+    draggedTimelineEntry.token.startsWith("expense:")
+  );
+  const acceptsMealExpense = mealDropZone && draggedTimelineEntry.kind === "meal-expense";
+  if (!acceptsTimelineEntry && !acceptsMealExpense) return;
   event.preventDefault();
   event.dataTransfer.dropEffect = "move";
-  card.classList.add("is-drop-target");
+  elements.itineraryBoard.querySelectorAll(".is-drop-target").forEach((item) => item.classList.remove("is-drop-target"));
+  (timelineDropZone || mealDropZone).classList.add("is-drop-target");
 });
 
 elements.itineraryBoard.addEventListener("dragleave", (event) => {
-  event.target.closest("[data-timeline-token]")?.classList.remove("is-drop-target");
+  event.target.closest(".timeline-drop-zone, .meal-drop-zone")?.classList.remove("is-drop-target");
 });
 
 elements.itineraryBoard.addEventListener("drop", async (event) => {
-  const target = event.target.closest("[data-timeline-token]");
-  if (!target || !draggedTimelineEntry || target.dataset.timelineDate !== draggedTimelineEntry.date) return;
+  if (!draggedTimelineEntry) return;
+  const timelineDropZone = event.target.closest("[data-timeline-drop-date]");
+  const mealDropZone = event.target.closest("[data-meal-drop-date]");
   event.preventDefault();
-  const tokens = currentTimelineTokens(draggedTimelineEntry.date).filter((token) => token !== draggedTimelineEntry.token);
-  const targetIndex = Math.max(0, tokens.indexOf(target.dataset.timelineToken));
-  tokens.splice(targetIndex, 0, draggedTimelineEntry.token);
   try {
-    await saveTimelineOrder(draggedTimelineEntry.date, tokens);
+    if (timelineDropZone && draggedTimelineEntry.kind === "entry") {
+      await moveTimelineEntryToPosition(
+        draggedTimelineEntry.token,
+        draggedTimelineEntry.date,
+        timelineDropZone.dataset.timelineDropDate,
+        Number(timelineDropZone.dataset.timelineDropIndex)
+      );
+    } else if (mealDropZone && draggedTimelineEntry.kind === "meal-expense") {
+      await moveMealExpenseToPosition(
+        draggedTimelineEntry.expenseId,
+        draggedTimelineEntry.date,
+        draggedTimelineEntry.slot,
+        mealDropZone.dataset.mealDropDate,
+        mealDropZone.dataset.mealDropSlot,
+        Number(mealDropZone.dataset.mealDropIndex)
+      );
+    }
   } catch (error) {
     showToast(error.message);
   }
@@ -5629,6 +5784,7 @@ elements.itineraryBoard.addEventListener("drop", async (event) => {
 
 elements.itineraryBoard.addEventListener("dragend", () => {
   draggedTimelineEntry = null;
+  elements.itineraryBoard.classList.remove("is-reordering", "is-card-reordering", "is-meal-reordering");
   elements.itineraryBoard.querySelectorAll(".is-dragging, .is-drop-target").forEach((item) => {
     item.classList.remove("is-dragging", "is-drop-target");
   });
