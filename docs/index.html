@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>실시간 여행 n빵</title>
-    <link rel="stylesheet" href="./styles.css?v=20260903-3">
+    <link rel="stylesheet" href="./styles.css?v=20260904-1">
   </head>
   <body>
     <div class="app-shell">
@@ -93,6 +93,10 @@
               <p class="eyebrow">Trip plan</p>
               <h2 id="itinerary-heading">일차별 지출 일정</h2>
               <p id="itinerary-range-label" class="itinerary-range-label">여행 기간을 설정해 주세요.</p>
+              <div id="itinerary-perspective-summary" class="itinerary-perspective-summary" hidden>
+                <span id="itinerary-perspective-label">내 부담액</span>
+                <strong id="itinerary-perspective-total">0원</strong>
+              </div>
             </div>
             <div class="itinerary-heading-actions">
               <button id="open-schedule-modal" class="text-button" type="button">일정 설정</button>
@@ -112,7 +116,10 @@
             <section id="outside-schedule" class="outside-schedule" hidden>
               <button id="toggle-outside-schedule" class="outside-toggle" type="button" aria-expanded="false">
                 <span>일정 밖 지출</span>
-                <strong id="outside-schedule-count">0개</strong>
+                <span class="outside-toggle-meta">
+                  <strong id="outside-schedule-count">0개</strong>
+                  <b id="outside-schedule-total" hidden>0원</b>
+                </span>
               </button>
               <div id="outside-schedule-list" class="outside-schedule-list" hidden></div>
             </section>
@@ -565,6 +572,36 @@
       </section>
     </div>
 
+    <div id="perspective-backdrop" class="perspective-backdrop" hidden>
+      <section class="perspective-modal" role="dialog" aria-modal="true" aria-labelledby="perspective-heading">
+        <div class="perspective-intro">
+          <p class="eyebrow">Your view</p>
+          <h2 id="perspective-heading">누구의 관점으로 볼까요?</h2>
+          <p>내가 부담한 지출만 모아 일차별로 확인할 수 있습니다.</p>
+        </div>
+        <div id="perspective-list" class="perspective-list"></div>
+        <button id="choose-overall-perspective" class="perspective-overall-button" type="button">
+          <span>
+            <strong>전체 보기</strong>
+            <small>모든 여행자의 전체 결제액으로 봅니다.</small>
+          </span>
+          <span aria-hidden="true">›</span>
+        </button>
+        <form id="perspective-person-form" class="perspective-person-form" hidden>
+          <div>
+            <strong>친구 추가</strong>
+            <small>추가한 뒤 위 목록에서 선택할 수 있습니다.</small>
+          </div>
+          <div class="perspective-person-grid">
+            <input id="perspective-person-name" type="text" maxlength="40" placeholder="이름" autocomplete="off" aria-label="이름">
+            <input id="perspective-person-bank" type="text" maxlength="30" placeholder="은행명 (선택)" autocomplete="off" aria-label="은행명">
+            <input id="perspective-person-account" type="text" maxlength="80" placeholder="계좌번호 (선택, 하이픈 없이)" autocomplete="off" aria-label="계좌번호">
+            <button class="text-button" type="submit">추가</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
     <div id="schedule-backdrop" class="schedule-backdrop" hidden>
       <section class="schedule-modal" role="dialog" aria-modal="true" aria-labelledby="schedule-modal-heading">
         <div class="modal-header">
@@ -595,6 +632,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./config.js"></script>
-    <script type="module" src="./app.js?v=20260903-3"></script>
+    <script type="module" src="./app.js?v=20260904-1"></script>
   </body>
 </html>

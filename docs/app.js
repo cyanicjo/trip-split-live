@@ -32,6 +32,9 @@ const elements = {
   spendingInsights: document.querySelector("#spending-insights"),
   itineraryPanel: document.querySelector("#itinerary-panel"),
   itineraryRangeLabel: document.querySelector("#itinerary-range-label"),
+  itineraryPerspectiveSummary: document.querySelector("#itinerary-perspective-summary"),
+  itineraryPerspectiveLabel: document.querySelector("#itinerary-perspective-label"),
+  itineraryPerspectiveTotal: document.querySelector("#itinerary-perspective-total"),
   openScheduleModal: document.querySelector("#open-schedule-modal"),
   startScheduleSetup: document.querySelector("#start-schedule-setup"),
   openDayExpense: document.querySelector("#open-day-expense"),
@@ -42,6 +45,7 @@ const elements = {
   outsideSchedule: document.querySelector("#outside-schedule"),
   toggleOutsideSchedule: document.querySelector("#toggle-outside-schedule"),
   outsideScheduleCount: document.querySelector("#outside-schedule-count"),
+  outsideScheduleTotal: document.querySelector("#outside-schedule-total"),
   outsideScheduleList: document.querySelector("#outside-schedule-list"),
   overseasPanel: document.querySelector("#overseas-panel"),
   overseasEnabled: document.querySelector("#overseas-enabled"),
@@ -155,6 +159,13 @@ const elements = {
   scheduleForm: document.querySelector("#schedule-form"),
   scheduleStartDate: document.querySelector("#schedule-start-date"),
   scheduleEndDate: document.querySelector("#schedule-end-date"),
+  perspectiveBackdrop: document.querySelector("#perspective-backdrop"),
+  perspectiveList: document.querySelector("#perspective-list"),
+  chooseOverallPerspective: document.querySelector("#choose-overall-perspective"),
+  perspectivePersonForm: document.querySelector("#perspective-person-form"),
+  perspectivePersonName: document.querySelector("#perspective-person-name"),
+  perspectivePersonBank: document.querySelector("#perspective-person-bank"),
+  perspectivePersonAccount: document.querySelector("#perspective-person-account"),
   toast: document.querySelector("#toast")
 };
 
@@ -178,6 +189,8 @@ let expenseDraftContext = null;
 let expenseItemsExpanded = false;
 let expenseOptionsExpanded = false;
 let expenseHistoryCollapsed = true;
+let perspectiveChosen = false;
+let perspectivePersonId = "";
 let outsideScheduleExpanded = false;
 let draggedTimelineEntry = null;
 let csvImportState = {
@@ -1258,6 +1271,69 @@ function expenseShares(amount, participantIds, payerId) {
   ]));
 }
 
+function selectedPerspectivePerson() {
+  if (!perspectiveChosen || !perspectivePersonId) return null;
+  return state?.people.find((person) => person.id === perspectivePersonId) || null;
+}
+
+function isPersonalPerspective() {
+  return Boolean(selectedPerspectivePerson());
+}
+
+function expenseShareForPerson(expense, personId) {
+  const peopleById = new Map((state?.people || []).map((person) => [person.id, person]));
+  const amount = Math.round(Number(expense.amount) || 0);
+  if (amount <= 0 || !peopleById.has(expense.payerId) || !peopleById.has(personId)) return 0;
+
+  const expenseParticipantIds = Array.from(new Set(expense.participantIds || []))
+    .filter((id) => peopleById.has(id));
+  const items = normalizeExpenseItems(expense);
+  const itemAmounts = expenseItemKrwAmounts(expense, items);
+
+  return items.reduce((total, item, index) => {
+    const participantIds = Array.from(new Set(
+      item.participantIds?.length ? item.participantIds : expenseParticipantIds
+    )).filter((id) => peopleById.has(id));
+    const itemAmount = itemAmounts[index] || 0;
+    if (itemAmount <= 0 || participantIds.length === 0 || !participantIds.includes(personId)) {
+      return total;
+    }
+    return total + (expenseShares(itemAmount, participantIds, expense.payerId).get(personId) || 0);
+  }, 0);
+}
+
+function expenseIsVisibleForPerspective(expense) {
+  const person = selectedPerspectivePerson();
+  if (!person) return true;
+  return expense.payerId === person.id || expenseShareForPerson(expense, person.id) > 0;
+}
+
+function expensePerspectiveAmount(expense) {
+  const person = selectedPerspectivePerson();
+  return person ? expenseShareForPerson(expense, person.id) : Math.round(Number(expense.amount) || 0);
+}
+
+function expensePerspectiveBreakdown(expense) {
+  const dates = expenseAllocationDates(expense);
+  if (dates.length === 0) return [];
+  const amounts = distributeAmountByWeights(
+    expensePerspectiveAmount(expense),
+    dates.map(() => 1)
+  );
+  return dates.map((date, index) => ({ date, amount: amounts[index] || 0 }));
+}
+
+function expensePerspectiveAmountForDate(expense, date) {
+  if (!isPersonalPerspective()) return expenseAmountForDate(expense, date);
+  return expensePerspectiveBreakdown(expense).find((item) => item.date === date)?.amount || 0;
+}
+
+function perspectiveTotalAmount() {
+  const person = selectedPerspectivePerson();
+  if (!person) return state?.summary?.total || 0;
+  return state.summary.people.find((item) => item.id === person.id)?.share || 0;
+}
+
 function calculateSummary(trip) {
   const people = trip.people || [];
   const peopleById = new Map(people.map((person) => [person.id, person]));
@@ -1530,6 +1606,7 @@ function render() {
   renderDashboard();
   renderAccountModal();
   refreshCustomSelects();
+  renderPerspectiveModal();
 }
 
 function renderHeader() {
@@ -1612,7 +1689,9 @@ function expenseDatesForItinerary(expense) {
 }
 
 function scheduleExpensesForDate(date) {
-  return state.expenses.filter((expense) => expenseDatesForItinerary(expense).includes(date));
+  return state.expenses.filter((expense) => (
+    expenseDatesForItinerary(expense).includes(date) && expenseIsVisibleForPerspective(expense)
+  ));
 }
 
 function expensePrimaryItineraryDate(expense) {
@@ -1620,7 +1699,10 @@ function expensePrimaryItineraryDate(expense) {
 }
 
 function scheduleDayTotal(date) {
-  return state.expenses.reduce((sum, expense) => sum + expenseAmountForDate(expense, date), 0);
+  return state.expenses.reduce((sum, expense) => {
+    if (!expenseIsVisibleForPerspective(expense)) return sum;
+    return sum + expensePerspectiveAmountForDate(expense, date);
+  }, 0);
 }
 
 function timelineEntryToken(entry) {
@@ -1643,7 +1725,9 @@ function timelineEntriesForDate(date) {
   const expenses = scheduleExpensesForDate(date);
   const entries = [];
   const hasAnyLodgingExpense = state.expenses.some((expense) => (
-    expense.majorCategory === "lodging" && expenseDatesForItinerary(expense).length > 0
+    expense.majorCategory === "lodging" &&
+    expenseDatesForItinerary(expense).length > 0 &&
+    expenseIsVisibleForPerspective(expense)
   ));
   const hidden = new Set(itinerary.hiddenSlots?.[date] || []);
 
@@ -1721,7 +1805,7 @@ function timelineExpenseCardHtml(expense, date) {
   const continuationLabel = showsDailySplit && allocationIndex > 0
     ? expense.majorCategory === "lodging" ? "이어 머무름" : "이어 사용"
     : "";
-  const dailyAmount = expenseAmountForDate(expense, date);
+  const dailyAmount = expensePerspectiveAmountForDate(expense, date);
   const items = normalizeExpenseItems(expense);
   return `
     <article class="timeline-card major-${expense.majorCategory}" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
@@ -1745,7 +1829,7 @@ function timelineExpenseCardHtml(expense, date) {
           </span>
           <span class="timeline-amount-stack">
             <b>${formatMoney(dailyAmount)}</b>
-            ${showsDailySplit ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
+            ${isPersonalPerspective() ? `<small>내 부담</small>` : showsDailySplit ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
           </span>
         </button>
       </div>
@@ -1756,7 +1840,6 @@ function timelineExpenseCardHtml(expense, date) {
 function mealSlotCardHtml(entry, date) {
   const token = `meal:${entry.slot}`;
   const slotLabel = mealSlots[entry.slot] || "식비";
-  const total = entry.expenses.reduce((sum, expense) => sum + expenseAmountForDate(expense, date), 0);
   return `
     <article class="timeline-card timeline-meal-card major-food" draggable="${canEdit()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}">
       <span class="timeline-node" style="--category-color:${majorCategories.food.color}" aria-hidden="true">${majorCategories.food.icon}</span>
@@ -1779,8 +1862,8 @@ function mealSlotCardHtml(entry, date) {
                     ].filter(Boolean).join(" · "))}</small>
                   </span>
                   <span class="timeline-amount-stack">
-                    <b>${formatMoney(expenseAmountForDate(expense, date))}</b>
-                    ${expenseAllocationDates(expense).length > 1 ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
+                    <b>${formatMoney(expensePerspectiveAmountForDate(expense, date))}</b>
+                    ${isPersonalPerspective() ? `<small>내 부담</small>` : expenseAllocationDates(expense).length > 1 ? `<small>총 ${formatMoney(expense.amount)}</small>` : ""}
                   </span>
                 </button>
                 ${canEdit() ? `
@@ -1875,13 +1958,18 @@ function renderItineraryDayColumn(date) {
 }
 
 function outsideScheduleExpenses() {
-  return state.expenses.filter((expense) => expenseDatesForItinerary(expense).length === 0);
+  return state.expenses.filter((expense) => (
+    expenseDatesForItinerary(expense).length === 0 && expenseIsVisibleForPerspective(expense)
+  ));
 }
 
 function renderOutsideSchedule() {
   const expenses = outsideScheduleExpenses();
   elements.outsideSchedule.hidden = expenses.length === 0;
   elements.outsideScheduleCount.textContent = `${expenses.length}개`;
+  const outsideTotal = expenses.reduce((sum, expense) => sum + expensePerspectiveAmount(expense), 0);
+  elements.outsideScheduleTotal.hidden = !isPersonalPerspective();
+  elements.outsideScheduleTotal.textContent = `내 부담 ${formatMoney(outsideTotal)}`;
   elements.toggleOutsideSchedule.setAttribute("aria-expanded", String(outsideScheduleExpanded));
   elements.outsideScheduleList.hidden = !outsideScheduleExpanded;
   if (expenses.length === 0) {
@@ -1891,7 +1979,7 @@ function renderOutsideSchedule() {
   elements.outsideScheduleList.innerHTML = expenses.map((expense) => `
     <div class="outside-expense-row">
       <span><strong>${escapeHtml(expense.title)}</strong><small>${escapeHtml([expense.spentAt, majorCategories[expense.majorCategory]?.label, getPersonName(expense.payerId)].filter(Boolean).join(" · "))}</small></span>
-      <b>${formatMoney(expense.amount)}</b>
+      <span class="outside-expense-amount"><b>${formatMoney(expensePerspectiveAmount(expense))}</b>${isPersonalPerspective() ? `<small>내 부담</small>` : ""}</span>
       ${canEdit() ? `<button class="text-button" type="button" data-edit-expense="${escapeHtml(expense.id)}">수정</button>` : ""}
     </div>
   `).join("");
@@ -1905,6 +1993,12 @@ function renderItinerary() {
   elements.startScheduleSetup.hidden = !editable;
   elements.openDayExpense.hidden = !itinerary;
   elements.openDayExpense.disabled = !editable || state.people.length === 0;
+  const perspectivePerson = selectedPerspectivePerson();
+  elements.itineraryPerspectiveSummary.hidden = !perspectivePerson;
+  if (perspectivePerson) {
+    elements.itineraryPerspectiveLabel.textContent = `${perspectivePerson.name}의 총 부담액`;
+    elements.itineraryPerspectiveTotal.textContent = formatMoney(perspectiveTotalAmount());
+  }
 
   if (!itinerary) {
     elements.itineraryRangeLabel.textContent = "여행 기간을 설정해 주세요.";
@@ -3258,6 +3352,7 @@ function renderDashboard() {
 
 function modalBackdrops() {
   return [
+    elements.perspectiveBackdrop,
     elements.dashboardBackdrop,
     elements.accountBackdrop,
     elements.exportBackdrop,
@@ -3265,6 +3360,56 @@ function modalBackdrops() {
     elements.expenseBackdrop,
     elements.scheduleBackdrop
   ];
+}
+
+function renderPerspectiveModal() {
+  if (!elements.perspectiveBackdrop || !state || !isConfigured || !tripId) return;
+
+  if (perspectiveChosen && perspectivePersonId && !selectedPerspectivePerson()) {
+    perspectiveChosen = false;
+    perspectivePersonId = "";
+  }
+
+  const shouldOpen = !perspectiveChosen;
+  elements.perspectiveBackdrop.hidden = !shouldOpen;
+  document.body.classList.toggle("perspective-modal-open", shouldOpen);
+  elements.perspectivePersonForm.hidden = !canEdit();
+
+  if (state.people.length === 0) {
+    elements.perspectiveList.className = "perspective-list empty-state";
+    elements.perspectiveList.textContent = canEdit()
+      ? "친구를 추가하면 개인 관점으로 볼 수 있습니다."
+      : "아직 추가된 여행자가 없습니다.";
+  } else {
+    elements.perspectiveList.className = "perspective-list";
+    elements.perspectiveList.innerHTML = state.people.map((person) => `
+      <button type="button" class="perspective-person-button" data-choose-perspective="${escapeHtml(person.id)}">
+        <span class="perspective-avatar" aria-hidden="true">${escapeHtml(person.name.trim().slice(0, 1) || "?")}</span>
+        <span>
+          <strong>${escapeHtml(person.name)}</strong>
+          <small>내가 부담한 날짜와 금액으로 보기</small>
+        </span>
+        <span class="perspective-arrow" aria-hidden="true">›</span>
+      </button>
+    `).join("");
+  }
+  syncModalInert();
+  if (shouldOpen && document.activeElement?.closest("#perspective-backdrop") === null) {
+    requestAnimationFrame(() => {
+      const firstChoice = elements.perspectiveList.querySelector("button") || elements.chooseOverallPerspective;
+      firstChoice.focus();
+    });
+  }
+}
+
+function choosePerspective(personId = "") {
+  if (personId && !state.people.some((person) => person.id === personId)) return;
+  perspectivePersonId = personId;
+  perspectiveChosen = true;
+  elements.perspectiveBackdrop.hidden = true;
+  document.body.classList.remove("perspective-modal-open");
+  syncModalInert();
+  renderItinerary();
 }
 
 function activeModalDialog() {
@@ -3494,7 +3639,7 @@ function defaultDetailCategoryForMajor(majorCategory) {
 function resetExpenseFormForCreate(context = {}) {
   const majorCategory = majorCategories[context.majorCategory] ? context.majorCategory : "other";
   const defaultCategory = context.category || defaultDetailCategoryForMajor(majorCategory);
-  const defaultPayerId = state?.people[0]?.id || "";
+  const defaultPayerId = selectedPerspectivePerson()?.id || state?.people[0]?.id || "";
   const defaultParticipantIds = state?.people.map((person) => person.id) || [];
   const scheduleDate = itineraryDates().includes(context.scheduleDate)
     ? context.scheduleDate
@@ -5805,6 +5950,47 @@ elements.tripName.addEventListener("keydown", (event) => {
 elements.togglePeoplePanel.addEventListener("click", () => {
   peopleCollapsed = !peopleCollapsed;
   renderPeople();
+});
+
+elements.perspectiveList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-choose-perspective]");
+  if (!button) return;
+  choosePerspective(button.dataset.choosePerspective);
+});
+
+elements.chooseOverallPerspective.addEventListener("click", () => {
+  choosePerspective("");
+});
+
+elements.perspectivePersonForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!canEdit() || !state) return;
+  const name = elements.perspectivePersonName.value.trim();
+  const bankName = elements.perspectivePersonBank.value.trim();
+  const accountNumber = elements.perspectivePersonAccount.value.trim();
+  if (!name) {
+    elements.perspectivePersonName.focus();
+    return;
+  }
+
+  const person = {
+    id: makeId("p_"),
+    name: name.slice(0, 40),
+    bankName: bankName.slice(0, 30),
+    accountNumber: accountNumber.slice(0, 80),
+    account: accountNumber.slice(0, 80),
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    await saveTrip({ ...state, people: [...state.people, person] });
+    elements.perspectivePersonForm.reset();
+    renderPerspectiveModal();
+    elements.perspectiveList.querySelector(`[data-choose-perspective="${CSS.escape(person.id)}"]`)?.focus();
+    showToast(`${person.name}님을 추가했습니다.`);
+  } catch (error) {
+    showToast(error.message);
+  }
 });
 
 elements.personForm.addEventListener("submit", async (event) => {

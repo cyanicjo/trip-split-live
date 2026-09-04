@@ -41,6 +41,42 @@ function expenseAllocationBreakdown(expense) {
   }));
 }
 
+function expenseShares(amount, participantIds, payerId) {
+  const baseShare = Math.floor(amount / participantIds.length);
+  const remainder = amount % participantIds.length;
+  if (remainder === 0) return new Map(participantIds.map((id) => [id, baseShare]));
+  if (participantIds.includes(payerId)) {
+    const nonPayerShare = Math.ceil(amount / participantIds.length);
+    const payerShare = amount - nonPayerShare * (participantIds.length - 1);
+    return new Map(participantIds.map((id) => [id, id === payerId ? payerShare : nonPayerShare]));
+  }
+  return new Map(participantIds.map((id, index) => [id, baseShare + (index < remainder ? 1 : 0)]));
+}
+
+function distributeAmountByWeights(total, weights) {
+  const base = Math.floor(total / weights.length);
+  let remainder = total - base * weights.length;
+  return weights.map(() => {
+    const amount = base + (remainder > 0 ? 1 : 0);
+    remainder -= remainder > 0 ? 1 : 0;
+    return amount;
+  });
+}
+
+function expenseShareForPerson(expense, personId) {
+  return expense.items.reduce((total, item) => {
+    const participantIds = item.participantIds?.length ? item.participantIds : expense.participantIds;
+    if (!participantIds.includes(personId)) return total;
+    return total + (expenseShares(item.amount, participantIds, expense.payerId).get(personId) || 0);
+  }, 0);
+}
+
+function perspectiveBreakdown(expense, personId) {
+  const dates = expenseAllocationDates(expense);
+  const amounts = distributeAmountByWeights(expenseShareForPerson(expense, personId), dates.map(() => 1));
+  return dates.map((date, index) => ({ date, amount: amounts[index] }));
+}
+
 function inferMajorCategory(category = "", title = "") {
   const titleText = String(title || "").toLowerCase();
   const categoryText = String(category || "").toLowerCase();
@@ -125,6 +161,38 @@ const sameDayExpense = {
 assert.deepStrictEqual(expenseAllocationBreakdown(sameDayExpense), [
   { date: "2026-07-17", amount: 27500 }
 ]);
+
+const personalizedExpense = {
+  amount: 10000,
+  payerId: "p1",
+  participantIds: ["p1", "p2", "p3"],
+  scheduleDate: "2026-07-16",
+  spreadAcrossDays: true,
+  allocationStartDate: "2026-07-16",
+  allocationEndDate: "2026-07-18",
+  items: [{ amount: 10000, participantIds: ["p1", "p2", "p3"] }]
+};
+assert.strictEqual(expenseShareForPerson(personalizedExpense, "p1"), 3332);
+assert.strictEqual(expenseShareForPerson(personalizedExpense, "p2"), 3334);
+assert.deepStrictEqual(perspectiveBreakdown(personalizedExpense, "p2"), [
+  { date: "2026-07-16", amount: 1112 },
+  { date: "2026-07-17", amount: 1111 },
+  { date: "2026-07-18", amount: 1111 }
+]);
+assert.strictEqual(
+  perspectiveBreakdown(personalizedExpense, "p2").reduce((sum, item) => sum + item.amount, 0),
+  expenseShareForPerson(personalizedExpense, "p2")
+);
+
+const payerOnlyExpense = {
+  amount: 9000,
+  payerId: "p1",
+  participantIds: ["p2", "p3"],
+  scheduleDate: "2026-07-17",
+  items: [{ amount: 9000, participantIds: ["p2", "p3"] }]
+};
+assert.strictEqual(expenseShareForPerson(payerOnlyExpense, "p1"), 0);
+assert.strictEqual(payerOnlyExpense.payerId === "p1" || expenseShareForPerson(payerOnlyExpense, "p1") > 0, true);
 
 const crossingLodging = {
   id: "hotel-2",
