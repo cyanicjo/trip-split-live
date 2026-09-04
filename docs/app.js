@@ -38,7 +38,6 @@ const elements = {
   openPerspective: document.querySelector("#open-perspective"),
   openScheduleModal: document.querySelector("#open-schedule-modal"),
   startScheduleSetup: document.querySelector("#start-schedule-setup"),
-  openDayExpense: document.querySelector("#open-day-expense"),
   itineraryEmpty: document.querySelector("#itinerary-empty"),
   itineraryContent: document.querySelector("#itinerary-content"),
   itineraryDayTabs: document.querySelector("#itinerary-day-tabs"),
@@ -162,6 +161,9 @@ const elements = {
   scheduleEndDate: document.querySelector("#schedule-end-date"),
   perspectiveBackdrop: document.querySelector("#perspective-backdrop"),
   closePerspective: document.querySelector("#close-perspective"),
+  perspectiveSchedule: document.querySelector("#perspective-schedule"),
+  perspectiveStartDate: document.querySelector("#perspective-start-date"),
+  perspectiveEndDate: document.querySelector("#perspective-end-date"),
   perspectiveList: document.querySelector("#perspective-list"),
   chooseOverallPerspective: document.querySelector("#choose-overall-perspective"),
   perspectivePersonForm: document.querySelector("#perspective-person-form"),
@@ -195,6 +197,7 @@ let perspectiveChosen = false;
 let perspectivePersonId = "";
 let perspectiveModalOpen = false;
 let perspectiveModalDismissible = false;
+let perspectiveChoiceSaving = false;
 let outsideScheduleExpanded = false;
 let draggedTimelineEntry = null;
 let csvImportState = {
@@ -258,12 +261,11 @@ const mealSlots = {
   lunch: "점심",
   dinner: "저녁",
   snack: "간식",
-  "late-night": "야식",
-  "food-other": "식비 기타"
+  "food-other": "음식"
 };
 
 const defaultMealSlots = ["lunch", "dinner"];
-const optionalMealSlots = ["breakfast", "snack", "late-night", "food-other"];
+const optionalMealSlots = ["breakfast", "snack", "food-other"];
 
 const currencyOptions = [
   "USD",
@@ -516,8 +518,11 @@ function inferMealSlot(title = "") {
   if (/(점심|중식|lunch)/.test(text)) return "lunch";
   if (/(저녁|석식|dinner)/.test(text)) return "dinner";
   if (/(간식|카페|디저트|snack|dessert|cafe)/.test(text)) return "snack";
-  if (/(야식|late.?night)/.test(text)) return "late-night";
   return "food-other";
+}
+
+function canonicalMealSlot(slot = "") {
+  return slot === "late-night" ? "food-other" : slot;
 }
 
 function normalizeItinerary(settings = {}) {
@@ -530,19 +535,26 @@ function normalizeItinerary(settings = {}) {
   const hiddenSlots = {};
   for (const [date, slots] of Object.entries(source.hiddenSlots || {})) {
     if (!dates.has(date) || !Array.isArray(slots)) continue;
-    hiddenSlots[date] = Array.from(new Set(slots.filter((slot) => slot === "lodging" || slot in mealSlots)));
+    hiddenSlots[date] = Array.from(new Set(slots
+      .map((slot) => canonicalMealSlot(slot))
+      .filter((slot) => slot === "lodging" || slot in mealSlots)));
   }
 
   const extraMealSlots = {};
   for (const [date, slots] of Object.entries(source.extraMealSlots || {})) {
     if (!dates.has(date) || !Array.isArray(slots)) continue;
-    extraMealSlots[date] = Array.from(new Set(slots.filter((slot) => optionalMealSlots.includes(slot))));
+    extraMealSlots[date] = Array.from(new Set(slots
+      .map((slot) => canonicalMealSlot(slot))
+      .filter((slot) => optionalMealSlots.includes(slot))));
   }
 
   const dayOrders = {};
   for (const [date, tokens] of Object.entries(source.dayOrders || {})) {
     if (!dates.has(date) || !Array.isArray(tokens)) continue;
-    dayOrders[date] = Array.from(new Set(tokens.map(String).filter(Boolean))).slice(0, 500);
+    dayOrders[date] = Array.from(new Set(tokens
+      .map(String)
+      .map((token) => token === "meal:late-night" ? "meal:food-other" : token)
+      .filter(Boolean))).slice(0, 500);
   }
 
   return {
@@ -1189,8 +1201,9 @@ function normalizeExpenses(expenses = []) {
         : isDateKey(expense.spentAt)
           ? expense.spentAt
           : "";
+      const storedMealSlot = canonicalMealSlot(expense.mealSlot);
       const mealSlot = majorCategory === "food"
-        ? (Object.hasOwn(mealSlots, expense.mealSlot) ? expense.mealSlot : inferMealSlot(expense.title))
+        ? (Object.hasOwn(mealSlots, storedMealSlot) ? storedMealSlot : inferMealSlot(expense.title))
         : "";
       const spreadAcrossDays = typeof expense.spreadAcrossDays === "boolean"
         ? expense.spreadAcrossDays
@@ -1719,7 +1732,7 @@ function timelineEntryPriority(entry) {
   if (entry.type === "expense" && entry.expense.majorCategory === "transport") return 10;
   if (entry.type === "lodging-slot" || (entry.type === "expense" && entry.expense.majorCategory === "lodging")) return 20;
   if (entry.type === "meal") {
-    return 30 + ["breakfast", "lunch", "dinner", "snack", "late-night", "food-other"].indexOf(entry.slot);
+    return 30 + ["breakfast", "lunch", "dinner", "snack", "food-other"].indexOf(entry.slot);
   }
   return 50;
 }
@@ -1745,7 +1758,8 @@ function timelineEntriesForDate(date) {
 
   const foodBySlot = new Map();
   for (const expense of expenses.filter((item) => item.majorCategory === "food")) {
-    const slot = Object.hasOwn(mealSlots, expense.mealSlot) ? expense.mealSlot : "food-other";
+    const normalizedSlot = canonicalMealSlot(expense.mealSlot);
+    const slot = Object.hasOwn(mealSlots, normalizedSlot) ? normalizedSlot : "food-other";
     if (!foodBySlot.has(slot)) foodBySlot.set(slot, []);
     foodBySlot.get(slot).push(expense);
   }
@@ -1887,8 +1901,8 @@ function mealSlotCardHtml(entry, date) {
         ` : `<p class="timeline-empty-copy">아직 입력한 지출이 없습니다.</p>`}
         ${canEdit() ? `
           <div class="timeline-slot-actions">
-            <button type="button" class="timeline-add-button" data-add-schedule-expense="food" data-schedule-date="${date}" data-meal-slot="${escapeHtml(entry.slot)}">+ ${escapeHtml(slotLabel)} 지출 추가</button>
-            ${entry.expenses.length === 0 ? `<button type="button" class="timeline-hide-button" data-hide-schedule-slot="${escapeHtml(entry.slot)}" data-schedule-date="${date}">칸 숨기기</button>` : ""}
+            <button type="button" class="timeline-add-button" data-add-schedule-expense="food" data-schedule-date="${date}" data-meal-slot="${escapeHtml(entry.slot)}" aria-label="${escapeHtml(slotLabel)} 지출 입력">+ 입력</button>
+            ${entry.expenses.length === 0 ? `<button type="button" class="timeline-hide-button" data-hide-schedule-slot="${escapeHtml(entry.slot)}" data-schedule-date="${date}" title="${escapeHtml(slotLabel)} 칸 숨기기" aria-label="${escapeHtml(slotLabel)} 칸 숨기기"><span aria-hidden="true">&#128465;</span></button>` : ""}
           </div>
         ` : ""}
       </div>
@@ -1910,8 +1924,8 @@ function lodgingSlotCardHtml(date) {
         <p class="timeline-empty-copy">머무를 숙소를 입력해 주세요.</p>
         ${canEdit() ? `
           <div class="timeline-slot-actions">
-            <button type="button" class="timeline-add-button" data-add-schedule-expense="lodging" data-schedule-date="${date}">+ 숙소 입력</button>
-            <button type="button" class="timeline-hide-button" data-hide-schedule-slot="lodging" data-schedule-date="${date}">칸 숨기기</button>
+            <button type="button" class="timeline-add-button" data-add-schedule-expense="lodging" data-schedule-date="${date}" aria-label="숙소 지출 입력">+ 입력</button>
+            <button type="button" class="timeline-hide-button" data-hide-schedule-slot="lodging" data-schedule-date="${date}" title="숙소 칸 숨기기" aria-label="숙소 칸 숨기기"><span aria-hidden="true">&#128465;</span></button>
           </div>
         ` : ""}
       </div>
@@ -1921,12 +1935,14 @@ function lodgingSlotCardHtml(date) {
 
 function itineraryDayAddMenuHtml(date) {
   if (!canEdit()) return "";
+  const restoresHiddenLodging = date === itinerarySettings()?.startDate &&
+    (itinerarySettings()?.hiddenSlots?.[date] || []).includes("lodging");
   return `
     <details class="day-add-menu">
       <summary aria-label="${escapeHtml(itineraryDayLabel(date))} 항목 추가">＋</summary>
       <div class="day-add-popover">
         <button type="button" data-add-schedule-expense="transport" data-schedule-date="${date}">이동</button>
-        <button type="button" data-add-schedule-expense="lodging" data-schedule-date="${date}">숙소</button>
+        <button type="button" ${restoresHiddenLodging ? "data-show-lodging-slot" : "data-add-schedule-expense=\"lodging\""} data-schedule-date="${date}">숙소</button>
         ${Object.entries(mealSlots).map(([slot, label]) => (
           `<button type="button" data-show-meal-slot="${slot}" data-schedule-date="${date}">${escapeHtml(label)}</button>`
         )).join("")}
@@ -1995,8 +2011,6 @@ function renderItinerary() {
   elements.openScheduleModal.hidden = !editable;
   elements.openScheduleModal.textContent = itinerary ? "일정 수정" : "일정 설정";
   elements.startScheduleSetup.hidden = !editable;
-  elements.openDayExpense.hidden = !itinerary;
-  elements.openDayExpense.disabled = !editable || state.people.length === 0;
   const perspectivePerson = selectedPerspectivePerson();
   const perspectiveName = perspectiveChosen ? perspectivePerson?.name || "전체 보기" : "선택 전";
   elements.openPerspective.setAttribute("aria-label", `관점 바꾸기, 현재 ${perspectiveName}`);
@@ -3380,10 +3394,18 @@ function renderPerspectiveModal() {
   }
 
   const shouldOpen = !perspectiveChosen || perspectiveModalOpen;
+  const needsSchedule = canEdit() && !itinerarySettings();
   elements.perspectiveBackdrop.hidden = !shouldOpen;
   document.body.classList.toggle("perspective-modal-open", shouldOpen);
   elements.perspectivePersonForm.hidden = !canEdit();
   elements.closePerspective.hidden = !perspectiveModalDismissible;
+  elements.perspectiveSchedule.hidden = !needsSchedule;
+  if (needsSchedule && !elements.perspectiveSchedule.dataset.initialized) {
+    const suggested = suggestedScheduleRange();
+    elements.perspectiveStartDate.value = suggested.startDate;
+    elements.perspectiveEndDate.value = suggested.endDate;
+    elements.perspectiveSchedule.dataset.initialized = "true";
+  }
 
   if (state.people.length === 0) {
     elements.perspectiveList.className = "perspective-list empty-state";
@@ -3398,6 +3420,13 @@ function renderPerspectiveModal() {
   }
   elements.chooseOverallPerspective.classList.toggle("is-selected", perspectiveChosen && !perspectivePersonId);
   elements.chooseOverallPerspective.setAttribute("aria-pressed", String(perspectiveChosen && !perspectivePersonId));
+  elements.perspectiveList.querySelectorAll("button").forEach((button) => {
+    button.disabled = perspectiveChoiceSaving;
+  });
+  elements.chooseOverallPerspective.disabled = perspectiveChoiceSaving;
+  elements.perspectivePersonForm.querySelectorAll("input, button").forEach((control) => {
+    control.disabled = perspectiveChoiceSaving;
+  });
   syncModalInert();
   if (shouldOpen && document.activeElement?.closest("#perspective-backdrop") === null) {
     requestAnimationFrame(() => {
@@ -3410,8 +3439,39 @@ function renderPerspectiveModal() {
   }
 }
 
-function choosePerspective(personId = "") {
+async function choosePerspective(personId = "") {
   if (personId && !state.people.some((person) => person.id === personId)) return;
+  const needsSchedule = canEdit() && !itinerarySettings();
+  if (needsSchedule) {
+    const startDate = elements.perspectiveStartDate.value;
+    const endDate = elements.perspectiveEndDate.value;
+    if (!isDateKey(startDate) || !isDateKey(endDate)) {
+      showToast("출발일과 종료일을 입력해 주세요.");
+      return;
+    }
+    if (startDate > endDate) {
+      showToast("종료일은 출발일보다 빠를 수 없습니다.");
+      return;
+    }
+    if (dateRangeKeys(startDate, endDate).length >= 366) {
+      showToast("여행 기간은 365일 이내로 설정해 주세요.");
+      return;
+    }
+
+    perspectiveChoiceSaving = true;
+    renderPerspectiveModal();
+    try {
+      selectedItineraryDate = startDate;
+      await saveItinerary(normalizedItineraryUpdate({ startDate, endDate }));
+    } catch (error) {
+      perspectiveChoiceSaving = false;
+      renderPerspectiveModal();
+      showToast(error.message);
+      return;
+    }
+    perspectiveChoiceSaving = false;
+  }
+
   const returnFocus = perspectiveModalDismissible;
   perspectivePersonId = personId;
   perspectiveChosen = true;
@@ -3620,6 +3680,16 @@ async function showMealSlot(date, slot) {
   }));
 }
 
+async function showLodgingSlot(date) {
+  const itinerary = itinerarySettings();
+  if (!itinerary) return;
+  const hidden = new Set(itinerary.hiddenSlots?.[date] || []);
+  hidden.delete("lodging");
+  await saveItinerary(normalizedItineraryUpdate({
+    hiddenSlots: { ...itinerary.hiddenSlots, [date]: Array.from(hidden) }
+  }));
+}
+
 async function moveExpenseToDate(expenseId, date) {
   const expense = state.expenses.find((item) => item.id === expenseId);
   if (!expense || expense.spreadAcrossDays || !itineraryDates().includes(date)) return;
@@ -3774,7 +3844,7 @@ function closeExpenseModal({ force = false } = {}) {
     renderExpenseForm();
   }
   syncModalInert();
-  restoreModalFocus(elements.openDayExpense || elements.openExpenseModal);
+  restoreModalFocus(elements.openExpenseModal);
 }
 
 function renderExpenseEditor(expense) {
@@ -5374,11 +5444,6 @@ elements.expenseItemList.addEventListener("change", (event) => {
 
 elements.openExpenseModal.addEventListener("click", () => openExpenseModal());
 
-elements.openDayExpense.addEventListener("click", () => openExpenseModal("", {
-  majorCategory: "other",
-  scheduleDate: selectedItineraryDate
-}));
-
 elements.openScheduleModal.addEventListener("click", openScheduleEditor);
 elements.startScheduleSetup.addEventListener("click", openScheduleEditor);
 elements.closeScheduleModal.addEventListener("click", closeScheduleEditor);
@@ -5476,6 +5541,17 @@ elements.itineraryBoard.addEventListener("click", async (event) => {
     details?.removeAttribute("open");
     try {
       await showMealSlot(showMealButton.dataset.scheduleDate, showMealButton.dataset.showMealSlot);
+    } catch (error) {
+      showToast(error.message);
+    }
+    return;
+  }
+
+  const showLodgingButton = event.target.closest("[data-show-lodging-slot]");
+  if (showLodgingButton && canEdit()) {
+    details?.removeAttribute("open");
+    try {
+      await showLodgingSlot(showLodgingButton.dataset.scheduleDate);
     } catch (error) {
       showToast(error.message);
     }
@@ -5991,14 +6067,14 @@ elements.perspectiveBackdrop.addEventListener("click", (event) => {
   if (event.target === elements.perspectiveBackdrop) closePerspectiveChooser();
 });
 
-elements.perspectiveList.addEventListener("click", (event) => {
+elements.perspectiveList.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-choose-perspective]");
   if (!button) return;
-  choosePerspective(button.dataset.choosePerspective);
+  await choosePerspective(button.dataset.choosePerspective);
 });
 
-elements.chooseOverallPerspective.addEventListener("click", () => {
-  choosePerspective("");
+elements.chooseOverallPerspective.addEventListener("click", async () => {
+  await choosePerspective("");
 });
 
 elements.perspectivePersonForm.addEventListener("submit", async (event) => {

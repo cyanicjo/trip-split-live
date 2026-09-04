@@ -95,8 +95,17 @@ function inferMealSlot(title = "") {
   if (/(점심|중식|lunch)/.test(text)) return "lunch";
   if (/(저녁|석식|dinner)/.test(text)) return "dinner";
   if (/(간식|카페|디저트|snack|dessert|cafe)/.test(text)) return "snack";
-  if (/(야식|late.?night)/.test(text)) return "late-night";
   return "food-other";
+}
+
+function canonicalMealSlot(slot = "") {
+  return slot === "late-night" ? "food-other" : slot;
+}
+
+function normalizeMealOrder(tokens) {
+  return Array.from(new Set(tokens.map((token) => (
+    token === "meal:late-night" ? "meal:food-other" : token
+  ))));
 }
 
 const dates = dateRangeKeys("2026-07-16", "2026-07-20");
@@ -118,6 +127,12 @@ assert.strictEqual(inferMajorCategory("관광", "입장권"), "other");
 assert.strictEqual(inferMealSlot("둘째 날 점심"), "lunch");
 assert.strictEqual(inferMealSlot("카페와 디저트"), "snack");
 assert.strictEqual(inferMealSlot("시장 식비"), "food-other");
+assert.strictEqual(inferMealSlot("여행 마지막 야식"), "food-other");
+assert.strictEqual(canonicalMealSlot("late-night"), "food-other");
+assert.deepStrictEqual(
+  normalizeMealOrder(["meal:late-night", "meal:food-other", "expense:1"]),
+  ["meal:food-other", "expense:1"]
+);
 
 const lodging = {
   id: "hotel-1",
