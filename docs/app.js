@@ -18,6 +18,15 @@ const elements = {
   appShell: document.querySelector(".app-shell"),
   actionMenu: document.querySelector("#action-menu"),
   actionMenuTrigger: document.querySelector("#action-menu-trigger"),
+  layoutModeOptions: document.querySelectorAll("[data-layout-mode]"),
+  appSidebar: document.querySelector("#app-sidebar"),
+  sidebarTripName: document.querySelector("#sidebar-trip-name"),
+  sidebarTotalSpent: document.querySelector("#sidebar-total-spent"),
+  sidebarLiveStatus: document.querySelector("#sidebar-live-status"),
+  sidebarLiveLabel: document.querySelector("#sidebar-live-label"),
+  toggleSidebar: document.querySelector("#toggle-sidebar"),
+  sidebarNavigation: document.querySelector(".sidebar-navigation"),
+  sidebarNavItems: document.querySelectorAll("[data-sidebar-view]"),
   setupPanel: document.querySelector("#setup-panel"),
   tripName: document.querySelector("#trip-name"),
   openDashboard: document.querySelector("#open-dashboard"),
@@ -210,6 +219,12 @@ let csvImportState = {
 let peopleCollapsed = true;
 let overseasCollapsed = true;
 const dashboardTripsKey = "tripSplitDashboardTrips";
+const layoutModeStorageKey = "tripSplitLayoutMode";
+const sidebarCollapsedStorageKey = "tripSplitSidebarCollapsed";
+const desktopLayoutQuery = window.matchMedia("(min-width: 901px)");
+let layoutMode = readStoredLayoutMode();
+let sidebarCollapsed = readStoredBoolean(sidebarCollapsedStorageKey);
+let activeSidebarView = "schedule";
 
 const exportSectionLabels = {
   summary: "요약",
@@ -465,6 +480,97 @@ function setDisclosureIcon(button, expanded) {
   scheduleIconRefresh();
 }
 
+function readStoredLayoutMode() {
+  try {
+    return localStorage.getItem(layoutModeStorageKey) === "stacked" ? "stacked" : "sidebar";
+  } catch {
+    return "sidebar";
+  }
+}
+
+function readStoredBoolean(key) {
+  try {
+    return localStorage.getItem(key) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function storeBrowserPreference(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // The layout still works when private browsing blocks local storage.
+  }
+}
+
+function isSidebarLayoutActive() {
+  return layoutMode === "sidebar" && desktopLayoutQuery.matches;
+}
+
+function isSidebarViewActive(view) {
+  return isSidebarLayoutActive() && activeSidebarView === view;
+}
+
+function applyLayoutState() {
+  const sidebarActive = isSidebarLayoutActive();
+  document.body.classList.toggle("layout-sidebar", sidebarActive);
+  document.body.classList.toggle("layout-stacked", !sidebarActive);
+  document.body.classList.toggle("sidebar-collapsed", sidebarActive && sidebarCollapsed);
+  document.body.dataset.sidebarView = activeSidebarView;
+
+  if (elements.appSidebar) elements.appSidebar.hidden = !sidebarActive;
+
+  for (const option of elements.layoutModeOptions) {
+    const selected = option.dataset.layoutMode === layoutMode;
+    option.setAttribute("aria-checked", String(selected));
+    option.classList.toggle("is-selected", selected);
+  }
+
+  for (const item of elements.sidebarNavItems) {
+    const selected = item.dataset.sidebarView === activeSidebarView;
+    item.classList.toggle("is-active", selected);
+    if (selected) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
+  }
+
+  for (const screen of document.querySelectorAll("[data-sidebar-screen]")) {
+    screen.classList.toggle("is-sidebar-active", screen.dataset.sidebarScreen === activeSidebarView);
+  }
+
+  if (elements.toggleSidebar) {
+    elements.toggleSidebar.setAttribute("aria-expanded", String(!sidebarCollapsed));
+    elements.toggleSidebar.setAttribute("aria-label", sidebarCollapsed ? "사이드바 펼치기" : "사이드바 접기");
+    elements.toggleSidebar.title = sidebarCollapsed ? "사이드바 펼치기" : "사이드바 접기";
+    const icon = elements.toggleSidebar.querySelector("[data-lucide]");
+    if (icon) icon.setAttribute("data-lucide", sidebarCollapsed ? "panel-left-open" : "panel-left-close");
+  }
+
+  scheduleIconRefresh();
+}
+
+function refreshLayoutPanels() {
+  if (!state) return;
+  renderExpenseHistoryState();
+  renderPeople();
+  renderOverseasPanel();
+}
+
+function setLayoutMode(nextMode) {
+  layoutMode = nextMode === "stacked" ? "stacked" : "sidebar";
+  if (layoutMode === "sidebar") activeSidebarView = "schedule";
+  storeBrowserPreference(layoutModeStorageKey, layoutMode);
+  applyLayoutState();
+  refreshLayoutPanels();
+}
+
+function setActiveSidebarView(view) {
+  if (!["schedule", "settlement", "expenses", "people", "overseas"].includes(view)) return;
+  activeSidebarView = view;
+  applyLayoutState();
+  refreshLayoutPanels();
+}
+
 function showToast(message) {
   clearTimeout(toastTimer);
   elements.toast.textContent = message;
@@ -478,6 +584,11 @@ function setLiveStatus(kind, text) {
   elements.liveStatus.classList.remove("is-connecting", "is-live", "is-offline");
   elements.liveStatus.classList.add(kind);
   elements.liveStatus.lastChild.textContent = ` ${text}`;
+  if (elements.sidebarLiveStatus) {
+    elements.sidebarLiveStatus.classList.remove("is-connecting", "is-live", "is-offline");
+    elements.sidebarLiveStatus.classList.add(kind);
+  }
+  if (elements.sidebarLiveLabel) elements.sidebarLiveLabel.textContent = text;
 }
 
 function makeId(prefix = "") {
@@ -1655,6 +1766,7 @@ function render() {
   document.body.classList.toggle("is-readonly", !canEdit());
   document.body.classList.toggle("has-no-people", state.people.length === 0);
   document.body.classList.toggle("has-itinerary", Boolean(itinerarySettings()));
+  applyLayoutState();
   syncParticipantSelection();
   renderHeader();
   renderSummary();
@@ -1674,10 +1786,12 @@ function render() {
 }
 
 function renderHeader() {
-  if (document.activeElement !== elements.tripName) {
+  if (document.activeElement !== elements.tripName && document.activeElement !== elements.sidebarTripName) {
     elements.tripName.value = state.name;
+    if (elements.sidebarTripName) elements.sidebarTripName.value = state.name;
   }
   elements.tripName.readOnly = !canEdit();
+  if (elements.sidebarTripName) elements.sidebarTripName.readOnly = !canEdit();
   elements.openImport.disabled = !canEdit();
 }
 
@@ -1687,6 +1801,7 @@ function renderSummary() {
   const insights = spendingInsights();
 
   elements.totalSpent.textContent = formatMoney(state.summary.total);
+  if (elements.sidebarTotalSpent) elements.sidebarTotalSpent.textContent = formatMoney(state.summary.total);
   renderSpendingInsights(insights);
 
   if (!canEdit()) {
@@ -2086,7 +2201,9 @@ function renderItinerary() {
 }
 
 function renderExpenseHistoryState() {
-  const collapsed = itinerarySettings() ? expenseHistoryCollapsed : false;
+  const collapsed = isSidebarViewActive("expenses")
+    ? false
+    : itinerarySettings() ? expenseHistoryCollapsed : false;
   elements.expenseHistoryBody.hidden = collapsed;
   elements.toggleExpenseHistory.setAttribute("aria-expanded", String(!collapsed));
   elements.toggleExpenseHistory.title = collapsed ? "전체 지출 펼치기" : "전체 지출 접기";
@@ -2282,17 +2399,19 @@ function renderOverseasPanel() {
   const overseas = overseasSettings();
   const editable = canEdit();
   const [currencyOne, currencyTwo] = overseas.currencies;
+  const sidebarExpanded = isSidebarViewActive("overseas");
+  const expanded = sidebarExpanded || (overseas.enabled && !overseasCollapsed);
   document.body.classList.toggle("has-overseas", overseas.enabled);
-  elements.overseasPanel.hidden = !overseas.enabled;
+  elements.overseasPanel.hidden = !overseas.enabled && !sidebarExpanded;
   elements.overseasEnabled.checked = overseas.enabled;
   elements.overseasQuickEnabled.checked = overseas.enabled;
   elements.overseasEnabled.disabled = !editable;
   elements.overseasQuickEnabled.disabled = !editable;
-  elements.overseasBody.hidden = !overseas.enabled || overseasCollapsed;
-  elements.overseasPanel.classList.toggle("is-collapsed", overseas.enabled && overseasCollapsed);
-  elements.toggleOverseasPanel.setAttribute("aria-expanded", String(overseas.enabled && !overseasCollapsed));
-  elements.toggleOverseasPanel.title = overseasCollapsed ? "외화 정산 펼치기" : "외화 정산 접기";
-  setDisclosureIcon(elements.toggleOverseasPanel, overseas.enabled && !overseasCollapsed);
+  elements.overseasBody.hidden = !expanded;
+  elements.overseasPanel.classList.toggle("is-collapsed", !expanded);
+  elements.toggleOverseasPanel.setAttribute("aria-expanded", String(expanded));
+  elements.toggleOverseasPanel.title = expanded ? "외화 정산 접기" : "외화 정산 펼치기";
+  setDisclosureIcon(elements.toggleOverseasPanel, expanded);
 
   elements.currencyOne.innerHTML = createCurrencyOptions(currencyOne);
   elements.currencyTwo.innerHTML = createCurrencyOptions(currencyTwo);
@@ -2372,11 +2491,12 @@ function renderExchangeList() {
 }
 
 function renderPeople() {
-  elements.peoplePanel.classList.toggle("is-collapsed", peopleCollapsed);
-  elements.peopleBody.hidden = peopleCollapsed;
-  elements.togglePeoplePanel.setAttribute("aria-expanded", String(!peopleCollapsed));
-  elements.togglePeoplePanel.title = peopleCollapsed ? "친구 펼치기" : "친구 접기";
-  setDisclosureIcon(elements.togglePeoplePanel, !peopleCollapsed);
+  const collapsed = isSidebarViewActive("people") ? false : peopleCollapsed;
+  elements.peoplePanel.classList.toggle("is-collapsed", collapsed);
+  elements.peopleBody.hidden = collapsed;
+  elements.togglePeoplePanel.setAttribute("aria-expanded", String(!collapsed));
+  elements.togglePeoplePanel.title = collapsed ? "친구 펼치기" : "친구 접기";
+  setDisclosureIcon(elements.togglePeoplePanel, !collapsed);
 
   if (state.people.length === 0) {
     elements.peopleList.className = "people-list empty-state";
@@ -6215,6 +6335,27 @@ elements.copyViewLink.addEventListener("click", () => {
   copyText(viewLink(), "보기 링크를 복사했습니다.");
 });
 
+for (const option of elements.layoutModeOptions) {
+  option.addEventListener("click", () => setLayoutMode(option.dataset.layoutMode));
+}
+
+elements.toggleSidebar?.addEventListener("click", () => {
+  sidebarCollapsed = !sidebarCollapsed;
+  storeBrowserPreference(sidebarCollapsedStorageKey, sidebarCollapsed);
+  applyLayoutState();
+});
+
+elements.sidebarNavigation?.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-sidebar-view]");
+  if (!item) return;
+  setActiveSidebarView(item.dataset.sidebarView);
+});
+
+desktopLayoutQuery.addEventListener("change", () => {
+  applyLayoutState();
+  refreshLayoutPanels();
+});
+
 elements.actionMenu?.addEventListener("click", (event) => {
   if (event.target.closest("button")) {
     elements.actionMenu.open = false;
@@ -6225,11 +6366,12 @@ elements.actionMenu?.addEventListener("toggle", () => {
   elements.actionMenuTrigger?.setAttribute("aria-expanded", String(elements.actionMenu.open));
 });
 
-elements.tripName.addEventListener("input", () => {
+function queueTripNameSave(source, mirror) {
   if (!canEdit() || !state) return;
+  if (mirror) mirror.value = source.value;
   clearTimeout(tripNameTimer);
   tripNameTimer = setTimeout(async () => {
-    const name = elements.tripName.value.trim();
+    const name = source.value.trim();
     if (!name || name === state.name) return;
     try {
       await saveTrip({ ...state, name });
@@ -6237,12 +6379,27 @@ elements.tripName.addEventListener("input", () => {
       showToast(error.message);
     }
   }, 480);
+}
+
+elements.tripName.addEventListener("input", () => {
+  queueTripNameSave(elements.tripName, elements.sidebarTripName);
 });
 
 elements.tripName.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
     elements.tripName.blur();
+  }
+});
+
+elements.sidebarTripName?.addEventListener("input", () => {
+  queueTripNameSave(elements.sidebarTripName, elements.tripName);
+});
+
+elements.sidebarTripName?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    elements.sidebarTripName.blur();
   }
 });
 
@@ -6900,4 +7057,5 @@ async function start() {
   }
 }
 
+applyLayoutState();
 start();

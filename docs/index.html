@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>실시간 여행 n빵</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-    <link rel="stylesheet" href="./styles.css?v=20260905-2">
+    <link rel="stylesheet" href="./styles.css?v=20260906-1">
   </head>
   <body>
     <div class="app-shell">
@@ -51,13 +51,72 @@
                 <i data-lucide="download" aria-hidden="true"></i>
                 <span>내보내기</span>
               </button>
+              <div class="menu-separator layout-menu-separator" role="separator"></div>
+              <div class="layout-menu-group" role="group" aria-label="화면 구성">
+                <span class="menu-group-label">화면 구성</span>
+                <button class="menu-action layout-mode-option" type="button" role="menuitemradio" aria-checked="true" data-layout-mode="sidebar">
+                  <i data-lucide="panel-left" aria-hidden="true"></i>
+                  <span>사이드바형</span>
+                  <i class="layout-mode-check" data-lucide="check" aria-hidden="true"></i>
+                </button>
+                <button class="menu-action layout-mode-option" type="button" role="menuitemradio" aria-checked="false" data-layout-mode="stacked">
+                  <i data-lucide="panels-top-left" aria-hidden="true"></i>
+                  <span>한 화면형</span>
+                  <i class="layout-mode-check" data-lucide="check" aria-hidden="true"></i>
+                </button>
+              </div>
             </div>
           </details>
         </div>
       </header>
 
+      <aside id="app-sidebar" class="app-sidebar" aria-label="여행 화면 메뉴">
+        <div class="sidebar-header">
+          <div class="sidebar-title-block">
+            <span class="sidebar-app-label">여행 정산</span>
+            <input id="sidebar-trip-name" class="sidebar-trip-name" type="text" maxlength="80" value="새 여행 정산" aria-label="사이드바 여행 이름">
+          </div>
+          <button id="toggle-sidebar" class="sidebar-collapse-button" type="button" title="사이드바 접기" aria-label="사이드바 접기" aria-expanded="true">
+            <i data-lucide="panel-left-close" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="sidebar-summary">
+          <span>현재 총지출</span>
+          <strong id="sidebar-total-spent">0원</strong>
+        </div>
+
+        <nav class="sidebar-navigation" aria-label="여행 화면">
+          <button class="sidebar-nav-item is-active" type="button" data-sidebar-view="schedule" aria-current="page" title="일정">
+            <i data-lucide="calendar-days" aria-hidden="true"></i>
+            <span>일정</span>
+          </button>
+          <button class="sidebar-nav-item" type="button" data-sidebar-view="settlement" title="정산">
+            <i data-lucide="arrow-left-right" aria-hidden="true"></i>
+            <span>정산</span>
+          </button>
+          <button class="sidebar-nav-item" type="button" data-sidebar-view="expenses" title="전체 지출">
+            <i data-lucide="receipt-text" aria-hidden="true"></i>
+            <span>전체 지출</span>
+          </button>
+          <button class="sidebar-nav-item" type="button" data-sidebar-view="people" title="친구">
+            <i data-lucide="users" aria-hidden="true"></i>
+            <span>친구</span>
+          </button>
+          <button class="sidebar-nav-item" type="button" data-sidebar-view="overseas" title="외화">
+            <i data-lucide="coins" aria-hidden="true"></i>
+            <span>외화</span>
+          </button>
+        </nav>
+
+        <div id="sidebar-live-status" class="sidebar-live-status is-connecting" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="sidebar-live-label" class="sidebar-live-label">연결 중</span>
+        </div>
+      </aside>
+
       <main class="workspace">
-        <section id="setup-panel" class="panel setup-panel" aria-labelledby="setup-heading" hidden>
+        <section id="setup-panel" class="panel setup-panel" data-sidebar-screen="schedule" aria-labelledby="setup-heading" hidden>
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Setup</p>
@@ -73,7 +132,7 @@
           </ol>
         </section>
 
-        <section class="summary-band" aria-label="여행 정산 요약">
+        <section class="summary-band" data-sidebar-screen="schedule" aria-label="여행 정산 요약">
           <div class="summary-copy">
             <p class="eyebrow">현재 지출</p>
             <h1 id="summary-title">여행방을 준비하고 있습니다</h1>
@@ -88,7 +147,7 @@
           <div id="spending-insights" class="spending-insights" hidden></div>
         </section>
 
-        <section id="itinerary-panel" class="panel itinerary-panel" aria-labelledby="itinerary-heading">
+        <section id="itinerary-panel" class="panel itinerary-panel" data-sidebar-screen="schedule" aria-labelledby="itinerary-heading">
           <div class="itinerary-heading-row">
             <div>
               <p class="eyebrow">일정</p>
@@ -129,7 +188,7 @@
           </div>
         </section>
 
-        <section id="overseas-panel" class="panel overseas-panel" aria-labelledby="overseas-heading" hidden>
+        <section id="overseas-panel" class="panel overseas-panel" data-sidebar-screen="overseas" aria-labelledby="overseas-heading" hidden>
           <div class="panel-heading">
             <div>
               <p class="eyebrow">여행 옵션</p>
@@ -215,7 +274,7 @@
           </div>
         </section>
 
-        <section id="people-panel" class="panel people-panel" aria-labelledby="people-heading">
+        <section id="people-panel" class="panel people-panel" data-sidebar-screen="people" aria-labelledby="people-heading">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">여행자</p>
@@ -236,7 +295,7 @@
           </div>
         </section>
 
-        <section class="panel expense-panel" aria-labelledby="expense-panel-heading">
+        <section class="panel expense-panel" data-sidebar-screen="schedule" aria-labelledby="expense-panel-heading">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">빠른 입력</p>
@@ -253,7 +312,7 @@
           </button>
         </section>
 
-        <section class="panel balance-panel" aria-labelledby="balance-heading">
+        <section class="panel balance-panel" data-sidebar-screen="settlement" aria-labelledby="balance-heading">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">정산</p>
@@ -263,7 +322,7 @@
           <div id="balance-list" class="balance-list empty-state">지출을 입력하면 받을 돈과 보낼 돈이 표시됩니다.</div>
         </section>
 
-        <section class="panel settlement-panel" aria-labelledby="settlement-heading">
+        <section class="panel settlement-panel" data-sidebar-screen="settlement" aria-labelledby="settlement-heading">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">보낼 금액</p>
@@ -275,7 +334,7 @@
           <div id="completed-settlement-list" class="completed-settlement-list" hidden></div>
         </section>
 
-        <section class="panel expense-list-panel" aria-labelledby="expense-list-heading">
+        <section class="panel expense-list-panel" data-sidebar-screen="expenses" aria-labelledby="expense-list-heading">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">기록</p>
@@ -649,6 +708,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <script type="module" src="./app.js?v=20260905-2"></script>
+    <script type="module" src="./app.js?v=20260906-1"></script>
   </body>
 </html>
