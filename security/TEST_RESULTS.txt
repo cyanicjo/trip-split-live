@@ -1,0 +1,95 @@
+보안 보완 최종 검증 (2026-09-30)
+운영 Supabase가 아닌 로컬 가짜 데이터 환경
+
+✓ Lockfile passes supply-chain policies (verified 36s ago)
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+Done in 307ms using pnpm v11.19.0
+$ node test/settlement.test.js && node test/itinerary.test.js && node --test test/frontend-security.test.mjs
+settlement tests passed
+itinerary tests passed
+✔ CSV formula protection, including whitespace, quotes, separators, and numeric values (0.663459ms)
+✔ edit keys only in fragments; view links never contain keys (0.17575ms)
+✔ keys default to session; opt-in persistence, removal, and unavailable storage (0.185125ms)
+✔ legacy dashboard keys migrate to session without changing public viewer privilege (146.402959ms)
+✔ baseline attribute payload forms an executable event attribute, patched renderers do not (172.029917ms)
+✔ actual app calculation and all export formats keep normal data intact (102.461833ms)
+✔ RPC never puts edit keys in request URL or referrer; failures carry stable codes (0.436ms)
+✔ polling pauses hidden tabs, backs off errors, resumes, and never overlaps (3.5275ms)
+✔ no automatic trip creation on opening the homepage (68.992084ms)
+✔ pending rotation survives a lost response and is bound to the original edit key (1.371458ms)
+✔ actual app recovers a committed rotation after reload (61.007709ms)
+✔ only self-hosted scripts allowed and no Realtime client remains (1.218292ms)
+✔ CSV mapping, preview, and actual import planner retain expenses and block duplicates (117.945833ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 983.0755
+
+PASS baseline: anonymous role can list both fake trips
+PASS baseline: editor can persist an HTML attribute payload in a person ID
+PASS migration preserves all existing trip rows
+PASS migration is repeatable
+PASS anon: direct trips read blocked
+PASS anon: direct trips write blocked
+PASS anon: direct trip_secrets read blocked
+PASS anon: direct trip_secrets write blocked
+PASS authenticated: direct trips read blocked
+PASS authenticated: direct trips write blocked
+PASS authenticated: direct trip_secrets read blocked
+PASS authenticated: direct trip_secrets write blocked
+PASS no full-row Realtime publication remains
+PASS legacy public links stop reading immediately
+PASS legacy editor can recover its own trip
+PASS another editor cannot recover a legacy trip
+PASS historically exposed edit hash is irreversibly revoked by migration
+PASS owner recovery preserves trip and returns working fresh credentials once
+PASS new links use independent 256-bit random values
+PASS viewer only sees its specific trip and cannot edit
+PASS unknown/non-exact ID returns no trip ("")
+PASS unknown/non-exact ID returns no trip ("*")
+PASS unknown/non-exact ID returns no trip ("' OR true --")
+PASS unknown/non-exact ID returns no trip ("trip-not-found")
+PASS missing/wrong/other-trip edit key rejected
+PASS missing/wrong/other-trip edit key rejected
+PASS missing/wrong/other-trip edit key rejected
+PASS missing/wrong/other-trip edit key rejected
+PASS valid expense and participant data save
+PASS stale save rejected without overwriting
+PASS malformed input 1 rejected atomically
+PASS malformed input 2 rejected atomically
+PASS malformed input 3 rejected atomically
+PASS malformed input 4 rejected atomically
+PASS malformed input 5 rejected atomically
+PASS malformed input 6 rejected atomically
+PASS malformed input 7 rejected atomically
+PASS malformed input 8 rejected atomically
+PASS malformed input 9 rejected atomically
+PASS malformed input 10 rejected atomically
+PASS malformed input 11 rejected atomically
+PASS malformed input 12 rejected atomically
+PASS malformed input 13 rejected atomically
+PASS malformed input 14 rejected atomically
+PASS malformed input 15 rejected atomically
+PASS malformed input 16 rejected atomically
+PASS oversized payload rejected
+PASS nested payload depth bounded
+PASS supported foreign expenses and settings save
+PASS authenticated role does not inherit RPC execute
+PASS private validation helpers unavailable through client role
+PASS hash helper is not a public RPC
+PASS old update overloads are removed
+PASS foreign key cannot rotate links
+PASS link rotation keeps trip contents and invalidates both old capabilities
+PASS two simultaneous saves cannot silently overwrite each other
+PASS legacy editor upgrades without losing the trip
+PASS read-only post-deployment verification passes
+Database security: 58 checks passed (isolated PostgreSQL; not production Supabase).
+
+추가 확인: JS 문법 검사 통과; git diff --check 통과; 브라우저 편집·보기 탭 동기화 및 12,000원/6,000원 정산 확인.
+의존성 검사: 알려진 취약점 0건 (개발 의존성 포함, 점검 시점 기준).

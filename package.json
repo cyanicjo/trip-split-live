@@ -4,9 +4,17 @@
   "private": true,
   "description": "GitHub Pages and Supabase realtime trip expense splitter.",
   "scripts": {
-    "test": "node test/settlement.test.js && node test/itinerary.test.js"
+    "test": "node test/settlement.test.js && node test/itinerary.test.js && node --test test/frontend-security.test.mjs",
+    "test:db": "node test/database-security.test.mjs",
+    "test:all": "pnpm test && pnpm test:db",
+    "preview:security": "node test/preview-server.mjs"
   },
   "engines": {
-    "node": ">=18"
-  }
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "embedded-postgres": "17.10.0-beta.17",
+    "jsdom": "26.1.0"
+  },
+  "packageManager": "pnpm@11.19.0"
 }

@@ -1,0 +1,19 @@
+{
+  "commits_reviewed": 69,
+  "text_blobs_reviewed": 121,
+  "jwt_roles": {
+    "anon": 1
+  },
+  "high_privilege_tokens": [],
+  "edit_link_files": [
+    "PROJECT_NOTES.md"
+  ],
+  "view_link_files": [
+    "PROJECT_NOTES.md"
+  ],
+  "private_key_files": [],
+  "distinct_exposed_edit_tokens": 1,
+  "revoked_edit_token_sha256": [
+    "9ef48508636b13a1da64bcb5f8910295836a00de52c1f8ad8dccc3db03e4d50b"
+  ]
+}

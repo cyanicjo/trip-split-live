@@ -1,4 +1,4 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { csvCell, canonicalTripUrl, readLink, createCredentialStore, createRpcClient, startPolling, generateTripCredentials } from "./security.mjs";
 
 const config = window.TRIP_SPLIT_CONFIG || {};
 const isConfigured = Boolean(
@@ -8,11 +8,17 @@ const isConfigured = Boolean(
   !config.supabaseAnonKey.includes("YOUR_SUPABASE_ANON_KEY")
 );
 
-const params = new URLSearchParams(window.location.search);
-let tripId = params.get("trip") || "";
-let editToken = params.get("edit") || "";
+const initialLink = readLink(window.location.href);
+let tripId = initialLink.publicId;
+let editToken = initialLink.editToken;
+let editVerified = false;
+let credentials;
+try { credentials = createCredentialStore(window.sessionStorage, window.localStorage); }
+catch { credentials = createCredentialStore(null, null); }
+if (tripId) window.history.replaceState(null, "", canonicalTripUrl(window.location.href, tripId, editToken));
 let supabase = null;
-let tripChannel = null;
+let tripPoller = null;
+let accessEpoch = 0;
 
 const elements = {
   appShell: document.querySelector(".app-shell"),
@@ -34,6 +40,12 @@ const elements = {
   openImport: document.querySelector("#open-import"),
   newTripLink: document.querySelector("#new-trip-link"),
   copyViewLink: document.querySelector("#copy-view-link"),
+  copyEditLink: document.querySelector("#copy-edit-link"),
+  rotateLinks: document.querySelector("#rotate-trip-links"),
+  rememberEdit: document.querySelector("#remember-edit-access"),
+  securityNotice: document.querySelector("#security-notice"),
+  createTripButton: document.querySelector("#create-trip-button"),
+  welcomePanel: document.querySelector("#welcome-panel"),
   liveStatus: document.querySelector("#live-status"),
   summaryTitle: document.querySelector("#summary-title"),
   summaryCaption: document.querySelector("#summary-caption"),
@@ -340,7 +352,7 @@ const moneyFormatter = new Intl.NumberFormat("ko-KR", {
 });
 
 function canEdit() {
-  return Boolean(editToken);
+  return Boolean(editToken && editVerified);
 }
 
 function formatMoney(value) {
@@ -677,7 +689,7 @@ function normalizeItinerary(settings = {}) {
     if (!dates.has(date) || !Array.isArray(slots)) continue;
     hiddenSlots[date] = Array.from(new Set(slots
       .map((slot) => canonicalMealSlot(slot))
-      .filter((slot) => slot === "lodging" || slot in mealSlots)));
+      .filter((slot) => slot === "lodging" || Object.hasOwn(mealSlots, slot))));
   }
 
   const extraMealSlots = {};
@@ -703,7 +715,7 @@ function normalizeItinerary(settings = {}) {
     const normalizedOrders = {};
     for (const [rawSlot, expenseIds] of Object.entries(slotOrders)) {
       const slot = canonicalMealSlot(rawSlot);
-      if (!(slot in mealSlots) || !Array.isArray(expenseIds)) continue;
+      if (!(Object.hasOwn(mealSlots, slot)) || !Array.isArray(expenseIds)) continue;
       normalizedOrders[slot] = Array.from(new Set([
         ...(normalizedOrders[slot] || []),
         ...expenseIds.map(String).filter(Boolean)
@@ -758,50 +770,35 @@ function itineraryDayOptionsHtml(selectedDate = "", { includeOutside = false, em
 }
 
 function pageUrl(searchParams) {
-  const url = new URL(window.location.href);
-  url.search = searchParams.toString();
-  url.hash = "";
-  return url.toString();
+  return canonicalTripUrl(window.location.href, searchParams.get("trip") || "", searchParams.get("edit") || "");
 }
 
-function viewLink() {
-  const linkParams = new URLSearchParams();
-  linkParams.set("trip", tripId);
-  return pageUrl(linkParams);
-}
-
-function editLink() {
-  const linkParams = new URLSearchParams();
-  linkParams.set("trip", tripId);
-  if (editToken) {
-    linkParams.set("edit", editToken);
-  }
-  return pageUrl(linkParams);
-}
-
-function newTripLink() {
-  return pageUrl(new URLSearchParams());
-}
-
+function viewLink() { return canonicalTripUrl(window.location.href, tripId); }
+function editLink() { return canonicalTripUrl(window.location.href, tripId, canEdit() ? editToken : ""); }
+function newTripLink() { return canonicalTripUrl(window.location.href, ""); }
 function tripLinkFromRecord(record) {
-  const linkParams = new URLSearchParams();
-  linkParams.set("trip", record.publicId);
-  if (record.editToken) {
-    linkParams.set("edit", record.editToken);
-  }
-  return pageUrl(linkParams);
+  return canonicalTripUrl(window.location.href, record.publicId, credentials.get(record.publicId));
 }
 
 function readDashboardTrips() {
   try {
     const parsed = JSON.parse(localStorage.getItem(dashboardTripsKey) || "[]");
     if (!Array.isArray(parsed)) return [];
+    // Move pre-hardening keys out of persistent dashboard metadata, without opting in.
+    if (parsed.some(trip => trip && trip.editToken)) {
+      for (const trip of parsed) {
+        if (trip && typeof trip.publicId === "string" && typeof trip.editToken === "string") {
+          credentials.save(trip.publicId, trip.editToken, false);
+          delete trip.editToken;
+        }
+      }
+      localStorage.setItem(dashboardTripsKey, JSON.stringify(parsed));
+    }
     return parsed
       .filter((trip) => trip && typeof trip.publicId === "string" && trip.publicId)
       .map((trip) => ({
         publicId: trip.publicId,
         name: trip.name || "새 여행 정산",
-        editToken: trip.editToken || "",
         updatedAt: trip.updatedAt || "",
         lastOpenedAt: trip.lastOpenedAt || "",
         peopleCount: Number(trip.peopleCount) || 0,
@@ -817,7 +814,7 @@ function writeDashboardTrips(trips) {
   const limitedTrips = trips
     .slice(0, 80)
     .sort((a, b) => String(b.lastOpenedAt || b.updatedAt).localeCompare(String(a.lastOpenedAt || a.updatedAt)));
-  localStorage.setItem(dashboardTripsKey, JSON.stringify(limitedTrips));
+  try { localStorage.setItem(dashboardTripsKey, JSON.stringify(limitedTrips)); } catch { /* Links remain usable without storage. */ }
 }
 
 function rememberCurrentTrip() {
@@ -829,10 +826,10 @@ function rememberCurrentTrip() {
     return;
   }
 
+  if (canEdit()) credentials.save(tripId, editToken, credentials.isPersistent(tripId));
   const nextTrip = {
     publicId: tripId,
     name: state.name,
-    editToken: editToken || existing?.editToken || "",
     updatedAt: state.updatedAt || new Date().toISOString(),
     lastOpenedAt: new Date().toISOString(),
     peopleCount: state.people.length,
@@ -851,6 +848,7 @@ function rememberCurrentTrip() {
 }
 
 function removeDashboardTrip(publicId) {
+  credentials.forget(publicId);
   writeDashboardTrips(readDashboardTrips().filter((trip) => trip.publicId !== publicId));
   renderDashboard();
 }
@@ -1014,7 +1012,7 @@ function createCurrencyOptions(selected, { includeKrw = false } = {}) {
   const options = includeKrw ? ["KRW", ...currencyOptions] : currencyOptions;
   return options.map((currency) => {
     const selectedAttr = currency === selected ? "selected" : "";
-    return `<option value="${currency}" ${selectedAttr}>${currency}</option>`;
+    return `<option value="${escapeHtml(currency)}" ${selectedAttr}>${escapeHtml(currency)}</option>`;
   }).join("");
 }
 
@@ -1350,7 +1348,7 @@ function normalizeExpenses(expenses = []) {
         exchangeRate: expense.exchangeRate || 1,
         cardKrwAmount: expense.cardKrwAmount || null
       }));
-      const majorCategory = majorCategories[expense.majorCategory]
+      const majorCategory = Object.hasOwn(majorCategories, expense.majorCategory)
         ? expense.majorCategory
         : inferMajorCategory(category, expense.title);
       const scheduleDate = isDateKey(expense.scheduleDate)
@@ -1411,7 +1409,7 @@ function normalizeTrip(row) {
     people,
     expenses,
     settings,
-    version: row.version || 0,
+    version: Number(row.version) || 0,
     updatedAt: row.updated_at,
     summary: calculateSummary({
       people,
@@ -1629,7 +1627,7 @@ function calculateSummary(trip) {
 async function callRpc(name, args = {}) {
   const { data, error } = await supabase.rpc(name, args);
   if (error) {
-    throw new Error(error.message || "Supabase 요청에 실패했습니다.");
+    throw Object.assign(new Error(error.message || "요청에 실패했습니다."), { code: error.code });
   }
   return data;
 }
@@ -1650,93 +1648,83 @@ async function createTrip() {
 
 async function loadTrip({ quiet = false } = {}) {
   if (!quiet) setLiveStatus("is-connecting", "불러오는 중");
-  const result = await callRpc("get_trip", { p_public_id: tripId });
+  const epoch = accessEpoch;
+  const result = await callRpc("get_trip", { p_public_id: tripId, p_edit_token: editToken || null });
+  if (epoch !== accessEpoch) return;
   const row = Array.isArray(result) ? result[0] : result;
   if (!row) {
-    throw new Error("여행방을 찾지 못했습니다.");
+    editVerified = false;
+    tripPoller?.stop();
+    state = null;
+    document.querySelector(".workspace").hidden = true;
+    for (const backdrop of modalBackdrops()) backdrop.hidden = true;
+    syncModalInert();
+    elements.securityNotice.hidden = false;
+    elements.securityNotice.textContent = "이 링크는 만료되었거나 교체되었습니다. 편집자에게 새 보기 링크를 받아 주세요.";
+    throw new Error("유효한 여행 링크가 필요합니다.");
   }
-
-  state = normalizeTrip(row);
-  rememberCurrentTrip();
-  render();
-  if (!quiet) setLiveStatus("is-live", canEdit() ? "편집 가능" : "보기 전용");
+  editVerified = Boolean(row.can_edit && editToken);
+  // A late poll must not overwrite a newer local save or an open editing form.
+  if (quiet && (saving || (canEdit() && (modalBackdrops().some(backdrop => !backdrop.hidden) || [elements.tripName, elements.sidebarTripName].includes(document.activeElement))))) return;
+  if (state && Number(row.version) < state.version) return;
+  if (!state || !quiet || Number(row.version) !== state.version) {
+    state = normalizeTrip(row);
+    rememberCurrentTrip();
+    render();
+  }
+  renderSecurityControls();
+  setLiveStatus("is-live", canEdit() ? "편집 가능" : "보기 전용");
 }
 
 async function saveTrip(nextState) {
-  if (!canEdit()) {
-    showToast("보기 전용 링크에서는 수정할 수 없습니다.");
-    return;
-  }
-
+  if (!canEdit()) throw new Error("보기 전용 링크에서는 수정할 수 없습니다.");
+  if (saving) throw new Error("이전 저장이 끝난 뒤 다시 시도해 주세요.");
   saving = true;
   setLiveStatus("is-connecting", "저장 중");
   try {
-    let result;
-    const nextSettings = nextState.settings || state.settings || {};
-    const settingsChanged = JSON.stringify(nextSettings) !== JSON.stringify(state.settings || {});
-    try {
-      result = await callRpc("update_trip_state", {
-        p_public_id: tripId,
-        p_edit_token: editToken,
-        p_name: nextState.name,
-        p_people: nextState.people,
-        p_expenses: nextState.expenses,
-        p_settings: nextSettings
-      });
-    } catch (error) {
-      if (error.message.includes("p_settings") || error.message.includes("settings") || error.message.includes("function")) {
-        if (settingsChanged) {
-          throw new Error("Supabase SQL Editor에서 최신 schema.sql을 다시 실행해야 외화 정산 설정을 저장할 수 있습니다.");
-        }
-        result = await callRpc("update_trip_state", {
-          p_public_id: tripId,
-          p_edit_token: editToken,
-          p_name: nextState.name,
-          p_people: nextState.people,
-          p_expenses: nextState.expenses
-        });
-      } else {
-        throw error;
-      }
-    }
+    const result = await callRpc("update_trip_state", {
+      p_public_id: tripId, p_edit_token: editToken,
+      p_name: nextState.name, p_people: nextState.people, p_expenses: nextState.expenses,
+      p_settings: nextState.settings || state.settings || {}, p_expected_version: nextState.version
+    });
     const row = Array.isArray(result) ? result[0] : result;
     state = normalizeTrip(row);
     rememberCurrentTrip();
     render();
     setLiveStatus("is-live", "저장됨");
-  } finally {
-    saving = false;
-  }
+  } catch (error) {
+    if (error.code === "40001") {
+      // Keep modal drafts, refresh only the backing state; the user retries explicitly.
+      const result = await callRpc("get_trip", { p_public_id: tripId, p_edit_token: editToken });
+      const row = Array.isArray(result) ? result[0] : result;
+      if (row) state = normalizeTrip(row);
+      throw new Error("다른 사람이 먼저 수정했습니다. 입력 내용은 남겨 두었습니다. 최신 내용을 확인한 뒤 다시 저장해 주세요.");
+    }
+    throw error;
+  } finally { saving = false; }
 }
 
 function connectRealtime() {
-  if (tripChannel) {
-    supabase.removeChannel(tripChannel);
-  }
+  tripPoller?.stop();
+  tripPoller = startPolling({
+    isHidden: () => document.hidden,
+    refresh: async () => { if (!saving) await loadTrip({ quiet: true }); },
+    onError: () => setLiveStatus("is-offline", "재연결 중")
+  });
+}
 
-  tripChannel = supabase
-    .channel(`trip-${tripId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "trips",
-        filter: `public_id=eq.${tripId}`
-      },
-      async () => {
-        if (!saving) {
-          await loadTrip({ quiet: true });
-        }
-      }
-    )
-    .subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        setLiveStatus("is-live", canEdit() ? "편집 가능" : "보기 전용");
-      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        setLiveStatus("is-offline", "재연결 중");
-      }
-    });
+document.addEventListener("visibilitychange", () => tripPoller?.visibilityChanged());
+window.addEventListener("pagehide", () => tripPoller?.stop());
+window.addEventListener("pageshow", event => { if (event.persisted && state) connectRealtime(); });
+
+function renderSecurityControls() {
+  elements.copyEditLink.hidden = !canEdit();
+  elements.rotateLinks.hidden = !canEdit();
+  elements.rememberEdit.closest("label").hidden = !canEdit();
+  elements.rememberEdit.checked = canEdit() && credentials.isPersistent(tripId);
+  const legacy = canEdit() && !/^trip-[a-f0-9]{64}$/.test(tripId);
+  elements.securityNotice.hidden = !legacy;
+  elements.securityNotice.textContent = legacy ? "이전 보기 링크는 보호를 위해 중지되었습니다. 여행 메뉴에서 ‘공유 링크 재발급’을 눌러 새 링크를 공유해 주세요." : "";
 }
 
 function syncParticipantSelection() {
@@ -1989,11 +1977,11 @@ function timelineDraggingEnabled() {
 
 function timelineExpenseCardHtml(expense, date) {
   const token = `expense:${expense.id}`;
-  const major = majorCategories[expense.majorCategory] || majorCategories.other;
+  const major = Object.hasOwn(majorCategories, expense.majorCategory) ? majorCategories[expense.majorCategory] : majorCategories.other;
   const dailyAmount = expensePerspectiveAmountForDate(expense, date);
   const copy = expenseCardCopy(expense, major.label);
   return `
-    <article class="timeline-card major-${expense.majorCategory}" draggable="${timelineDraggingEnabled()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
+    <article class="timeline-card major-${escapeHtml(expense.majorCategory)}" draggable="${timelineDraggingEnabled()}" data-timeline-token="${escapeHtml(token)}" data-timeline-date="${date}" data-expense-id="${escapeHtml(expense.id)}">
       <span class="timeline-node" style="--category-color:${major.color}" aria-hidden="true"><i data-lucide="${major.icon}"></i></span>
       <div class="timeline-card-body">
         <div class="timeline-card-topline">
@@ -2431,10 +2419,10 @@ function renderOverseasPanel() {
   const previousFromCurrency = elements.exchangeFromCurrency.value || "KRW";
   const previousToCurrency = elements.exchangeToCurrency.value || currencyOne;
   elements.exchangeFromCurrency.innerHTML = exchangeCurrencies.map((currency) => (
-    `<option value="${currency}">${currency}</option>`
+    `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`
   )).join("");
   elements.exchangeToCurrency.innerHTML = exchangeCurrencies.map((currency) => (
-    `<option value="${currency}">${currency}</option>`
+    `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`
   )).join("");
 
   if (!elements.exchangeDate.value) {
@@ -2513,14 +2501,14 @@ function renderPeople() {
           <span class="person-name">${escapeHtml(person.name)}</span>
           ${accountCopyText ? `
             <span class="account-line">
-              <button class="account-copy" type="button" data-copy-account="${person.id}" title="계좌 정보 복사">${escapeHtml(accountCopyText)}</button>
+              <button class="account-copy" type="button" data-copy-account="${escapeHtml(person.id)}" title="계좌 정보 복사">${escapeHtml(accountCopyText)}</button>
             </span>
           ` : ""}
         </div>
         ${canEdit() ? `
           <div class="person-actions">
-            <button class="text-button account-edit" type="button" data-edit-person-account="${person.id}">계좌</button>
-            <button type="button" title="${escapeHtml(person.name)} 삭제" aria-label="${escapeHtml(person.name)} 삭제" data-remove-person="${person.id}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
+            <button class="text-button account-edit" type="button" data-edit-person-account="${escapeHtml(person.id)}">계좌</button>
+            <button type="button" title="${escapeHtml(person.name)} 삭제" aria-label="${escapeHtml(person.name)} 삭제" data-remove-person="${escapeHtml(person.id)}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
           </div>
         ` : ""}
       </div>
@@ -2580,7 +2568,7 @@ function expenseOptionsSummaryText() {
   const dayText = itinerary && date && itineraryDates().includes(date)
     ? itineraryDayLabel(date)
     : date || "날짜 미정";
-  const majorText = majorCategories[elements.expenseMajorCategory.value] || "그 외";
+  const majorText = majorCategories[elements.expenseMajorCategory.value]?.label || "그 외";
   const currency = currentExpenseCurrency();
   const currencyText = currency === "KRW" ? "원화" : currency;
   return `${dayText} · ${majorText} · ${currencyText}`;
@@ -2720,7 +2708,7 @@ function renderExpenseForm() {
 
   const currentPayer = editingExpense ? editingExpense.payerId : elements.expensePayer.value;
   elements.expensePayer.innerHTML = state.people.map((person) => (
-    `<option value="${person.id}">${escapeHtml(person.name)}</option>`
+    `<option value="${escapeHtml(person.id)}">${escapeHtml(person.name)}</option>`
   )).join("");
 
   if (state.people.some((person) => person.id === currentPayer)) {
@@ -2743,7 +2731,7 @@ function renderExpenseForm() {
       : "KRW";
   const availableCurrencies = Array.from(new Set([...overseasCurrencies({ includeKrw: true }), currentCurrency]));
   elements.expenseCurrency.innerHTML = availableCurrencies.map((currency) => (
-    `<option value="${currency}">${currency}</option>`
+    `<option value="${escapeHtml(currency)}">${escapeHtml(currency)}</option>`
   )).join("");
   elements.expenseCurrency.value = availableCurrencies.includes(currentCurrency)
     ? currentCurrency
@@ -2762,7 +2750,7 @@ function renderExpenseForm() {
     const disabled = editable ? "" : "disabled";
     return `
       <label class="participant-option">
-        <input type="checkbox" value="${person.id}" ${checked} ${disabled}>
+        <input type="checkbox" value="${escapeHtml(person.id)}" ${checked} ${disabled}>
         <span>${escapeHtml(person.name)}</span>
       </label>
     `;
@@ -2829,7 +2817,7 @@ function itemParticipantOptionsHtml(selectedIds = [], disabled = false) {
   const selected = new Set(selectedIds);
   return state.people.map((person) => `
     <label class="participant-option item-participant-option">
-      <input type="checkbox" value="${person.id}" data-expense-item-participant ${selected.has(person.id) ? "checked" : ""} ${disabled ? "disabled" : ""}>
+      <input type="checkbox" value="${escapeHtml(person.id)}" data-expense-item-participant ${selected.has(person.id) ? "checked" : ""} ${disabled ? "disabled" : ""}>
       <span>${escapeHtml(person.name)}</span>
     </label>
   `).join("");
@@ -2844,7 +2832,7 @@ function expenseItemRowHtml(item, index, {
   const useDefaultParticipants = !item.participantIds || item.participantIds.length === 0;
   const disabled = editable ? "" : "disabled";
   const removable = index > 0 ? "" : "disabled";
-  const unitLabel = currency === "KRW" ? "단가" : `${currency} 단가`;
+  const unitLabel = currency === "KRW" ? "단가" : `${escapeHtml(currency)} 단가`;
 
   return `
     <article class="expense-item-row" data-expense-item-row data-item-id="${escapeHtml(item.id || makeId("it_"))}">
@@ -3450,8 +3438,8 @@ function renderExpenses() {
           <div class="expense-memo">${escapeHtml(expense.memo || "")}</div>
           ${canEdit() ? `
             <div class="expense-button-row">
-              <button class="text-button expense-edit-button" type="button" data-edit-expense="${expense.id}">수정</button>
-              <button class="expense-delete" type="button" title="지출 삭제" aria-label="지출 삭제" data-remove-expense="${expense.id}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
+              <button class="text-button expense-edit-button" type="button" data-edit-expense="${escapeHtml(expense.id)}">수정</button>
+              <button class="expense-delete" type="button" title="지출 삭제" aria-label="지출 삭제" data-remove-expense="${escapeHtml(expense.id)}"><i data-lucide="trash-2" aria-hidden="true"></i></button>
             </div>
           ` : ""}
         </div>
@@ -3972,7 +3960,7 @@ async function hideScheduleSlot(date, slot) {
 
 async function showMealSlot(date, slot) {
   const itinerary = itinerarySettings();
-  if (!itinerary || !(slot in mealSlots)) return;
+  if (!itinerary || !(Object.hasOwn(mealSlots, slot))) return;
   const hidden = new Set(itinerary.hiddenSlots?.[date] || []);
   hidden.delete(slot);
   const extras = new Set(itinerary.extraMealSlots?.[date] || []);
@@ -4135,13 +4123,13 @@ function renderExpenseEditor(expense) {
   const cardKrwValue = currency === "KRW" ? "" : expense.cardKrwAmount || "";
   const payerOptions = state.people.map((person) => {
     const selected = person.id === expense.payerId ? "selected" : "";
-    return `<option value="${person.id}" ${selected}>${escapeHtml(person.name)}</option>`;
+    return `<option value="${escapeHtml(person.id)}" ${selected}>${escapeHtml(person.name)}</option>`;
   }).join("");
   const participantOptions = state.people.map((person) => {
     const checked = participantIds.has(person.id) ? "checked" : "";
     return `
       <label class="participant-option">
-        <input type="checkbox" value="${person.id}" data-edit-participant ${checked}>
+        <input type="checkbox" value="${escapeHtml(person.id)}" data-edit-participant ${checked}>
         <span>${escapeHtml(person.name)}</span>
       </label>
     `;
@@ -4149,7 +4137,7 @@ function renderExpenseEditor(expense) {
 
   return `
     <article class="expense-item expense-editor">
-      <form class="expense-edit-form" data-edit-expense-form="${expense.id}">
+      <form class="expense-edit-form" data-edit-expense-form="${escapeHtml(expense.id)}">
         <div class="expense-edit-grid">
           <label>
             <span>내용</span>
@@ -4163,7 +4151,7 @@ function renderExpenseEditor(expense) {
             <label>
               <span>결제 통화</span>
               <select data-edit-currency>${editCurrencies.map((item) => (
-                `<option value="${item}" ${item === currency ? "selected" : ""}>${item}</option>`
+                `<option value="${escapeHtml(item)}" ${item === currency ? "selected" : ""}>${escapeHtml(item)}</option>`
               )).join("")}</select>
             </label>
           ` : ""}
@@ -4220,7 +4208,7 @@ function renderExpenseEditor(expense) {
         </label>
 
         <div class="edit-actions">
-          <button class="text-button" type="button" data-cancel-expense-edit="${expense.id}">취소</button>
+          <button class="text-button" type="button" data-cancel-expense-edit="${escapeHtml(expense.id)}">취소</button>
           <button class="primary-button compact" type="submit">수정 저장</button>
         </div>
       </form>
@@ -4952,11 +4940,6 @@ function buildExportData(sections) {
   return data;
 }
 
-function csvCell(value) {
-  const text = String(value ?? "");
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
 function appendCsvSection(rows, title, header, items, mapItem) {
   rows.push([]);
   rows.push([title]);
@@ -4985,7 +4968,7 @@ function buildCsv(data) {
       ["송금 수", `${data.summary.settlementCount}개`],
       ["외화 정산", data.summary.overseasEnabled ? "사용" : "미사용"],
       ["외화", data.summary.currencies.join(", ")],
-      ["환율", Object.entries(data.summary.rates).map(([currency, rate]) => `${currency} ${rate}`).join(", ")]
+      ["환율", Object.entries(data.summary.rates).map(([currency, rate]) => `${escapeHtml(currency)} ${rate}`).join(", ")]
     ], (item) => item);
   }
 
@@ -5116,7 +5099,7 @@ function buildPdfLines(data) {
     addLine(`외화 정산: ${data.summary.overseasEnabled ? "사용" : "미사용"}`);
     if (data.summary.overseasEnabled) {
       addLine(`외화: ${data.summary.currencies.join(", ")}`);
-      addLine(`환율: ${Object.entries(data.summary.rates).map(([currency, rate]) => `${currency} ${rate}`).join(", ")}`);
+      addLine(`환율: ${Object.entries(data.summary.rates).map(([currency, rate]) => `${escapeHtml(currency)} ${rate}`).join(", ")}`);
     }
     endSection();
   }
@@ -6044,7 +6027,9 @@ elements.importFile.addEventListener("change", async () => {
   }
 
   try {
+    if (file.size > 2 * 1024 * 1024) throw new Error("CSV 파일은 2MB 이하만 가져올 수 있습니다.");
     const rows = parseCsv(await file.text());
+    if (rows.length > 5001 || rows.some(row => row.length > 100)) throw new Error("CSV는 5,000행, 100열 이하만 가져올 수 있습니다.");
     if (rows.length < 2) {
       resetCsvImport();
       showToast("컬럼명과 지출 행이 있는 CSV 파일을 선택해 주세요.");
@@ -6062,7 +6047,7 @@ elements.importFile.addEventListener("change", async () => {
     renderCsvImportPreview();
   } catch (error) {
     resetCsvImport();
-    showToast("CSV 파일을 읽지 못했습니다.");
+    showToast(error.message || "CSV 파일을 읽지 못했습니다.");
   }
 });
 
@@ -6511,7 +6496,8 @@ elements.peopleList.addEventListener("click", async (event) => {
   const nextPeople = state.people.filter((person) => person.id !== personId);
   const nextExpenses = state.expenses.map((expense) => ({
     ...expense,
-    participantIds: (expense.participantIds || []).filter((id) => id !== personId)
+    participantIds: (expense.participantIds || []).filter((id) => id !== personId),
+    items: (expense.items || []).map(item => ({ ...item, participantIds: (item.participantIds || []).filter(id => id !== personId) }))
   }));
 
   try {
@@ -7037,18 +7023,17 @@ async function start() {
     return;
   }
 
-  supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false
-    }
-  });
+  readDashboardTrips(); // Migrate old persistent edit keys before any rendering.
+  supabase = createRpcClient(config.supabaseUrl, config.supabaseAnonKey);
 
   try {
     if (!tripId) {
-      await createTrip();
+      elements.welcomePanel.hidden = false;
+      document.querySelector(".workspace").hidden = true;
+      setLiveStatus("is-live", "새 여행 시작");
       return;
     }
+    await recoverPendingRotation();
     await loadTrip();
     connectRealtime();
   } catch (error) {
@@ -7059,3 +7044,77 @@ async function start() {
 
 applyLayoutState();
 start();
+
+
+elements.createTripButton.addEventListener("click", async () => {
+  elements.createTripButton.disabled = true;
+  try { await createTrip(); }
+  catch (error) { showToast(error.message); elements.createTripButton.disabled = false; }
+});
+elements.copyEditLink.addEventListener("click", () => { if (canEdit()) copyText(editLink(), "편집 링크를 복사했습니다."); });
+elements.rememberEdit.addEventListener("change", () => {
+  if (!canEdit()) return;
+  const stored = credentials.save(tripId, editToken, elements.rememberEdit.checked);
+  if (!stored) showToast("브라우저에 저장할 수 없습니다. 편집 링크를 별도로 보관해 주세요.");
+  renderSecurityControls();
+});
+elements.rotateLinks.addEventListener("click", async () => {
+  if (!canEdit() || saving) return;
+  if (!window.confirm("기존 보기·편집 링크가 모두 중지됩니다. 여행 기록은 유지됩니다. 새 링크를 발급할까요?")) return;
+  saving = true;
+  elements.rotateLinks.disabled = true;
+  const previousId = tripId;
+  const persistent = credentials.isPersistent(tripId);
+  try {
+    const next = credentials.pending(tripId, editToken) || credentials.prepare(tripId, editToken, generateTripCredentials());
+    const result = await callRpc("rotate_trip_links", {
+      p_public_id: tripId, p_edit_token: editToken, p_expected_version: state.version,
+      p_new_public_id: next.publicId, p_new_edit_token: next.editToken
+    });
+    const row = Array.isArray(result) ? result[0] : result;
+    accessEpoch += 1;
+    tripId = row.public_id;
+    editToken = row.edit_token;
+    window.history.replaceState(null, "", canonicalTripUrl(window.location.href, tripId, editToken));
+    credentials.clearPending(previousId);
+    credentials.forget(previousId);
+    credentials.save(tripId, editToken, persistent);
+    writeDashboardTrips(readDashboardTrips().filter(trip => trip.publicId !== previousId));
+    state = null;
+    await loadTrip();
+    connectRealtime();
+    showToast("새 링크를 발급했습니다. 보기·편집 링크를 다시 복사해 공유해 주세요.");
+  } catch (error) {
+    try {
+      await recoverPendingRotation();
+      if (tripId !== previousId) {
+        state = null;
+        await loadTrip();
+        connectRealtime();
+        showToast("재발급된 링크를 복구했습니다. 새 링크를 복사해 주세요.");
+        return;
+      }
+    } catch { /* Keep the pending key in session storage for the next reload. */ }
+    showToast(error.code === "40001" ? "다른 변경이 있습니다. 최신 내용을 불러온 뒤 다시 시도해 주세요." : error.message);
+  }
+  finally { saving = false; elements.rotateLinks.disabled = false; }
+});
+
+
+async function recoverPendingRotation() {
+  const pending = credentials.pending(tripId, editToken);
+  if (!pending) return;
+  const result = await callRpc("get_trip", { p_public_id: pending.publicId, p_edit_token: pending.editToken });
+  const row = Array.isArray(result) ? result[0] : result;
+  if (!row?.can_edit) return; // The previous request did not commit; its credentials remain valid.
+  const previousId = tripId;
+  const remember = credentials.isPersistent(previousId);
+  tripId = pending.publicId;
+  editToken = pending.editToken;
+  accessEpoch += 1;
+  window.history.replaceState(null, "", canonicalTripUrl(window.location.href, tripId, editToken));
+  credentials.save(tripId, editToken, remember);
+  credentials.clearPending(previousId);
+  credentials.forget(previousId);
+  writeDashboardTrips(readDashboardTrips().filter(trip => trip.publicId !== previousId));
+}

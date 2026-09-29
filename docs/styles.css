@@ -1,3 +1,6 @@
+/* Honor hidden for both existing panels and security controls. */
+[hidden] { display: none !important; }
+
 :root {
   color-scheme: light;
   --ink: #191f28;

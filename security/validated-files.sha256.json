@@ -1,0 +1,10 @@
+{
+  "docs/app.js": "bc360d750e51fcdba71ec3d6ee35dee618fd493379142c660090c1edc4f9a496",
+  "docs/security.mjs": "f9538770ca1d5506fdfef5a4a11f3f798b7411e0aedcac6909e9e44ded25fae5",
+  "docs/index.html": "6c88195b7c7b8a5eb75fd2b86fc101d5de2e20a7487fe4fb173afc66f6088253",
+  "docs/styles.css": "e3fb05ac479288662153dc2e981655e6d375a16b6e0268701fcbde4776e2ae1b",
+  "docs/vendor/lucide-0.468.0.min.js": "3411692820cb8d47543f69496aa25fd603a358f4498046f41c508a5a3342210e",
+  "supabase/schema.sql": "2443197501de5c8017e584a3e271e6839be9bf9e17297f2ab934d2c782a5de2e",
+  "supabase/recover_revoked_links.sql": "219e31fa33732af6eca92207150b8a29a72d5dc7dd03dc1714e0f28e50da2af4",
+  "supabase/verify_security.sql": "9975abb900bff7fe018b6de4633e6aaaca796775e04e4b4ed6e09a2a7c219591"
+}
