@@ -24,6 +24,15 @@
 
 로그인 클라이언트는 PKCE 흐름을 사용합니다. 고정 버전 `@supabase/supabase-js@2.117.2`를 자체 정적 파일로 제공하고 인증 정보는 sessionStorage에만 저장합니다. 일반 여행 화면은 기존 anon 기반 RPC 클라이언트를 계속 사용합니다.
 
+### 로그인 후 잘못된 화면으로 이동하거나 로그인이 끝나지 않을 때
+
+- **관리자 화면 대신 일반 여행 화면으로 돌아옴:** 요청한 주소가 허용되지 않아 Site URL로 돌아간 경우를 먼저 점검합니다. Supabase Redirect URLs에 `https://cyanicjo.github.io/trip-split-live/admin.html`이 있는지 확인하고, 실제 `redirectTo`와 프로토콜·호스트·경로·경로의 대소문자·끝 슬래시를 비교합니다. 현재 앱은 `admin.html` 뒤에 `/`를 붙이지 않습니다. 단, 이 증상만으로 원인을 확정하지 말고 Site URL 설정과 실제 돌아온 주소도 확인합니다. [공식 리디렉션 문제 해결 안내](https://supabase.com/docs/guides/troubleshooting/why-am-i-being-redirected-to-the-wrong-url-when-using-auth-redirectto-option-_vqIeO)
+- **Google에서 `redirect_uri_mismatch` 표시:** Google Cloud의 승인된 리디렉션 URI는 관리자 페이지 주소가 아니라 Supabase의 `/auth/v1/callback` 주소입니다. 위 3번 설정과 구분합니다.
+- **Google 인증 후 관리자 로그인이 완료되지 않음:** PKCE 검증값은 이 앱의 `sessionStorage`에 저장됩니다. 로그인 도중 다른 탭·다른 브라우저로 콜백이 열리거나 탭을 닫아 해당 저장소를 잃으면 코드 교환에 실패할 수 있습니다. 단순히 다른 탭을 잠시 보는 것 자체가 실패 원인은 아닙니다. 로그인을 시작한 탭으로 돌아오는 흐름을 유지하세요. [공식 PKCE 안내](https://supabase.com/docs/guides/auth/sessions/pkce-flow)
+- **인앱 브라우저에서 실패:** 모든 인앱 브라우저가 실패하는 것은 아닙니다. 외부 브라우저로 전환되며 저장소가 분리되거나 Google 로그인이 제한되는 환경에서는 Safari·Chrome 등 일반 브라우저로 관리자 페이지를 처음부터 열고 다시 로그인하세요. 콜백 주소의 `code`를 복사해 옮기지 않습니다. 주소를 바로잡았거나 검증값을 잃었다면 기존 콜백을 새로고침하지 말고 관리자 페이지에서 새 로그인을 시작합니다.
+
+운영 로그인과 브라우저 전환 상황은 아직 실환경에서 검증하지 않았습니다. 이 안내는 문제 발생 시의 확인·복구 절차입니다.
+
 ## 3. 정적 앱 배포와 본인 등록
 
 1. DB 변경 후 `docs/` 전체를 GitHub Pages에 배포합니다. 관리자 파일, 공유 계산 모듈, vendor 파일, CSV templates 폴더를 함께 포함해야 합니다.
