@@ -34,7 +34,7 @@
 - 브라우저의 편집·보기 탭에서 가짜 친구 두 명, 3일 일정, 12,000원 지출을 저장하고, 보기 화면 동기화와 6,000원 정산을 확인했다. 서로 다른 브라우저 제품 전체를 시험한 것은 아니다.
 - 기존 정산·일정 테스트와, 실제 앱 함수를 불러오는 신규 보안 테스트를 모두 실행했다. CSV 매핑·미리보기·중복 처리, JSON 내보내기, PDF 출력용 데이터 생성도 검사했다. PDF 파일 렌더러 자체는 이번에 변경하지 않았다.
 
-DB 검증 58개, 프런트엔드 보안·기능 검증 13개와 기존 정산·일정 회귀 테스트가 통과했다. 잠금 파일 기준 의존성 검사에서 알려진 취약점은 0건이었다. 실행 결과는 `TEST_RESULTS.txt`에 첨부했다. 테스트가 운영 적용을 대신하지 않는다.
+최신 통합 검증은 DB 보안 58개, 관리자 DB 13개, 프런트엔드 22개(총 93개)와 기존 정산·일정 회귀 테스트가 통과했다. 관리자·CSV 추가 결과는 `ADMIN_CSV_REPORT.ko.md`에 있다. 잠금 파일 기준 의존성 검사에서 알려진 취약점은 0건이었다. 실행 결과는 `TEST_RESULTS.txt`에 첨부했다. 테스트가 운영 적용을 대신하지 않는다.
 
 ## 링크와 사용 방식의 변화
 
@@ -75,3 +75,7 @@ DB 검증 58개, 프런트엔드 보안·기능 검증 13개와 기존 정산·�
 - [Supabase 행 단위 보안](https://supabase.com/docs/guides/database/postgres/row-level-security): 테이블 권한과 행 정책을 함께 제한한다.
 - [Supabase Database Functions](https://supabase.com/docs/guides/database/functions): 권한 상승 함수의 검색 경로 고정과 실행 권한 제한.
 - [OWASP CSV Injection](https://owasp.org/www-community/attacks/CSV_Injection): CSV 인용부호 이스케이프와 수식 실행 방어를 구분한다.
+
+## 2026-09-30 기능 추가
+
+관리자 화면에만 고정 버전 Supabase SDK 2.117.2를 자체 호스팅해 Google 인증을 추가했다. 일반 여행 화면은 기존 RPC 모듈을 유지한다. 관리자별 서버 허용 목록을 사용하며 익명 전체 조회 권한은 열지 않았다. CSV 양식·예시·작성 안내도 추가했다. 상세 검증과 운영 미적용 항목은 `ADMIN_CSV_REPORT.ko.md`, 설정은 `ADMIN_SETUP.ko.md`를 따른다.

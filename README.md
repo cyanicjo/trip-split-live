@@ -67,3 +67,10 @@ npm test
 - `pnpm test:db`: 격리 PostgreSQL에서 접근 권한·마이그레이션·키 폐기·동시성 검증
 
 Node.js 22 이상과 `pnpm install --frozen-lockfile`로 테스트 환경을 준비합니다.
+
+## 관리자와 CSV 작성 도움
+
+- `admin.html`: Google 로그인과 서버 계정 등록을 거치는 전체 여행 조회 전용 화면
+- CSV 빈 양식·작성 예시 다운로드와 항목별 작성법
+- 설정: [관리자 배포 안내](ADMIN_SETUP.ko.md), 결과: [추가 검증 보고서](security/ADMIN_CSV_REPORT.ko.md)
+- 로컬 검증: `pnpm test:all`; 테스트 화면: `pnpm preview:security`

@@ -7,7 +7,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; connect-src https://edyaihnztjshxsfissck.supabase.co; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
     <title>실시간 여행 n빵</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-    <link rel="stylesheet" href="./styles.css?v=20260929-security-1">
+    <link rel="stylesheet" href="./styles.css?v=20260930-admin-csv-1">
   </head>
   <body>
     <div class="app-shell">
@@ -56,6 +56,7 @@
                 <i data-lucide="download" aria-hidden="true"></i>
                 <span>내보내기</span>
               </button>
+              <a class="menu-action" href="./admin.html" role="menuitem">관리자 조회</a>
               <div class="menu-separator layout-menu-separator" role="separator"></div>
               <div class="layout-menu-group" role="group" aria-label="화면 구성">
                 <span class="menu-group-label">화면 구성</span>
@@ -477,6 +478,31 @@
           </button>
         </div>
 
+        <div class="csv-guide">
+          <p><strong>처음 기록하시나요?</strong> 양식을 내려받아 채운 뒤 아래에서 업로드해 주세요.</p>
+          <div class="csv-template-actions">
+            <a class="text-button" href="./templates/trip-expenses-blank.csv" download="여행-지출-빈양식.csv">빈 양식 다운로드</a>
+            <a class="text-button" href="./templates/trip-expenses-example.csv" download="여행-지출-작성예시.csv">예시 다운로드</a>
+          </div>
+          <details>
+            <summary>작성법과 예시 보기</summary>
+            <p>한 행에 품목 하나를 적습니다. 이 양식의 금액은 <strong>원화</strong> 기준입니다. 외화와 환율은 여행 화면에서 입력해 주세요. 예시의 가짜 이름과 날짜는 실제 기록에 맞게 바꿔 주세요.</p>
+            <dl>
+              <dt>날짜</dt><dd>2026-10-01처럼 YYYY-MM-DD로 씁니다. 일정이 설정된 여행에서는 필수입니다. 일정이 없을 때 비우면 오늘 날짜를 사용합니다.</dd>
+              <dt>내용 · 품목</dt><dd>내용은 결제 이름(첫날 저녁), 품목은 구입한 것(식사, 음료)입니다. 내용이 없으면 품목명 또는 ‘CSV 지출’, 품목이 없으면 내용 또는 자동 이름을 사용합니다.</dd>
+              <dt>수량 · 단가 <strong>(단가 필수)</strong></dt><dd>단가는 0보다 큰 원화 숫자입니다. 수량 2 × 단가 9000 = 18000원입니다. 수량을 비우면 1로 계산합니다. 총액만 알면 수량 1, 단가에 총액을 씁니다.</dd>
+              <dt>결제자 <strong>(필수)</strong></dt><dd>실제로 돈을 낸 사람 이름입니다. 이름은 매번 똑같이 적어 주세요.</dd>
+              <dt>참여자</dt><dd>함께 나눌 사람을 ‘민수;지연;하늘’처럼 세미콜론으로 구분합니다. 비우면 이번 파일에서 추가되는 사람까지 포함한 전체 참여자입니다. 처음 등장한 이름은 여행 참여자로 추가됩니다.</dd>
+              <dt>카테고리 · 품목 카테고리</dt><dd>식비, 교통처럼 적습니다. 품목 카테고리가 비어 있으면 지출의 카테고리를 사용합니다. 둘 다 비워도 됩니다.</dd>
+              <dt>품목 참여자</dt><dd>그 품목만 나눌 사람이 다르면 이름을 세미콜론으로 구분해 적습니다. 반드시 해당 지출 참여자에 포함된 이름을 쓰세요. 비우면 지출 참여자와 동일하게 나눕니다.</dd>
+              <dt>메모</dt><dd>선택 항목입니다. 같은 결제의 여러 품목은 같은 메모를 사용합니다.</dd>
+            </dl>
+            <p><strong>여러 품목 묶기:</strong> 날짜·내용·결제자·참여자(순서 포함)·메모가 같은 행은 하나의 지출로 묶입니다. 서로 다른 결제라면 내용이나 메모를 다르게 적으세요.</p>
+            <p><strong>중복 제외:</strong> 날짜·내용·결제자·묶음 총액이 기존 지출과 같으면 저장에서 제외합니다. 같은 날짜에 같은 금액을 다시 썼다면 내용을 구분해 주세요.</p>
+            <p><strong>예시 결과:</strong> 택시 12000원과 저녁(식사 2 × 9000원 + 음료 6000원), 총 2건·36000원입니다. 음료는 두 사람만 나누도록 작성되어 있습니다.</p>
+            <p>첫 줄의 열 이름을 유지하고 Excel 등에서 ‘CSV UTF-8’로 저장하세요. 한 파일은 최대 2 MiB·5000행입니다. 업로드 후 미리보기를 확인하고 ‘지출 저장’을 눌러야 반영됩니다.</p>
+          </details>
+        </div>
         <form id="import-form" class="import-form">
           <label class="import-file-field">
             <span>CSV 파일</span>
@@ -719,6 +745,6 @@
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./config.js"></script>
     <script src="./vendor/lucide-0.468.0.min.js"></script>
-    <script type="module" src="./app.js?v=20260929-security-1"></script>
+    <script type="module" src="./app.js?v=20260930-admin-csv-1"></script>
   </body>
 </html>

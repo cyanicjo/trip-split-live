@@ -6124,3 +6124,11 @@ select:focus-visible,
     transition: none;
   }
 }
+
+/* CSV starter templates and field guide. */
+.csv-guide { margin: 16px 0; padding: 16px; border: 1px solid #dbe4ef; border-radius: 12px; background: #f8fafc; line-height: 1.65; }
+.csv-template-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.csv-guide summary { cursor: pointer; font-weight: 650; }
+.csv-guide dt { font-weight: 650; margin-top: 10px; }
+.csv-guide dd { margin: 4px 0 0 12px; }
+.csv-guide a:focus-visible, .csv-guide summary:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }

@@ -2,19 +2,20 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import * as security from '../../docs/security.mjs';
+import * as settlement from '../../docs/settlement.mjs';
 const html = readFileSync(new URL('../../docs/index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../../docs/app.js', import.meta.url), 'utf8');
 export function loadApp({ url = 'https://example.test/?trip=trip-test#edit=fake-key', local = {}, configured = false } = {}) {
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
   const { window } = dom;
-  Object.assign(window, security);
+  Object.assign(window, security, settlement);
   if (configured) window.TRIP_SPLIT_CONFIG = {supabaseUrl:"https://backend.test",supabaseAnonKey:"public-key"};
   window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
   window.CSS = { escape: value => String(value).replace(/[^a-z0-9_-]/gi, ch => `\\${ch}`) };
   window.confirm = () => false;
   for (const [key, value] of Object.entries(local)) window.localStorage.setItem(key, value);
   const context = dom.getInternalVMContext();
-  vm.runInContext(app.replace(/^import .*;\n/, '').replace('\nstart();', '\n'), context);
+  vm.runInContext(app.replace(/^import .*;\n/gm, '').replace('\nstart();', '\n'), context);
   return { dom, window, eval: code => vm.runInContext(code, context), close: () => window.close() };
 }
 export const fakeRow = {

@@ -30,7 +30,7 @@ pnpm preview:security
 
 ## 운영 적용 순서
 
-1. Supabase SQL Editor에서 `supabase/migrations/20260929_security_hardening.sql` 전체를 DB 소유자로 실행합니다. 트랜잭션이 실패하면 원인을 확인하고 중지합니다. `supabase/schema.sql`도 같은 내용이며 두 파일을 모두 실행할 필요는 없습니다.
+1. Supabase SQL Editor에서 `supabase/migrations/20260929_security_hardening.sql` 전체를 DB 소유자로 실행합니다. 트랜잭션이 실패하면 원인을 확인하고 중지합니다. 관리자 기능도 함께 적용하려면 이어서 `supabase/migrations/20260930_admin_readonly.sql`을 실행합니다. `supabase/schema.sql`은 두 마이그레이션을 합친 파일이므로 처음 적용할 때 대신 사용할 수 있습니다.
 2. `supabase/verify_security.sql`을 실행합니다. `security checks passed`를 확인하고, 링크 재발급 대기 여행 수와 소유자 복구 대기 수를 확인합니다. 실제 여행 내용을 출력하지 않는 점검입니다.
 3. `supabase/recover_revoked_links.sql`을 소유자 계정으로 실행합니다. 공개 기록에서 노출된 키와 일치한 여행에만 새 ID와 편집 키를 발급합니다. 결과를 개인적으로 보관하고 아래 형식으로 링크를 만듭니다. 출력값을 문서·채팅방·Git 기록에 공개하지 않습니다.
 4. 이 수정본을 GitHub 저장소에 반영하고 Pages의 `main` / `docs` 배포가 끝날 때까지 기다립니다. `security.mjs`, `vendor/lucide-0.468.0.min.js`, 라이선스 파일도 함께 반영합니다. 앱·스타일의 캐시 버전이 변경돼 있습니다.
@@ -65,3 +65,7 @@ pnpm preview:security
 - 백업에서 복원해야 한다면 외부 접속이 차단된 상태에서 복원한 뒤 이 보안 스크립트를 재적용하고, 키 재발급을 마친 후 공개합니다.
 
 GitHub Pages 자체의 응답 헤더 설정 한계 때문에 클릭재킹 방어용 `frame-ancestors`는 이번 정적 HTML에 넣지 않았습니다. 해당 요구가 있으면 헤더를 제어할 수 있는 배포 구성을 별도로 선택해야 합니다.
+
+## 관리자 조회와 CSV 양식 추가
+
+Google 인증 설정·본인 계정 등록·권한 해제는 [ADMIN_SETUP.ko.md](ADMIN_SETUP.ko.md)를 따릅니다. 이 과정 전에는 운영 관리자 조회가 준비된 상태가 아닙니다. CSV templates와 공유 계산 모듈을 포함해 `docs/` 전체를 배포합니다.

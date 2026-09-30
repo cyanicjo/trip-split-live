@@ -4,17 +4,20 @@
   "private": true,
   "description": "GitHub Pages and Supabase realtime trip expense splitter.",
   "scripts": {
-    "test": "node test/settlement.test.js && node test/itinerary.test.js && node --test test/frontend-security.test.mjs",
-    "test:db": "node test/database-security.test.mjs",
+    "test": "node test/settlement.test.js && node test/itinerary.test.js && node --test test/frontend-security.test.mjs test/admin-csv.test.mjs",
+    "test:db": "node test/database-security.test.mjs && node test/admin-database.test.mjs",
     "test:all": "pnpm test && pnpm test:db",
-    "preview:security": "node test/preview-server.mjs"
+    "preview:security": "node test/preview-server.mjs",
+    "build:auth": "esbuild node_modules/@supabase/supabase-js/dist/index.mjs --bundle --format=esm --platform=browser --target=es2022 --minify --legal-comments=eof --outfile=docs/vendor/supabase-2.117.2.mjs"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
     "embedded-postgres": "17.10.0-beta.17",
-    "jsdom": "26.1.0"
+    "jsdom": "26.1.0",
+    "@supabase/supabase-js": "2.117.2",
+    "esbuild": "0.28.2"
   },
   "packageManager": "pnpm@11.19.0"
 }

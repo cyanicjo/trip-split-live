@@ -27,7 +27,7 @@ try {
   await client.query('update public.trip_secrets s set edit_token_hash=$1 from public.trips t where s.trip_id=t.id and t.public_id=$2', [audit.revoked_edit_token_sha256[0], compromised.public_id]);
   const snapshot = (await client.query('select * from public.trips order by id')).rows;
   const schema = await readFile(new URL('../supabase/schema.sql', import.meta.url), 'utf8');
-  assert.equal(schema,await readFile(new URL('../supabase/migrations/20260929_security_hardening.sql',import.meta.url),'utf8'));
+  assert.equal(schema,(await readFile(new URL('../supabase/migrations/20260929_security_hardening.sql',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('../supabase/migrations/20260930_admin_readonly.sql',import.meta.url),'utf8')));
   await client.query(schema);
   await check('migration preserves all existing trip rows', async () => assert.deepEqual((await client.query('select * from public.trips order by id')).rows, snapshot));
   await check('migration is repeatable', async () => { await client.query(schema); assert.deepEqual((await client.query('select * from public.trips order by id')).rows, snapshot); });

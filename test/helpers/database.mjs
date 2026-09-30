@@ -20,7 +20,13 @@ export async function startDatabase() {
     await db.start();
     const client = db.getPgClient();
     await client.connect();
-    await client.query('create role anon; create role authenticated; create publication supabase_realtime;');
+    await client.query(`create role anon; create role authenticated; create publication supabase_realtime;
+      create schema auth;
+      create table auth.users(id uuid primary key);
+      create table auth.identities(user_id uuid references auth.users, provider text);
+      create function auth.uid() returns uuid language sql stable as
+        'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
+      grant usage on schema auth to anon, authenticated;`);
     return { client, db, async close() { await client.end(); await db.stop(); await rm(dir, { recursive: true, force: true }); } };
   } catch (error) { await db.stop().catch(() => {}); await rm(dir, { recursive: true, force: true }); throw error; }
 }
