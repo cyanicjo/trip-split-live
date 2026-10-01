@@ -1,6 +1,8 @@
 # Trip Split Live 프로젝트 요약
 
-마지막 정리일: 2026-09-03
+마지막 정리일: 2026-09-30
+
+> 보안 보완으로 링크·RPC·배포 방식이 변경됐습니다. 아래 과거 기능 설명보다 `DEPLOYMENT.md`와 `security/REPORT.ko.md`의 보안 지침이 우선합니다. 운영 적용은 별도입니다.
 
 이 파일은 다음 대화에서 긴 설명 없이 이어가기 위한 요약입니다.
 
@@ -12,7 +14,7 @@
 
 - 화면 배포: GitHub Pages
 - 데이터 저장: Supabase Database
-- 실시간 갱신: Supabase Realtime
+- 갱신: 권한 검증 RPC 폴링 (활성 탭 3초)
 - 서버 방식: `server.js`는 쓰지 않음
 - 공개 폴더: `docs/`
 - DB 스키마: `supabase/schema.sql`
@@ -24,9 +26,9 @@
 - GitHub 저장소: `https://github.com/cyanicjo/trip-split-live.git`
 - GitHub Pages 주소: `https://cyanicjo.github.io/trip-split-live/`
 - 현재 자주 쓰던 여행방 보기 링크 예시:
-  `https://cyanicjo.github.io/trip-split-live/?trip=trip-60ee873d6d964d12`
+  `https://cyanicjo.github.io/trip-split-live/?trip=trip-EXAMPLE-DO-NOT-USE`
 
-편집 링크에는 `edit=` 토큰이 들어 있습니다. 이 링크를 가진 사람은 친구와 지출을 수정할 수 있으므로 공개 문서나 저장소에는 편집 링크 전체를 기록하지 않습니다.
+편집 링크에는 URL fragment의 `#edit=` 토큰이 들어 있습니다. 이 링크를 가진 사람은 친구와 지출을 수정할 수 있으므로 공개 문서나 저장소에는 편집 링크 전체를 기록하지 않습니다.
 
 ## 핵심 파일
 

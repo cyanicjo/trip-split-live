@@ -1,0 +1,117 @@
+$ pnpm test && pnpm test:db
+$ node test/settlement.test.js && node test/itinerary.test.js && node --test test/frontend-security.test.mjs test/admin-csv.test.mjs
+settlement tests passed
+itinerary tests passed
+✔ standard CSV downloads have BOM and exact recognized headers (168.424ms)
+✔ downloaded example imports as two expenses with item participants and correct totals; reimport skips both (125.528291ms)
+✔ admin detail shows accounts, schedule, FX, settlement and malicious text without HTML execution (11.200125ms)
+✔ logged out admin never calls a data API (4.358458ms)
+✔ permission denial clears previously displayed list and detail (6.315666ms)
+✔ logout discards a late detail response and clears session storage (4.064125ms)
+✔ administrator uses Google PKCE, session storage and user bearer token with pinned SDK (18.640959ms)
+✔ administrator pagination sends the complete cursor and previous page returns to the start (15.057208ms)
+✔ hidden tab clears private data immediately and checks permission again on return (4.674041ms)
+✔ CSV formula protection, including whitespace, quotes, separators, and numeric values (0.678125ms)
+✔ edit keys only in fragments; view links never contain keys (0.177667ms)
+✔ keys default to session; opt-in persistence, removal, and unavailable storage (0.176667ms)
+✔ legacy dashboard keys migrate to session without changing public viewer privilege (164.524917ms)
+✔ baseline attribute payload forms an executable event attribute, patched renderers do not (181.863625ms)
+✔ actual app calculation and all export formats keep normal data intact (106.807584ms)
+✔ RPC never puts edit keys in request URL or referrer; failures carry stable codes (0.347ms)
+✔ polling pauses hidden tabs, backs off errors, resumes, and never overlaps (2.51725ms)
+✔ no automatic trip creation on opening the homepage (65.287667ms)
+✔ pending rotation survives a lost response and is bound to the original edit key (0.827375ms)
+✔ actual app recovers a committed rotation after reload (59.823417ms)
+✔ only self-hosted scripts allowed and no Realtime client remains (0.801042ms)
+✔ CSV mapping, preview, and actual import planner retain expenses and block duplicates (116.7435ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1037.535042
+$ node test/database-security.test.mjs && node test/admin-database.test.mjs
+PASS baseline: anonymous role can list both fake trips
+PASS baseline: editor can persist an HTML attribute payload in a person ID
+PASS migration preserves all existing trip rows
+PASS migration is repeatable
+PASS anon: direct trips read blocked
+PASS anon: direct trips write blocked
+PASS anon: direct trip_secrets read blocked
+PASS anon: direct trip_secrets write blocked
+PASS authenticated: direct trips read blocked
+PASS authenticated: direct trips write blocked
+PASS authenticated: direct trip_secrets read blocked
+PASS authenticated: direct trip_secrets write blocked
+PASS no full-row Realtime publication remains
+PASS legacy public links stop reading immediately
+PASS legacy editor can recover its own trip
+PASS another editor cannot recover a legacy trip
+PASS historically exposed edit hash is irreversibly revoked by migration
+PASS owner recovery preserves trip and returns working fresh credentials once
+PASS new links use independent 256-bit random values
+PASS viewer only sees its specific trip and cannot edit
+PASS unknown/non-exact ID returns no trip ("")
+PASS unknown/non-exact ID returns no trip ("*")
+PASS unknown/non-exact ID returns no trip ("' OR true --")
+PASS unknown/non-exact ID returns no trip ("trip-not-found")
+PASS missing/wrong/other-trip edit key rejected
+PASS missing/wrong/other-trip edit key rejected
+PASS missing/wrong/other-trip edit key rejected
+PASS missing/wrong/other-trip edit key rejected
+PASS valid expense and participant data save
+PASS stale save rejected without overwriting
+PASS malformed input 1 rejected atomically
+PASS malformed input 2 rejected atomically
+PASS malformed input 3 rejected atomically
+PASS malformed input 4 rejected atomically
+PASS malformed input 5 rejected atomically
+PASS malformed input 6 rejected atomically
+PASS malformed input 7 rejected atomically
+PASS malformed input 8 rejected atomically
+PASS malformed input 9 rejected atomically
+PASS malformed input 10 rejected atomically
+PASS malformed input 11 rejected atomically
+PASS malformed input 12 rejected atomically
+PASS malformed input 13 rejected atomically
+PASS malformed input 14 rejected atomically
+PASS malformed input 15 rejected atomically
+PASS malformed input 16 rejected atomically
+PASS oversized payload rejected
+PASS nested payload depth bounded
+PASS supported foreign expenses and settings save
+PASS authenticated role does not inherit RPC execute
+PASS private validation helpers unavailable through client role
+PASS hash helper is not a public RPC
+PASS old update overloads are removed
+PASS foreign key cannot rotate links
+PASS link rotation keeps trip contents and invalidates both old capabilities
+PASS two simultaneous saves cannot silently overwrite each other
+PASS legacy editor upgrades without losing the trip
+PASS read-only post-deployment verification passes
+Database security: 58 checks passed (isolated PostgreSQL; not production Supabase).
+PASS anonymous admin APIs denied
+PASS authenticated without identity denied
+PASS first Google login has no automatic administrator role
+PASS owner provisioning placeholders fail closed
+PASS other Google account cannot list or read arbitrary trip
+PASS pagination covers 102 trips exactly once, including timestamp ties
+PASS invalid partial cursor rejected
+PASS revoked legacy trip visible only through administrator detail
+PASS administrator cannot access tables or private allowlist
+PASS administrator cannot update, delete, rotate links or grant self permissions
+PASS migration preserves owner registration and trip data on repeat
+PASS removed administrator denied with same session identity
+PASS read-only database deployment checks pass
+
+13 administrator database checks passed.
+
+Manual browser verification (isolated local database; synthetic data only):
+- Administrator list and detail: names, accounts, schedule, FX rates, settlement visible.
+- CSV example: all 11 columns mapped; 3 rows saved as 2 expenses totalling 36000 KRW.
+- Second administrator tab refreshed the existing 12000 KRW trip to 48000 KRW.
+- Administrator logout cleared the list/detail and restored Google login control.
+- No error/warning console entries in the checked browser tabs.
+- Real Google consent/callback and production permissions: NOT VERIFIED / NOT DEPLOYED.

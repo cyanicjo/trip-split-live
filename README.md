@@ -33,7 +33,7 @@ Node 서버(`server.js`)는 사용하지 않습니다.
 - 내 브라우저에 저장되는 개인 여행 목록
 - 해외여행 모드, 외화 2개, 수동 환율, 환전 기록
 - Supabase 저장
-- Supabase Realtime으로 실시간 갱신
+- 권한을 확인하는 RPC로 활성 화면을 약 3초 간격으로 갱신
 - 누가 누구에게 얼마 보내면 되는지 송금표 계산
 
 ## 배포 순서
@@ -53,3 +53,24 @@ Node 서버(`server.js`)는 사용하지 않습니다.
 ```bash
 npm test
 ```
+
+
+## 보안 보완 버전
+
+보안 점검 결과와 운영 미적용 항목은 [보안 보고서](security/REPORT.ko.md)에 있습니다.
+[배포 안내](DEPLOYMENT.md)의 순서대로 DB와 앱을 함께 적용해야 합니다.
+
+- 테이블 직접 접근 차단, 새 링크 난수 강화, 유출된 편집 키 무효화
+- 보기·편집 링크 재발급, 편집 키 fragment 전환과 세션 보관
+- 서버 입력 검증, HTML/CSV 삽입 방어, 동시 저장 충돌 검사
+- `pnpm test`: 기존 회귀 테스트와 실제 앱 코드 기반 보안 테스트
+- `pnpm test:db`: 격리 PostgreSQL에서 접근 권한·마이그레이션·키 폐기·동시성 검증
+
+Node.js 22 이상과 `pnpm install --frozen-lockfile`로 테스트 환경을 준비합니다.
+
+## 관리자와 CSV 작성 도움
+
+- `admin.html`: Google 로그인과 서버 계정 등록을 거치는 전체 여행 조회 전용 화면
+- CSV 빈 양식·작성 예시 다운로드와 항목별 작성법
+- 설정: [관리자 배포 안내](ADMIN_SETUP.ko.md), 결과: [추가 검증 보고서](security/ADMIN_CSV_REPORT.ko.md)
+- 로컬 검증: `pnpm test:all`; 테스트 화면: `pnpm preview:security`

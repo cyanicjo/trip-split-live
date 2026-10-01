@@ -1,0 +1,22 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; color: #1e293b; background: #f3f6fa; line-height: 1.6; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+main { max-width: 1120px; margin: auto; padding: 32px 20px 80px; }
+header, .toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+header { justify-content: space-between; }
+h1 { margin: 0; font-size: 28px; } h2 { font-size: 22px; } h3 { font-size: 18px; }
+.eyebrow { color: #475569; margin: 0; font-size: 14px; }
+a { color: #1d4ed8; }
+button { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 15px; background: white; color: #1648a0; cursor: pointer; font: inherit; }
+button:hover { background: #eff6ff; } button:disabled { opacity: .5; cursor: default; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
+section { background: white; padding: 22px; margin-top: 20px; border-radius: 16px; border: 1px solid #e2e8f0; }
+#admin-status { white-space: pre-wrap; overflow-wrap: anywhere; }
+.trip-card { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; text-align: left; margin: 8px 0; }
+.trip-card span, dd { overflow-wrap: anywhere; white-space: pre-wrap; }
+.trip-card small { color: #475569; }
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; } th, td { text-align: left; padding: 10px; border-bottom: 1px solid #e2e8f0; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 90px; }
+details { border-bottom: 1px solid #e2e8f0; padding: 10px 0; } summary { cursor: pointer; }
+dl { margin: 8px 0; } dt { color: #475569; font-size: 14px; } dd { margin: 0 0 8px 16px; }
+@media (max-width: 600px) { main { padding: 20px 12px; } section { padding: 14px; } .trip-card { align-items: start; flex-direction: column; } }
