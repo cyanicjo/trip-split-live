@@ -7,6 +7,61 @@ import { loadApp, fakeRow } from './helpers/app.mjs';
 
 const memory = () => { const values = new Map(); return {getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)}; };
 
+function settingsApp() {
+  const app = loadApp();
+  const dialog = app.window.document.querySelector('#security-settings');
+  // jsdom lacks the native dialog methods; browsers provide focus trapping and Escape.
+  dialog.showModal = () => dialog.setAttribute('open', '');
+  dialog.close = () => { dialog.removeAttribute('open'); dialog.dispatchEvent(new app.window.Event('close')); };
+  app.eval('editVerified = true; renderSecurityControls();');
+  return {app, dialog, get: id => app.window.document.getElementById(id)};
+}
+test('sensitive actions live outside the travel menu; unsaved retention changes are discarded', () => {
+  const {app, dialog, get} = settingsApp();
+  try {
+    assert.equal(app.window.document.querySelector('#action-menu a[href="./admin.html"]'), null);
+    assert.equal(get('rotate-trip-links').closest('#action-menu'), null);
+    get('open-security-settings').click();
+    assert.equal(dialog.open, true);
+    get('remember-edit-access').click();
+    app.eval('renderSecurityControls()');
+    assert.equal(get('remember-edit-access').checked, true);
+    assert.equal(app.eval('credentials.isPersistent(tripId)'), false);
+    get('close-security-settings').click();
+    get('open-security-settings').click();
+    assert.equal(get('remember-edit-access').checked, false);
+    get('remember-edit-access').click();
+    get('save-edit-access').click();
+    assert.equal(app.eval('credentials.isPersistent(tripId)'), true);
+    get('remember-edit-access').click();
+    get('save-edit-access').click();
+    assert.equal(app.eval('credentials.isPersistent(tripId)'), false);
+  } finally { app.close(); }
+});
+test('rotation requires an open settings dialog, fresh acknowledgement and final confirmation', () => {
+  const {app, get} = settingsApp();
+  let confirmations = 0;
+  app.window.confirm = () => { confirmations++; return false; };
+  try {
+    get('open-security-settings').click();
+    get('rotate-trip-links').click();
+    assert.equal(confirmations, 0);
+    get('acknowledge-link-rotation').click();
+    get('rotate-trip-links').click();
+    assert.equal(confirmations, 1);
+    assert.equal(app.eval('saving'), false);
+    get('close-security-settings').click();
+    get('open-security-settings').click();
+    assert.equal(get('acknowledge-link-rotation').checked, false);
+    assert.equal(get('rotate-trip-links').disabled, true);
+    app.eval('editVerified = false; renderSecurityControls();');
+    assert.equal(get('security-settings').open, false);
+    assert.equal(get('open-security-settings').hidden, true);
+    get('open-security-settings').click();
+    assert.equal(get('security-settings').open, false);
+  } finally { app.close(); }
+});
+
 test('CSV formula protection, including whitespace, quotes, separators, and numeric values', () => {
   for(const value of ['=1+1','+SUM(1,2)','-1+1','@SUM(1,2)','  =1+1','\t=1+1','\r=1+1','\n=1+1','＝1+1','\u0000=1+1']) assert.ok(csvCell(value).replace(/^"/, '').startsWith("'"));
   assert.equal(csvCell('hello, "friend"'), '"hello, ""friend"""');

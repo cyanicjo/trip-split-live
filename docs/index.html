@@ -7,7 +7,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; connect-src https://edyaihnztjshxsfissck.supabase.co; img-src 'self' data: blob:; base-uri 'none'; form-action 'none'; object-src 'none'">
     <title>실시간 여행 n빵</title>
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-    <link rel="stylesheet" href="./styles.css?v=20260930-admin-csv-1">
+    <link rel="stylesheet" href="./styles.css?v=20261002-security-settings-1">
   </head>
   <body>
     <div class="app-shell">
@@ -38,8 +38,6 @@
             </summary>
             <div class="action-menu-popover" role="menu" aria-label="여행 메뉴">
               <button id="copy-edit-link" class="menu-action" type="button" role="menuitem" hidden>편집 링크 복사</button>
-              <button id="rotate-trip-links" class="menu-action" type="button" role="menuitem" hidden>공유 링크 재발급</button>
-              <label class="menu-action" hidden><input id="remember-edit-access" type="checkbox">이 브라우저에 편집 권한 계속 보관</label>
               <button id="open-dashboard" class="menu-action" type="button" role="menuitem">
                 <i data-lucide="layout-grid" aria-hidden="true"></i>
                 <span>내 여행</span>
@@ -56,7 +54,7 @@
                 <i data-lucide="download" aria-hidden="true"></i>
                 <span>내보내기</span>
               </button>
-              <a class="menu-action" href="./admin.html" role="menuitem">관리자 조회</a>
+              <button id="open-security-settings" class="menu-action" type="button" role="menuitem" hidden>공유 및 보안 설정</button>
               <div class="menu-separator layout-menu-separator" role="separator"></div>
               <div class="layout-menu-group" role="group" aria-label="화면 구성">
                 <span class="menu-group-label">화면 구성</span>
@@ -742,9 +740,28 @@
       </section>
     </div>
 
+    <dialog id="security-settings" class="security-settings" aria-labelledby="security-settings-heading">
+      <div class="modal-header">
+        <h2 id="security-settings-heading">공유 및 보안 설정</h2>
+        <button id="close-security-settings" class="text-button" type="button" autofocus>닫기</button>
+      </div>
+      <section>
+        <h3>이 기기에 편집 권한 보관</h3>
+        <p>기본적으로 현재 세션에서만 편집 권한을 보관합니다. 계속 보관하면 브라우저를 다시 열어도 편집할 수 있습니다. 공용 기기에서는 사용하지 마세요.</p>
+        <label class="security-check"><input id="remember-edit-access" type="checkbox"><span>이 브라우저에 편집 권한 계속 보관</span></label>
+        <button id="save-edit-access" class="secondary-button" type="button">보관 설정 저장</button>
+        <p id="edit-access-status" role="status" aria-live="polite"></p>
+      </section>
+      <section>
+        <h3>공유 링크 재발급</h3>
+        <p id="rotate-links-help">현재 보기·편집 링크가 모두 중지됩니다. 여행 기록은 유지되며, 새 링크를 참가자에게 다시 보내야 합니다.</p>
+        <label class="security-check"><input id="acknowledge-link-rotation" type="checkbox"><span>기존 링크가 모두 중지됨을 확인했습니다.</span></label>
+        <button id="rotate-trip-links" class="secondary-button" type="button" aria-describedby="rotate-links-help" disabled>새 공유 링크 발급</button>
+      </section>
+    </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="./config.js"></script>
     <script src="./vendor/lucide-0.468.0.min.js"></script>
-    <script type="module" src="./app.js?v=20260930-admin-csv-1"></script>
+    <script type="module" src="./app.js?v=20261002-security-settings-1"></script>
   </body>
 </html>
