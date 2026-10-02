@@ -44,6 +44,12 @@ const elements = {
   copyEditLink: document.querySelector("#copy-edit-link"),
   rotateLinks: document.querySelector("#rotate-trip-links"),
   rememberEdit: document.querySelector("#remember-edit-access"),
+  openSecuritySettings: document.querySelector("#open-security-settings"),
+  securitySettings: document.querySelector("#security-settings"),
+  closeSecuritySettings: document.querySelector("#close-security-settings"),
+  saveEditAccess: document.querySelector("#save-edit-access"),
+  editAccessStatus: document.querySelector("#edit-access-status"),
+  acknowledgeRotation: document.querySelector("#acknowledge-link-rotation"),
   securityNotice: document.querySelector("#security-notice"),
   createTripButton: document.querySelector("#create-trip-button"),
   welcomePanel: document.querySelector("#welcome-panel"),
@@ -1488,12 +1494,15 @@ window.addEventListener("pageshow", event => { if (event.persisted && state) con
 
 function renderSecurityControls() {
   elements.copyEditLink.hidden = !canEdit();
+  elements.openSecuritySettings.hidden = !canEdit();
+  if (!canEdit() && elements.securitySettings.open) elements.securitySettings.close();
   elements.rotateLinks.hidden = !canEdit();
+  elements.rotateLinks.disabled = !canEdit() || saving || !elements.acknowledgeRotation.checked;
   elements.rememberEdit.closest("label").hidden = !canEdit();
-  elements.rememberEdit.checked = canEdit() && credentials.isPersistent(tripId);
+  if (!elements.securitySettings.open) elements.rememberEdit.checked = canEdit() && credentials.isPersistent(tripId);
   const legacy = canEdit() && !/^trip-[a-f0-9]{64}$/.test(tripId);
   elements.securityNotice.hidden = !legacy;
-  elements.securityNotice.textContent = legacy ? "이전 보기 링크는 보호를 위해 중지되었습니다. 여행 메뉴에서 ‘공유 링크 재발급’을 눌러 새 링크를 공유해 주세요." : "";
+  elements.securityNotice.textContent = legacy ? "이전 보기 링크는 보호를 위해 중지되었습니다. 여행 메뉴의 ‘공유 및 보안 설정’에서 새 공유 링크를 발급해 주세요." : "";
 }
 
 function syncParticipantSelection() {
@@ -6821,14 +6830,30 @@ elements.createTripButton.addEventListener("click", async () => {
   catch (error) { showToast(error.message); elements.createTripButton.disabled = false; }
 });
 elements.copyEditLink.addEventListener("click", () => { if (canEdit()) copyText(editLink(), "편집 링크를 복사했습니다."); });
-elements.rememberEdit.addEventListener("change", () => {
+elements.openSecuritySettings.addEventListener("click", () => {
   if (!canEdit()) return;
-  const stored = credentials.save(tripId, editToken, elements.rememberEdit.checked);
-  if (!stored) showToast("브라우저에 저장할 수 없습니다. 편집 링크를 별도로 보관해 주세요.");
+  elements.actionMenu.open = false;
+  elements.rememberEdit.checked = credentials.isPersistent(tripId);
+  elements.acknowledgeRotation.checked = false;
+  elements.editAccessStatus.textContent = "";
   renderSecurityControls();
+  elements.securitySettings.showModal();
+});
+elements.closeSecuritySettings.addEventListener("click", () => elements.securitySettings.close());
+elements.securitySettings.addEventListener("close", () => {
+  elements.acknowledgeRotation.checked = false;
+  renderSecurityControls();
+  if (canEdit()) elements.actionMenu.querySelector("summary").focus();
+});
+elements.acknowledgeRotation.addEventListener("change", renderSecurityControls);
+elements.saveEditAccess.addEventListener("click", () => {
+  if (!canEdit() || !elements.securitySettings.open) return;
+  const stored = credentials.save(tripId, editToken, elements.rememberEdit.checked);
+  elements.rememberEdit.checked = credentials.isPersistent(tripId);
+  elements.editAccessStatus.textContent = stored ? "보관 설정을 저장했습니다." : "브라우저에 저장할 수 없습니다. 편집 링크를 별도로 보관해 주세요.";
 });
 elements.rotateLinks.addEventListener("click", async () => {
-  if (!canEdit() || saving) return;
+  if (!canEdit() || saving || !elements.securitySettings.open || !elements.acknowledgeRotation.checked) return;
   if (!window.confirm("기존 보기·편집 링크가 모두 중지됩니다. 여행 기록은 유지됩니다. 새 링크를 발급할까요?")) return;
   saving = true;
   elements.rotateLinks.disabled = true;
@@ -6866,7 +6891,12 @@ elements.rotateLinks.addEventListener("click", async () => {
     } catch { /* Keep the pending key in session storage for the next reload. */ }
     showToast(error.code === "40001" ? "다른 변경이 있습니다. 최신 내용을 불러온 뒤 다시 시도해 주세요." : error.message);
   }
-  finally { saving = false; elements.rotateLinks.disabled = false; }
+  finally {
+    saving = false;
+    elements.acknowledgeRotation.checked = false;
+    elements.securitySettings.close();
+    renderSecurityControls();
+  }
 });
 
 

@@ -1,6 +1,27 @@
 /* Honor hidden for both existing panels and security controls. */
 [hidden] { display: none !important; }
 
+.security-settings {
+  width: min(540px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 24px;
+  border: 1px solid #e5e8eb;
+  border-radius: 18px;
+  color: #191f28;
+  background: #fff;
+  box-shadow: 0 20px 60px #191f2833;
+}
+.security-settings::backdrop { background: #191f2866; }
+.security-settings section { border-top: 1px solid #e5e8eb; margin-top: 20px; padding-top: 16px; }
+.security-settings h2 { font-size: 20px; }
+.security-settings h3 { font-size: 16px; }
+.security-settings p { color: #6b7684; font-size: 14px; line-height: 1.6; }
+.security-settings .security-check { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0; font-size: 14px; line-height: 1.5; }
+.security-settings .security-check input { flex: 0 0 18px; width: 18px; height: 18px; margin: 2px 0 0; padding: 0; }
+.security-settings button:disabled { opacity: .45; cursor: not-allowed; }
+
 :root {
   color-scheme: light;
   --ink: #191f28;
