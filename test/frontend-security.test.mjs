@@ -16,6 +16,35 @@ function settingsApp() {
   app.eval('editVerified = true; renderSecurityControls();');
   return {app, dialog, get: id => app.window.document.getElementById(id)};
 }
+test('verified editors default to remembered access, and saved opt-out survives later saves and new sessions', () => {
+  const {app, get} = settingsApp();
+  try {
+    app.window.fixture = fakeRow;
+    app.eval('state = normalizeTrip(window.fixture); editVerified = false; rememberCurrentTrip();');
+    assert.equal(app.eval('credentials.isPersistent(tripId)'), false);
+    app.eval('editVerified = true; rememberCurrentTrip(); renderSecurityControls();');
+    get('open-security-settings').click();
+    assert.equal(get('remember-edit-access').checked, true);
+    assert.equal(app.eval('credentials.isPersistent(tripId)'), true);
+    get('remember-edit-access').click();
+    get('close-security-settings').click();
+    get('open-security-settings').click();
+    assert.equal(get('remember-edit-access').checked, true);
+    get('remember-edit-access').click();
+    get('save-edit-access').click();
+    app.eval('rememberCurrentTrip();');
+    assert.equal(app.eval('credentials.isPersistent(tripId)'), false);
+    get('close-security-settings').click();
+    get('open-security-settings').click();
+    assert.equal(get('remember-edit-access').checked, false);
+    const newSession = createCredentialStore(memory(), app.window.localStorage);
+    assert.equal(newSession.shouldRemember('trip-test'), false);
+    newSession.save('trip-test', 'fake-key', newSession.shouldRemember('trip-test'));
+    assert.equal(newSession.isPersistent('trip-test'), false);
+    assert.equal(newSession.shouldRemember('another-trip'), true);
+  } finally { app.close(); }
+});
+
 test('sensitive actions live outside the travel menu; unsaved retention changes are discarded', () => {
   const {app, dialog, get} = settingsApp();
   try {
