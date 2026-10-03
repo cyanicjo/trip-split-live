@@ -25,20 +25,27 @@ export function readLink(href) {
 
 export function createCredentialStore(session, persistent) {
   const prefix = "tripSplitEdit:";
+  const preferencePrefix = "tripSplitRemember:";
   const read = (storage, key) => { try { return storage.getItem(key) || ""; } catch { return ""; } };
   const remove = (storage, key) => { try { storage.removeItem(key); } catch { /* Storage may be disabled. */ } };
   const write = (storage, key, value) => { try { storage.setItem(key, value); return true; } catch { return false; } };
   return {
     get: id => read(session, prefix + id) || read(persistent, prefix + id),
     isPersistent: id => Boolean(read(persistent, prefix + id)),
+    shouldRemember: id => (read(session, preferencePrefix + id) || read(persistent, preferencePrefix + id)) !== "false",
     save(id, token, remember = false) {
       if (!id || !token) return false;
       const saved = write(session, prefix + id, token);
+      write(session, preferencePrefix + id, String(remember));
+      write(persistent, preferencePrefix + id, String(remember));
       if (remember) return write(persistent, prefix + id, token);
       remove(persistent, prefix + id);
       return saved;
     },
-    forget(id) { remove(session, prefix + id); remove(persistent, prefix + id); },
+    forget(id) {
+      remove(session, prefix + id); remove(persistent, prefix + id);
+      remove(session, preferencePrefix + id); remove(persistent, preferencePrefix + id);
+    },
     pending(id, token) {
       try {
         const value = JSON.parse(read(session, `tripSplitRotation:${id}`));

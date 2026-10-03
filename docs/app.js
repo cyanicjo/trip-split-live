@@ -833,7 +833,7 @@ function rememberCurrentTrip() {
     return;
   }
 
-  if (canEdit()) credentials.save(tripId, editToken, credentials.isPersistent(tripId));
+  if (canEdit()) credentials.save(tripId, editToken, credentials.shouldRemember(tripId));
   const nextTrip = {
     publicId: tripId,
     name: state.name,
